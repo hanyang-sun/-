@@ -1,0 +1,85 @@
+{
+    "scanId": "scan-444a6d9f33ed433db335a9bfa49ba752",
+    "frameId": "frame-826a97fb7b21486985f9da94a2872be1",
+    "capturedAtUtc": "2026-10-09T09:06:37.9319159Z",
+    "status": "Rejected",
+    "orientation": "top-left-rgb",
+    "inputMode": "PlainBackground",
+    "coordinateBasis": "",
+    "direction": "",
+    "boardIsReliable": false,
+    "width": 1080,
+    "height": 2449,
+    "processingMilliseconds": 584.9281,
+    "calibration": {
+        "colors": [
+            {
+                "r": 65,
+                "g": 61,
+                "b": 63,
+                "a": 255
+            },
+            {
+                "r": 251,
+                "g": 251,
+                "b": 251,
+                "a": 255
+            },
+            {
+                "r": 253,
+                "g": 97,
+                "b": 48,
+                "a": 255
+            },
+            {
+                "r": 5,
+                "g": 195,
+                "b": 254,
+                "a": 255
+            }
+        ]
+    },
+    "cells": [],
+    "bricks": [],
+    "issues": [
+        {
+            "code": "BRICK_CROPPED",
+            "message": "积木或未知物体被画面边缘裁切；请完整拍入。",
+            "frameId": "frame-826a97fb7b21486985f9da94a2872be1",
+            "c": -1,
+            "r": -1
+        }
+    ],
+    "boardToImage": [],
+    "corners": [],
+    "viewfinder": [
+        {
+            "x": 0.0,
+            "y": 0.0
+        },
+        {
+            "x": 1079.0,
+            "y": 0.0
+        },
+        {
+            "x": 1079.0,
+            "y": 2448.0
+        },
+        {
+            "x": 0.0,
+            "y": 2448.0
+        }
+    ],
+    "markerIds": [],
+    "settings": {
+        "maximumDetectionSide": 1200,
+        "maximumColorDistance": 0.24,
+        "minimumColorMargin": 0.08,
+        "minimumCellAgreement": 0.88,
+        "minimumCalibrationSeparation": 0.32,
+        "minimumCellPixels": 18.0,
+        "maximumMarkerFitError": 0.18,
+        "minimumColorBrightness": 0.12,
+        "minimumCellCoverage": 0.65
+    }
+}

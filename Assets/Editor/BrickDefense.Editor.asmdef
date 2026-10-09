@@ -1,0 +1,15 @@
+{
+  "name": "BrickDefense.Editor",
+  "references": [
+    "BrickDefense.Contracts",
+    "BrickDefense.Domain",
+    "BrickDefense.Vision",
+    "BrickDefense.Application",
+    "BrickDefense.Infrastructure",
+    "BrickDefense.Presentation"
+  ],
+  "noEngineReferences": false,
+  "includePlatforms": [
+    "Editor"
+  ]
+}

@@ -1,0 +1,66 @@
+using System;
+using System.Diagnostics;
+using System.Threading.Tasks;
+using BrickDefense.Core;
+using BrickDefense.Vision;
+
+namespace BrickDefense.Workflow
+{
+    public sealed class PhotoScanSession
+    {
+        private int revision;
+        private ColorCalibration analyzedCalibration;
+        public ImageFrame Frame { get; private set; }
+        public ScanResult Result { get; private set; }
+        public string ScanId { get; private set; }
+        public bool IsBusy { get; private set; }
+        public double ProcessingMilliseconds { get; private set; }
+        public PhotoScanSettings Settings { get; }
+        public PhotoInputMode InputMode { get; private set; }
+        public PhotoScanSession(PhotoScanSettings settings) { Settings=settings??throw new ArgumentNullException(nameof(settings)); }
+        public bool CalibrationReady(ColorCalibration calibration) => InputMode == PhotoInputMode.PlainBackground ?
+            PlainBackgroundRecognizer.CalibrationValid(calibration,Settings) : PhotoRecognizer.CalibrationValid(calibration,Settings);
+        public void SetInputMode(PhotoInputMode mode)
+        {
+            if (mode != PhotoInputMode.MarkedBoard && mode != PhotoInputMode.PlainBackground) throw new ArgumentOutOfRangeException(nameof(mode));
+            if (IsBusy) throw new InvalidOperationException("Wait for the current analysis before changing input mode.");
+            if (mode != InputMode) { InputMode=mode; Invalidate(); }
+        }
+        public Rgb24 SampleColor(int x,int y)
+        {
+            if (Frame==null) throw new InvalidOperationException("No photo is loaded.");
+            return ColorCalibration.SamplePatch(Frame,x,y);
+        }
+
+        public void SetFrame(ImageFrame frame)
+        {
+            Frame=frame??throw new ArgumentNullException(nameof(frame));
+            ScanId="scan-"+Guid.NewGuid().ToString("N"); Invalidate();
+        }
+        public void Invalidate() { revision++; Result=null; analyzedCalibration=null; }
+
+        public async Task<ScanResult> AnalyzeAsync(ColorCalibration calibration)
+        {
+            if (IsBusy || Frame == null) throw new InvalidOperationException("A photo must be ready and idle.");
+            if (!CalibrationReady(calibration)) throw new InvalidOperationException("Color calibration is incomplete.");
+            Invalidate(); int version=revision; IsBusy=true;
+            var frozen = new ColorCalibration(calibration.Paper,(Rgb24[])calibration.BrickColors.Clone(),(string[])calibration.ColorIds.Clone());
+            var capture = new CaptureSet(ScanId,Frame); var timer=Stopwatch.StartNew(); var mode=InputMode;
+            try
+            {
+                ScanResult result=await Task.Run(() => mode == PhotoInputMode.PlainBackground ?
+                    PlainBackgroundRecognizer.Recognize(capture,frozen,Settings) : PhotoRecognizer.Recognize(capture,frozen,Settings));
+                if (revision == version) { Result=result; analyzedCalibration=frozen; ProcessingMilliseconds=timer.Elapsed.TotalMilliseconds; }
+                return result;
+            }
+            finally { IsBusy=false; }
+        }
+
+        public LayoutDefinition ConfirmLayout()
+        {
+            if (IsBusy || Result?.Status != ResultStatus.Success || analyzedCalibration == null)
+                throw new InvalidOperationException("Only a completed successful scan can be confirmed.");
+            return new LayoutDefinition(Result,analyzedCalibration.CreateRules(),LayoutSource.Photograph);
+        }
+    }
+}
