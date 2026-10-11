@@ -6,6 +6,7 @@ namespace BrickDefense.Presentation
     public sealed class LevelView : MonoBehaviour
     {
         private Camera sceneCamera;
+        private BoardOrbitCamera orbit;
         private Transform boardRoot,entityRoot,routeRoot;
         private Material lightTile,darkTile,coreMaterial,wallMaterial,towerMaterial,routeMaterial,rejectedMaterial,baseMaterial,tableMaterial;
 
@@ -17,8 +18,7 @@ namespace BrickDefense.Presentation
                 var cameraObject=new GameObject("Demo camera"); cameraObject.tag="MainCamera";
                 cameraObject.transform.SetParent(transform); sceneCamera=cameraObject.AddComponent<Camera>();
             }
-            sceneCamera.transform.position=new Vector3(23,32,-23); sceneCamera.transform.LookAt(Vector3.zero);
-            sceneCamera.orthographic=true; FrameBoard();
+            sceneCamera.orthographic=true; orbit=new BoardOrbitCamera(sceneCamera);
             sceneCamera.backgroundColor=SoftStrategyTheme.Background; sceneCamera.clearFlags=CameraClearFlags.SolidColor;
             var lightObject=new GameObject("Demo light"); lightObject.transform.SetParent(transform);
             var light=lightObject.AddComponent<Light>(); light.type=LightType.Directional; light.intensity=0.7f;
@@ -87,8 +87,13 @@ namespace BrickDefense.Presentation
         private void ReplaceRoot(ref Transform root,string name)
         { if (root!=null) { root.gameObject.SetActive(false); Destroy(root.gameObject); } root=NewRoot(name); }
         private void LateUpdate() { FrameBoard(); }
-        private void FrameBoard()
-        { sceneCamera.orthographicSize=Mathf.Max(15.5f,16f/Mathf.Max(sceneCamera.aspect,0.1f)); }
+        private void FrameBoard() { orbit.Apply(); }
+        public void RotateView(Vector2 screenDelta)
+        { orbit.Rotate(180*screenDelta.x/Mathf.Max(Screen.width,1),180*screenDelta.y/Mathf.Max(Screen.height,1)); }
+        public void TurnView(float yawDegrees,float pitchDegrees=0) { orbit.Rotate(yawDegrees,pitchDegrees); }
+        public float ZoomFactor=>orbit.ZoomFactor;
+        public void ZoomView(float steps) { orbit.Zoom(steps); }
+        public void ResetView() { orbit.Reset(); }
         private static void SettingCube(Transform parent,string name,Vector3 position,Vector3 scale,Material material)
         {
             var part=GameObject.CreatePrimitive(PrimitiveType.Cube); part.name=name; part.transform.SetParent(parent);

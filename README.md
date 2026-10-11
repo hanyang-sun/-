@@ -14,9 +14,28 @@
 
 地图采用暖色桌面、鼠尾草绿棋盘与圆角浮动卡片。底部 `Reference layout` / `Enclosed core` 切换示例，`Scan your bricks` 打开照片页；右上角显示路线状态、积木数量和出生点。相机根据窗口比例适应棋盘宽度。
 
+### 视角、缩放与手机操作
+
+默认采用 **55°斜俯视的正交桌游视角**，能看到积木顶面和侧面；远处和近处的同尺寸积木显示大小一致。俯仰限制为 45°—75°，旋转与缩放时始终保持正交投影。
+
+| 操作 | 电脑 | 手机 |
+| --- | --- | --- |
+| 选择出生点 | 左键点击空格 | 单指轻点空格，抬起时确认 |
+| 旋转与俯仰 | 按住右键拖动 | 单指拖动 |
+| 放大、缩小 | 地图上滚动鼠标滚轮 | 双指张开、收拢 |
+| 按钮控制 | 点击 | 轻点 |
+
+右上角 `Left` / `Right` 每次转 45°，`Lower` / `Higher` 调整俯仰，`-` / `+` 缩放，标题显示当前倍率。缩放范围 **65%—250%**，围绕棋盘中心；放大用于查看局部，`Reset` 同时恢复默认角度和 **100% 全图**。旋转后或缩放后继续按实际地图位置选格。
+
+拖动和捏合不会误选出生点；从 UI 开始的手势不操作地图，照片页暂停地图相机。捏合后需要全部抬起，再开始单指旋转或轻点。保留触摸模拟鼠标供现有按钮和照片标定使用，地图屏蔽重复输入。手机手势已接入当前 Legacy Input；编辑器检查不等于真机验收，本机仍缺少 Android 构建模块。
+
+轨道计算局部改编自 MIT 授权的 JrsOrbitCamera，见 [检索比较](docs/research/orbit-camera-github.md) 及 [第三方声明](THIRD_PARTY_NOTICES.md)。
+
+捏合距离计算继续有限改编同一 MIT 来源；新增手势生命周期与输入隔离见 [手机手势与缩放研究](docs/research/touch-zoom-github.md) 和 [.scratch/touch-zoom/spec.md](.scratch/touch-zoom/spec.md)。
+
 照片页按 Your photograph → Role colors → Check the map 整理操作，宽屏双列，窄屏单列滚动。地图角色材质与实际积木颜色相互独立；原照片、标定色块、检测框和数字地图仍展示实际颜色。
 
-配色与控件样式集中在 `Assets/Scripts/Presentation/SoftStrategyTheme.cs`，三维材质、光照、底座和视角在 `LevelView.cs`。GitHub 源码比较与有限借鉴见 [界面研究记录](docs/research/soft-strategy-ui-github.md)，实现与验证见 [.scratch/soft-strategy-ui/spec.md](.scratch/soft-strategy-ui/spec.md)。
+配色与控件样式集中在 `Assets/Scripts/Presentation/SoftStrategyTheme.cs`，三维材质、光照和底座在 `LevelView.cs`，轨道与缩放在 `BoardOrbitCamera.cs`，手机手势在 `BoardTouchControls.cs`，地图绘制与触摸共用的 UI 区域在 `BoardUiLayout.cs`。GitHub 源码比较与有限借鉴见 [界面研究记录](docs/research/soft-strategy-ui-github.md)，实现与验证见 [.scratch/soft-strategy-ui/spec.md](.scratch/soft-strategy-ui/spec.md)。
 
 ## 使用真实照片
 

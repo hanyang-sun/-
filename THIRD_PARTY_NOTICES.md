@@ -28,3 +28,11 @@
 - 改编 `sRGBCompanding.ConvertToLinear`、`XYZToLabConverter.Convert` 的数值子集，固定 sRGB/D65 矩阵及白点，省略上游转换器、色域和矩阵构建框架。
 - RGB 最大通道归一化、弱亮度权重距离、暗部过滤及中心/外围采样属于本项目适配；该距离不是标准 Delta E。
 - colour-science/colour 与 OpenCV 仅作研究参考，不引入其源码或依赖。候选比较和固定源码链接见 `docs/research/color-recognition-github.md`。
+
+## JrsOrbitCamera 轨道计算子集
+
+- 来源：[Jermesa-Studio/smooth-third-person-vehicle-orbit-camera-script-for-unity](https://github.com/Jermesa-Studio/smooth-third-person-vehicle-orbit-camera-script-for-unity)，2026-10-11 读取的 `main` 分支 [JrsOrbitCamera.cs](https://github.com/Jermesa-Studio/smooth-third-person-vehicle-orbit-camera-script-for-unity/blob/main/JrsOrbitCamera.cs)（150 行源文件快照）。抓取未取得固定提交号。
+- 本地文件：`Assets/Scripts/Presentation/BoardOrbitCamera.cs`，局部改编角度累计、俯仰限制、Quaternion 旋转固定半径的相机定位；`BoardTouchControls.cs` 有限改编两指前后距离计算。两个文件均保留完整 MIT 声明，Copyright (c) 2023 Samborlang Pyrtuh。
+- 适配固定棋盘中心、水平角循环、45°—75°俯仰、55°默认桌游视角复位及正交投影与尺寸。两指距离改为比例缩放正交尺寸，允许一指静止，双指不同时旋转。IMGUI 输入、手势生命周期、UI 隔离及按钮属于本项目衔接；不采用车辆跟随、缩放协程或 Input 轴。
+- Cinemachine 与 unity-cheat-sheet 仅参与比较，不引入其源码或包。详细阅读与采用依据见 `docs/research/orbit-camera-github.md`。
+- 本次缩放比较中的 WobiWanKenobi 和 sergane13 不采用源码或资产，见 `docs/research/touch-zoom-github.md`。
