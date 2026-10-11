@@ -5,28 +5,32 @@ using UnityEngine;
 
 namespace BrickDefense.Presentation
 {
+    // 地图主界面：按钮、鼠标和触摸输入最终都经 LevelSession 更新关卡。
     public sealed class DemoUI : MonoBehaviour
     {
         private LevelSession session;
         private LevelView view;
         private PhotoScanPanel photoPanel;
         private SoftStrategyTheme theme;
+        private BattlePanel battles;
         private int orbitControl;
         private int suppressMouseUntil=-1;
         private Vector2 lastOrbitPointer;
         private BoardTouchControls touchControls;
-        public void Initialize(LevelSession session,LevelView view,PhotoScanPanel photoPanel)
+        public void Initialize(LevelSession session,LevelView view,PhotoScanPanel photoPanel,BattlePanel battles=null)
         {
             this.session=session; this.view=view; this.photoPanel=photoPanel;
+            this.battles=battles;
             touchControls=new BoardTouchControls(view.RotateView,view.ZoomView,SelectSpawn,
-                p=>new BoardUiLayout(Screen.width,Screen.height).Contains(p));
+                p=>new BoardUiLayout(Screen.width,Screen.height).Contains(p) || battles?.ContainsPointer(p)==true);
         }
 
+        // Legacy Input 可能把触摸再派发为鼠标事件，短暂屏蔽可避免重复选格。
         private bool SuppressMapMouse=>Input.touchCount>0 || Time.frameCount<=suppressMouseUntil;
 
         private void OnGUI()
         {
-            if (session?.Current==null || photoPanel.IsOpen) { CancelOrbit(); touchControls?.Cancel(); return; }
+            if (session?.Current==null || photoPanel.IsOpen || battles?.IsConfigOpen==true) { CancelOrbit(); touchControls?.Cancel(); return; }
             int orbitId=GUIUtility.GetControlID("BrickDefense.BoardOrbit".GetHashCode(),FocusType.Passive);
             theme??=new SoftStrategyTheme();
             Matrix4x4 oldMatrix=GUI.matrix; Color oldColor=GUI.color; bool oldEnabled=GUI.enabled;
@@ -39,57 +43,53 @@ namespace BrickDefense.Presentation
             {
                 LevelContext context=session.Current; LevelResult level=context.Result;
                 bool valid=level.Status==ResultStatus.Success;
-                Rect titleArea=layout.Title,statusArea=layout.Status,viewArea=layout.View,dock=layout.Dock,legend=layout.Legend;
-                bool overUI=layout.Contains(screenMouse);
+                Rect titleArea=layout.Title,statusArea=layout.Status,dock=layout.Dock,legend=layout.Legend;
+                bool overUI=layout.Contains(screenMouse) || battles?.ContainsPointer(screenMouse)==true;
                 if(Event.current.type==EventType.ScrollWheel && !overUI && !SuppressMapMouse && GUIUtility.hotControl==0)
                 { view.ZoomView(-Event.current.delta.y/3f); Event.current.Use(); }
                 HandleOrbit(Event.current,orbitId,screenMouse,overUI);
+                view.DrawSpawnLabels(scale);
                 theme.Card(titleArea);
-                GUI.Label(new Rect(titleArea.x+18,32,240,14),"A LITTLE WORLD, BUILT BY YOU",theme.Eyebrow);
-                GUI.Label(new Rect(titleArea.x+18,50,240,30),"Brick Defense",theme.Title);
+                GUI.Label(new Rect(titleArea.x+18,32,240,14),"用积木搭建你的小小世界",theme.Eyebrow);
+                GUI.Label(new Rect(titleArea.x+18,50,240,30),"积木塔防",theme.Title);
                 theme.Card(statusArea);
-                theme.Badge(new Rect(statusArea.x+14,30,valid?100:126,22),valid?"Route ready":"Choose a new start",valid);
-                GUI.Label(new Rect(statusArea.x+14,59,236,21),valid?
-                    $"{level.Entities.Length} bricks  /  {level.Route.Length-1} steps  /  start {level.Spawn}":
-                    level.Issues[0].Code=="NO_ROUTE"?"Core enclosed. Open a path and rescan.":"This start is occupied. Pick an empty tile.",theme.Small);
-                theme.Card(viewArea);
-                GUI.Label(new Rect(viewArea.x+14,viewArea.y+12,236,16),
-                    $"{(Application.isMobilePlatform?"DRAG & PINCH":"RIGHT-DRAG & SCROLL")} / {view.ZoomFactor*100:0}%",theme.Eyebrow);
-                float viewSlot=(viewArea.width-44)/3;
-                if (theme.Button(new Rect(viewArea.x+14,viewArea.y+34,viewSlot,32),"Left")) view.TurnView(-45);
-                if (theme.Button(new Rect(viewArea.x+22+viewSlot,viewArea.y+34,viewSlot,32),"Right")) view.TurnView(45);
-                if (theme.Button(new Rect(viewArea.x+30+viewSlot*2,viewArea.y+34,viewSlot,32),"Reset")) view.ResetView();
-                float tiltSlot=(viewArea.width-46)/4;
-                if (theme.Button(new Rect(viewArea.x+14,viewArea.y+74,tiltSlot,28),"Lower")) view.TurnView(0,-10);
-                if (theme.Button(new Rect(viewArea.x+20+tiltSlot,viewArea.y+74,tiltSlot,28),"Higher")) view.TurnView(0,10);
-                if (theme.Button(new Rect(viewArea.x+26+tiltSlot*2,viewArea.y+74,tiltSlot,28),"-")) view.ZoomView(-1);
-                if (theme.Button(new Rect(viewArea.x+32+tiltSlot*3,viewArea.y+74,tiltSlot,28),"+")) view.ZoomView(1);
+                bool selectionError=session.SpawnSelectionIssue!=null;
+                theme.Badge(new Rect(statusArea.x+14,30,134,22),selectionError?"未添加出生点":valid?"路线已就绪":"请选择出生点",valid && !selectionError);
+                GUI.Label(new Rect(statusArea.x+14,59,236,21),selectionError?
+                    SelectionHint(session.SpawnSelectionIssue.Code):valid?
+                    $"{level.SpawnRoutes.Count} 个出生点 / {level.Entities.Length} 块积木":
+                    level.SpawnRoutes.Count==0?"点选空格添加出生点。":
+                    "取消红色出生点，或重新摆放开路。",theme.Small);
                 theme.Card(legend);
                 if (narrow)
                 {
-                    LegendItem(legend.x+18,legend.y+13,"Core",SoftStrategyTheme.Core);
-                    LegendItem(legend.x+152,legend.y+13,"Wall",SoftStrategyTheme.Wall);
-                    LegendItem(legend.x+286,legend.y+13,"Tower",SoftStrategyTheme.Tower);
-                    LegendItem(legend.x+422,legend.y+13,"Route",SoftStrategyTheme.Route);
+                    LegendItem(legend.x+18,legend.y+13,"核心",SoftStrategyTheme.Core);
+                    LegendItem(legend.x+152,legend.y+13,"城墙",SoftStrategyTheme.Wall);
+                    LegendItem(legend.x+286,legend.y+13,"防御塔",SoftStrategyTheme.Tower);
+                    LegendItem(legend.x+422,legend.y+13,"路线",SoftStrategyTheme.Route);
                 }
                 else
                 {
-                    GUI.Label(new Rect(legend.x+16,legend.y+14,120,18),"YOUR BUILD",theme.Eyebrow);
-                    LegendItem(legend.x+16,legend.y+41,"Core",SoftStrategyTheme.Core);
-                    LegendItem(legend.x+16,legend.y+67,"Wall",SoftStrategyTheme.Wall);
-                    LegendItem(legend.x+16,legend.y+93,"Tower",SoftStrategyTheme.Tower);
-                    LegendItem(legend.x+16,legend.y+119,"Route",SoftStrategyTheme.Route);
+                    GUI.Label(new Rect(legend.x+16,legend.y+14,120,18),"积木角色",theme.Eyebrow);
+                    LegendItem(legend.x+16,legend.y+41,"核心",SoftStrategyTheme.Core);
+                    LegendItem(legend.x+16,legend.y+67,"城墙",SoftStrategyTheme.Wall);
+                    LegendItem(legend.x+16,legend.y+93,"防御塔",SoftStrategyTheme.Tower);
+                    LegendItem(legend.x+16,legend.y+119,"路线",SoftStrategyTheme.Route);
                 }
-                theme.Card(dock);
-                float slot=(dock.width-44)/3;
-                if (theme.Button(new Rect(dock.x+14,dock.y+14,slot,42),"Reference layout",
-                    selected:context.Definition.Source==LayoutSource.Reference)) session.LoadExample(false);
-                if (theme.Button(new Rect(dock.x+22+slot,dock.y+14,slot,42),"Enclosed core",
-                    selected:context.Definition.Source==LayoutSource.Blocked)) session.LoadExample(true);
-                if (theme.Button(new Rect(dock.x+30+slot*2,dock.y+14,slot,42),"Scan your bricks",true)) photoPanel.Open();
-                if (!narrow) GUI.Label(new Rect((width-700)/2,height-19,700,17),Application.isMobilePlatform?
-                    "Tap a tile to move the start. Drag to orbit. Pinch to zoom.":
-                    "Right-drag to orbit. Scroll to zoom. Left-click a tile to move the start.",theme.Small);
+                if(battles?.HasBattle!=true)
+                {
+                    theme.Card(dock);
+                    float slot=(dock.width-44)/3;
+                    if (theme.Button(new Rect(dock.x+14,dock.y+14,slot,42),"示例布局",
+                        selected:context.Definition.Source==LayoutSource.Reference)) session.LoadExample(false);
+                    if (theme.Button(new Rect(dock.x+22+slot,dock.y+14,slot,42),"封闭核心",
+                        selected:context.Definition.Source==LayoutSource.Blocked)) session.LoadExample(true);
+                    if (theme.Button(new Rect(dock.x+30+slot*2,dock.y+14,slot,42),"扫描积木",true)) photoPanel.Open();
+                }
+                if (!narrow) GUI.Label(new Rect((width-700)/2,height-19,700,17),battles?.HasBattle==true?
+                    "点选防御塔查看射程，可转动和缩放视角观察战斗。":Application.isMobilePlatform?
+                    "轻点空格添加出生点，再点一次取消；单指拖动转动视角，双指缩放。":
+                    "点击空格添加或取消出生点；右键拖动转动视角，滚轮缩放。",theme.Small);
                 Event current=Event.current;
                 if (current.type==EventType.MouseDown && current.button==0 && GUIUtility.hotControl==0 && !overUI && !SuppressMapMouse)
                 {
@@ -99,6 +99,7 @@ namespace BrickDefense.Presentation
             finally { GUI.matrix=oldMatrix; GUI.color=oldColor; GUI.enabled=oldEnabled; }
         }
 
+        // 右键拖动只在地图区域取得 IMGUI 控制权；离开窗口时主动释放。
         private void HandleOrbit(Event current,int id,Vector2 screenMouse,bool overUI)
         {
             if(SuppressMapMouse)
@@ -138,7 +139,7 @@ namespace BrickDefense.Presentation
         private void HandleTouches(int count,Touch first,Touch second)
         {
             if(count>0) { suppressMouseUntil=Time.frameCount+1; CancelOrbit(); }
-            if(session?.Current==null || photoPanel.IsOpen)
+            if(session?.Current==null || photoPanel.IsOpen || battles?.IsConfigOpen==true)
             {
                 touchControls?.Cancel();
                 if(count==0) touchControls?.Process(0,default,default,new Vector2(Screen.width,Screen.height));
@@ -147,7 +148,9 @@ namespace BrickDefense.Presentation
             touchControls.Process(count,first,second,new Vector2(Screen.width,Screen.height));
         }
         private void SelectSpawn(Vector2 screenPosition)
-        { if(view.TryPickCell(screenPosition,out GridPoint cell)) session.SelectSpawn(cell); }
+        { if(view.TryPickCell(screenPosition,out GridPoint cell) && battles?.HandleMapCell(cell)!=true) session.ToggleSpawn(cell); }
+        private static string SelectionHint(string code) => code=="NO_ROUTE"?"该格没有通往核心的路线。":
+            code=="SPAWN_OCCUPIED"?"请选择空格添加出生点。":"请选择棋盘内的格子。";
         private void OnApplicationFocus(bool focused) { if (!focused) { CancelOrbit(); touchControls?.Cancel(); } }
         private void OnApplicationPause(bool paused) { if(paused) { CancelOrbit(); touchControls?.Cancel(); } }
         private void OnDisable() { CancelOrbit(); touchControls?.Cancel(); }

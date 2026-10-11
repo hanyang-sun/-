@@ -21,6 +21,7 @@ namespace BrickDefense.Core
                 if (cell.Role == BrickRole.Core)
                     goals.Add(cell.Position);
 
+            // 四方向移动每步代价为 1，曼哈顿距离不会高估到最近核心的距离。
             var heuristic = new int[CellCount];
             var cost = new int[CellCount];
             var previous = new int[CellCount];
@@ -72,6 +73,7 @@ namespace BrickDefense.Core
 
             if (bestGoal < 0)
                 return null;
+            // previous 从目标回溯到出生点，翻转后得到用于绘制的前进路线。
             var route = new List<GridPoint>();
             for (int cursor = bestGoal; cursor >= 0; cursor = previous[cursor])
                 route.Add(cells[cursor].Position);

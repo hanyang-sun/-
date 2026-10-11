@@ -6,6 +6,7 @@ using BrickDefense.Vision;
 
 namespace BrickDefense.Workflow
 {
+    // 管理一张照片的分析生命周期；只有与当前图像、模式和标定一致的结果可确认。
     public sealed class PhotoScanSession
     {
         private int revision;
@@ -37,6 +38,7 @@ namespace BrickDefense.Workflow
             Frame=frame??throw new ArgumentNullException(nameof(frame));
             ScanId="scan-"+Guid.NewGuid().ToString("N"); Invalidate();
         }
+        // 输入改变即递增版本，旧异步任务完成后也不能覆盖新的扫描状态。
         public void Invalidate() { revision++; Result=null; analyzedCalibration=null; }
 
         public async Task<ScanResult> AnalyzeAsync(ColorCalibration calibration)
@@ -44,6 +46,7 @@ namespace BrickDefense.Workflow
             if (IsBusy || Frame == null) throw new InvalidOperationException("A photo must be ready and idle.");
             if (!CalibrationReady(calibration)) throw new InvalidOperationException("Color calibration is incomplete.");
             Invalidate(); int version=revision; IsBusy=true;
+            // 冻结分析时的标定，避免用户随后改色造成“结果与角色规则不一致”。
             var frozen = new ColorCalibration(calibration.Paper,(Rgb24[])calibration.BrickColors.Clone(),(string[])calibration.ColorIds.Clone());
             var capture = new CaptureSet(ScanId,Frame); var timer=Stopwatch.StartNew(); var mode=InputMode;
             try

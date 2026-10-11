@@ -17,6 +17,7 @@ namespace BrickDefense.Infrastructure
         public PhotoInputMode InputMode { get; set; }
     }
 
+    // 保存原图、归一化图和识别证据，供人工核对与实拍回归使用。
     public sealed class ScanReportStore
     {
         private readonly string root;
@@ -27,6 +28,7 @@ namespace BrickDefense.Infrastructure
             string id=scan.ScanId;
             if (string.IsNullOrWhiteSpace(id) || id=="." || id==".." || id!=Path.GetFileName(id) || id.IndexOfAny(Path.GetInvalidFileNameChars())>=0)
                 throw new ArgumentException("Invalid scan record ID.");
+            // 扫描编号来自结果，但仍须校验为单个文件名，避免写出 Scans 目录。
             string directory=Path.Combine(root,"Scans",id); Directory.CreateDirectory(directory);
             Texture2D normalized=PhotoPixels.ToTexture(frame);
             try { File.WriteAllBytes(Path.Combine(directory,"photo.png"),normalized.EncodeToPNG()); }

@@ -5,6 +5,7 @@ using BrickDefense.ThirdParty;
 
 namespace BrickDefense.Vision
 {
+    // 按实测积木边长导出格纸，格线与四角标记共享同一纸面坐标系。
     public static class ScanBoardTemplate
     {
         public static string CreateSvg(double brickEdgeMm)

@@ -34,11 +34,14 @@ namespace BrickDefense.Presentation
         private readonly GUIStyle errorBadge=Text(12,Danger,false,false,TextAnchor.MiddleCenter);
         private GUISkin scrollSkin;
         private Texture2D scrollTrack,scrollThumb;
+        private static Font interfaceFont;
+        public static Font InterfaceFont => interfaceFont!=null?interfaceFont:
+            (interfaceFont=Resources.Load<Font>("Fonts/NotoSansSC-Regular"));
 
-        // Construct during OnGUI: the built-in font is supplied by the current GUI skin.
+        // Construct during OnGUI to inherit control metrics; use the bundled Chinese font.
         public SoftStrategyTheme()
         {
-            Field=new GUIStyle(GUI.skin.textField) { fontSize=14,padding=new RectOffset(10,10,8,8) };
+            Field=new GUIStyle(GUI.skin.textField) { font=InterfaceFont,fontSize=14,padding=new RectOffset(10,10,8,8) };
             Field.normal.textColor=Ink; Field.focused.textColor=Ink;
             Field.normal.background=Texture2D.whiteTexture; Field.focused.background=Texture2D.whiteTexture;
         }
@@ -49,6 +52,7 @@ namespace BrickDefense.Presentation
             {
                 if (scrollSkin!=null) return scrollSkin;
                 scrollSkin=Object.Instantiate(GUI.skin); scrollSkin.hideFlags=HideFlags.HideAndDontSave;
+                scrollSkin.font=InterfaceFont;
                 scrollTrack=FlatTexture(new Color32(225,230,215,255)); scrollThumb=FlatTexture(new Color32(135,156,134,255));
                 ScrollStyle(scrollSkin.verticalScrollbar,scrollTrack); scrollSkin.verticalScrollbar.fixedWidth=10;
                 ScrollStyle(scrollSkin.verticalScrollbarThumb,scrollThumb); scrollSkin.verticalScrollbarThumb.fixedWidth=10;
@@ -72,6 +76,7 @@ namespace BrickDefense.Presentation
             foreach (GUIStyleState state in new[] {style.normal,style.hover,style.active,style.focused}) state.background=texture;
         }
 
+        // 滚动条皮肤与纹理在运行时创建，面板销毁时需释放。
         public void Dispose()
         {
             if (scrollSkin!=null) Object.Destroy(scrollSkin);
@@ -81,7 +86,7 @@ namespace BrickDefense.Presentation
 
         private static GUIStyle Text(int size,Color color,bool bold=false,bool wrap=false,TextAnchor align=TextAnchor.UpperLeft)
         {
-            var style=new GUIStyle(GUI.skin.label) { fontSize=size,fontStyle=bold?FontStyle.Bold:FontStyle.Normal,
+            var style=new GUIStyle(GUI.skin.label) { font=InterfaceFont,fontSize=size,fontStyle=bold?FontStyle.Bold:FontStyle.Normal,
                 wordWrap=wrap,alignment=align,padding=new RectOffset(0,0,0,0),richText=false };
             foreach (GUIStyleState state in new[] {style.normal,style.hover,style.active,style.focused,
                 style.onNormal,style.onHover,style.onActive,style.onFocused})

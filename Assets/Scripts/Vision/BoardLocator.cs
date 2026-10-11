@@ -5,6 +5,7 @@ using BrickDefense.ThirdParty;
 
 namespace BrickDefense.Vision
 {
+    // 四角标记的编号和纸面坐标必须与导出的 SVG 模板一致。
     public static class ScanBoardLayout
     {
         public static readonly int[] MarkerIds = { 125, 248, 511, 742 };
@@ -19,12 +20,14 @@ namespace BrickDefense.Vision
         }
     }
 
+    // 从原图定位四角标记，再求纸面格位到图像像素的投影关系。
     public static class BoardLocator
     {
         public static bool TryLocate(ImageFrame frame, PhotoScanSettings settings,
             out BoardObservation observation, out Issue issue)
         {
             observation = null; issue = null;
+            // 仅在找标记时降采样；最终逐格采样仍使用原图像素。
             int factor = Math.Max(1, (int)Math.Ceiling((double)Math.Max(frame.Width, frame.Height) /
                 settings.MaximumDetectionSide));
             int w = (frame.Width + factor - 1)/factor, h = (frame.Height + factor - 1)/factor;
@@ -75,6 +78,7 @@ namespace BrickDefense.Vision
             if (markers.Count != 4)
             { issue = new Issue("BOARD_MARKERS_MISSING", $"仅找到 {markers.Count}/4 个定位标记；请使用配套格纸，将四角完整拍入。",frameId:frame.FrameId); return false; }
 
+            // 标记 ID 决定纸面方向，避免手机旋转后行列颠倒。
             var centers = new ImagePoint[4];
             for (int i = 0; i < 4; i++)
             {
@@ -83,6 +87,7 @@ namespace BrickDefense.Vision
             }
             if (!Convex(centers) || !ProjectiveMap.TryFit(ScanBoardLayout.MarkerCenters,centers,out ProjectiveMap paper))
             { issue = new Issue("BOARD_GEOMETRY_INVALID", "格纸标记位置或方向不一致，请平铺格纸并俯拍。",frameId:frame.FrameId); return false; }
+            // 用标记四角的重投影误差拒绝错误标记或严重畸变。
             double maximumError = 0;
             for (int i = 0; i < 4; i++)
             {

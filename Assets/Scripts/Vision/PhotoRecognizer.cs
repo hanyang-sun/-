@@ -5,6 +5,7 @@ using BrickDefense.ThirdParty;
 
 namespace BrickDefense.Vision
 {
+    // 带标记格纸的单张照片识别：固定纸面格位，逐格判断空占与物理颜色。
     public static class PhotoRecognizer
     {
         public static ScanResult Recognize(CaptureSet capture, ColorCalibration calibration,
@@ -24,6 +25,7 @@ namespace BrickDefense.Vision
                 return Rejected(scanId,"SCAN_SETTINGS_INVALID","识别配置无效。");
             if (!CalibrationValid(calibration,settings))
                 return Rejected(scanId,"CALIBRATION_REQUIRED","请标定纸面和三种积木颜色；颜色必须可区分。");
+            // 格纸定位失败时不猜测坐标，直接把原因交给拍摄界面。
             if (!BoardLocator.TryLocate(frame,settings,out BoardObservation board,out Issue locationIssue))
                 return new ScanResult(scanId,ResultStatus.Rejected,Array.Empty<PhysicalCellObservation>(),
                     Array.Empty<BrickObservation>(),new[] { locationIssue });
@@ -36,6 +38,7 @@ namespace BrickDefense.Vision
             for (int r = 0; r < 10; r++)
                 for (int c = 0; c < 10; c++)
                 {
+                    // 中心 60% 区域选主颜色，减少格线和积木边缘的干扰。
                     var votes = new int[4];
                     for (int y = 0; y < 10; y++)
                         for (int x = 0; x < 10; x++)
@@ -61,6 +64,7 @@ namespace BrickDefense.Vision
                             else if (color > 0) foreign++;
                             else if (color < 0 && informative) unknown++;
                         }
+                    // 外围覆盖检查可发现中心采样漏掉的混色、未知色或半遮挡。
                     double allowedOutliers = 100*(1-settings.MinimumCellAgreement)+1e-9;
                     if (confidence < settings.MinimumCellAgreement || support/100.0 < settings.MinimumCellCoverage ||
                         foreign > allowedOutliers || unknown > allowedOutliers)
@@ -71,6 +75,7 @@ namespace BrickDefense.Vision
                     }
                     if (selected == 0)
                     { cells[r*10+c] = new PhysicalCellObservation(c,r,PhysicalCellState.Empty,confidence:confidence); continue; }
+                    // 每个占用格生成独立编号，同色且相邻的积木也不合并。
                     string brickId = $"brick-{r}-{c}";
                     cells[r*10+c] = new PhysicalCellObservation(c,r,PhysicalCellState.Occupied,brickId,confidence);
                     var region = new[] { map.Project(c,r),map.Project(c+1,r),map.Project(c+1,r+1),map.Project(c,r+1) };
@@ -98,6 +103,7 @@ namespace BrickDefense.Vision
 
         public static double ColorDistance(Rgb24 a, Rgb24 b) =>
             NormalizedLab.Distance(NormalizedLab.From(a),NormalizedLab.From(b));
+        // 同时要求最近颜色足够近、与次近颜色拉开距离；暗像素不作颜色证据。
         private static int Classify(Rgb24 rgb,NormalizedLab[] colors,PhotoScanSettings settings,out bool informative)
         {
             NormalizedLab sample = NormalizedLab.From(rgb);

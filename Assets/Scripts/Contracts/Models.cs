@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 namespace BrickDefense.Core
 {
+    // 实体布局为 10×10；每个实体格展开为 2×2 导航格。所有模块共用这些尺寸。
     public static class BoardSize
     {
         public const int Physical = 10;
@@ -52,6 +53,7 @@ namespace BrickDefense.Core
         }
     }
 
+    // 一个实体格的识别状态。Confidence 是颜色一致比例，不是经校准的正确概率。
     public sealed class PhysicalCellObservation
     {
         public int C { get; }
@@ -92,6 +94,7 @@ namespace BrickDefense.Core
         }
     }
 
+    // 视觉输出：逐格状态与逐块记录必须相互对应，后续由 GridMapper 校验。
     public sealed class ScanResult
     {
         public string ScanId { get; }
@@ -141,6 +144,7 @@ namespace BrickDefense.Core
         }
     }
 
+    // 中间结果同时保留实体积木和导航格，以便检查 1:4 的占用映射。
     public sealed class GridResult
     {
         public string SourceScanId { get; }
@@ -200,6 +204,24 @@ namespace BrickDefense.Core
         }
     }
 
+    // Each entrance owns a frozen route; an empty route marks a rejected entrance in the preview.
+    public sealed class SpawnRoute
+    {
+        public GridPoint Spawn { get; }
+        public string TargetCoreBrickId { get; }
+        public IReadOnlyList<GridPoint> Route { get; }
+        public bool HasRoute => Route.Count >= 2 && TargetCoreBrickId != null;
+
+        public SpawnRoute(GridPoint spawn, string targetCoreBrickId, IReadOnlyList<GridPoint> route)
+        {
+            Spawn=spawn; TargetCoreBrickId=targetCoreBrickId;
+            var points=new GridPoint[route?.Count ?? 0];
+            for(int i=0;i<points.Length;i++) points[i]=route[i];
+            Route=Array.AsReadOnly(points);
+        }
+    }
+
+    // 关卡计算结果；即使路线被拒绝，也可能保留实体供界面预览。
     public sealed class LevelResult
     {
         public ResultStatus Status { get; }
@@ -209,18 +231,28 @@ namespace BrickDefense.Core
         public string[] CoreBrickIds { get; }
         public string TargetCoreBrickId { get; }
         public GridPoint[] Route { get; }
+        public IReadOnlyList<SpawnRoute> SpawnRoutes { get; }
         public Issue[] Issues { get; }
 
         public LevelResult(ResultStatus status, LevelEntity[] entities, LevelCell[] cells, GridPoint spawn,
             string[] coreBrickIds, string targetCoreBrickId, GridPoint[] route, Issue[] issues)
+            : this(status,entities,cells,coreBrickIds,
+                new[] {new SpawnRoute(spawn,targetCoreBrickId,route)},issues)
+        { }
+
+        public LevelResult(ResultStatus status, LevelEntity[] entities, LevelCell[] cells,
+            string[] coreBrickIds, SpawnRoute[] spawnRoutes, Issue[] issues)
         {
             Status = status;
             Entities = entities;
             Cells = cells;
-            Spawn = spawn;
             CoreBrickIds = coreBrickIds;
-            TargetCoreBrickId = targetCoreBrickId;
-            Route = route;
+            SpawnRoutes=Array.AsReadOnly((SpawnRoute[])(spawnRoutes ?? Array.Empty<SpawnRoute>()).Clone());
+            // Compatibility for single-entrance clients: these fields describe the first selected entrance.
+            Spawn=SpawnRoutes.Count>0?SpawnRoutes[0].Spawn:new GridPoint(-1,-1);
+            TargetCoreBrickId=SpawnRoutes.Count>0?SpawnRoutes[0].TargetCoreBrickId:null;
+            Route=new GridPoint[SpawnRoutes.Count>0?SpawnRoutes[0].Route.Count:0];
+            for(int i=0;i<Route.Length;i++) Route[i]=SpawnRoutes[0].Route[i];
             Issues = issues ?? Array.Empty<Issue>();
         }
     }

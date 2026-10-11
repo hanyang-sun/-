@@ -4,6 +4,7 @@ using UnityEngine;
 
 namespace BrickDefense.Infrastructure
 {
+    // 标定存于 PlayerPrefs；不同输入模式由调用方传入不同的键。
     public sealed class PhotoProfileStore
     {
         private readonly string profileKey;

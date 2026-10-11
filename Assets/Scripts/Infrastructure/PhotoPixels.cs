@@ -39,6 +39,7 @@ namespace BrickDefense.Infrastructure
             return new ImageFrame(frameId,outputWidth,outputHeight,output,DateTime.UtcNow,guide);
         }
 
+        // 预览时转换回 Unity 的底部起始行顺序，不改变识别用的 ImageFrame。
         public static Texture2D ToTexture(ImageFrame frame)
         {
             var texture = new Texture2D(frame.Width,frame.Height,TextureFormat.RGB24,false);

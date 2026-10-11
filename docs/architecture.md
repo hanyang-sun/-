@@ -1,7 +1,7 @@
 # 项目整体架构
 
-当前是 Unity 关卡生成与路线预览原型：模拟布局或照片识别生成 10×10 实体格，再映射为 20×20 导航格并显示积木和路线。
-照片在本地处理。敌人波次、战斗和胜负流程尚未实现。
+当前实现关卡生成、路线预览与布局挑战战斗：模拟布局或照片识别生成 10×10 实体格，再映射为 20×20 导航格，显示积木并复用路线进行敌人移动和塔自动攻击。
+照片在本地处理。战斗支持手动波次、多核心共血、胜负、暂停、重试与返回扫描；默认平衡和 Android 性能仍待试玩与真机验收。
 
 2026-10-09 的重构已完成五个主要模块划分，并通过 `.asmdef` 显式约束引用；公共数据和既有第三方算法另设基础程序集。
 
@@ -9,14 +9,18 @@
 
 | 模块 | 主要文件 | 职责 |
 | --- | --- | --- |
-| Domain | `Domain/ExampleScans.cs`、`LevelPipeline.cs`、`GridPathfinder.cs` | 提供配套模拟布局与规则；格位映射、角色与结构校验、四方向 A*、最近可达核心选择。 |
+| Domain | `Domain/ExampleScans.cs`、`LevelPipeline.cs`、`GridPathfinder.cs`、`BattleSimulation.cs` | 格位映射、结构校验与 A*；纯 C# 固定步长战斗、索敌、伤害、共享核心、波次与胜负。 |
 | Vision | `Vision/PhotoRecognizer.cs`、`PlainBackgroundRecognizer.cs`、`BoardLocator.cs`、`ProjectiveMap.cs`、`PhotoModels.cs` | 图像与标定、格纸定位与投影、颜色分类；无格纸背景分割、同色组件拆分和相对布局；拒绝证据与格纸模板。 |
-| Application | `Application/LevelSession.cs`、`PhotoScanSession.cs` | 管理当前关卡、输入切换和出生点变更；管理异步照片分析、结果有效性及确认时对应的标定规则。 |
-| Presentation | `Presentation/BrickDefenseDemo.cs`、`LevelView.cs`、`DemoUI.cs`、`PhotoScanPanel.cs` | 场景接线、底板/积木/路线绘制、点击选出生点、示例按钮、照片预览、标定控件与数字地图确认。 |
+| Application | `Application/LevelSession.cs`、`PhotoScanSession.cs`、`BattleSession.cs` | 管理关卡与异步照片分析；开局快照、地图锁定、对局推进、暂停、重试和解锁。 |
+| Presentation | `Presentation/BrickDefenseDemo.cs`、`LevelView.cs`、`DemoUI.cs`、`PhotoScanPanel.cs`、`CombatView.cs`、`BattlePanel.cs` | 场景接线、地图与照片操作；战斗参数、敌人/血条/射击/射程显示及结算；正交相机与桌面/触摸输入。 |
 | Infrastructure | `Infrastructure/PhotoFileSource.cs`、`CameraCapture.cs`、`PhotoPixels.cs`、`PhotoProfileStore.cs`、`ScanReportStore.cs` | PNG/JPG 读取与方向归一、相机权限和生命周期、Unity 像素适配、标定持久化、设置和扫描报告读写。 |
 
 上述路径以 `Assets/Scripts/` 为起点。Application 的命名空间为 `BrickDefense.Workflow`，避免与 Unity 的 `Application` 类型冲突。
 Domain 和公共数据仍使用既有 `BrickDefense.Core` 命名空间；命名空间兼容不影响程序集边界。
+
+界面固定使用简体中文。`SoftStrategyTheme` 为全部文字与输入框加载 `Resources/Fonts/NotoSansSC-Regular.otf`；`ChineseUi` 在 Presentation 按稳定错误代码/已知平台消息翻译显示文字，扫描报告继续保存既有诊断代码与原始信息。字体来源与 OFL 见 `Assets/ThirdParty/NotoSansSC/`，完整许可证也放在 Resources 中随播放器分发。
+
+`BattlePanel` 将开始入口与战斗状态卡片定位到右侧路线状态卡片下方。绘制与指针拦截使用同一个卡片矩形，因此相机和地图选格会避开实际按钮位置；参数表单保留居中弹窗。宽/窄屏与实际输入验证见 [中文界面验证](../.scratch/chinese-ui/verification/README.md)。
 
 ## 基础模块与编译边界
 
@@ -31,7 +35,9 @@ Domain 和公共数据仍使用既有 `BrickDefense.Core` 命名空间；命名�
 | `BrickDefense.Presentation` | Contracts、Application、Vision、Infrastructure | 允许 |
 | `BrickDefense.Editor` | Contracts、Domain、Vision、Application、Infrastructure、Presentation | 仅 Editor 平台 |
 
-- `Contracts/Models.cs` 和 `PhotoEvidence.cs` 保存共享结果与证据 DTO。Domain 可以接收带照片证据的扫描结果，且不引用 Vision 实现。
+- `Contracts/Models.cs`、`PhotoEvidence.cs` 与 `CombatModels.cs` 保存结果、证据、不可变战斗配置/状态和射击事件。Domain 可以接收带照片证据的扫描结果，且不引用 Vision 实现。
+
+- 战斗的外部接口集中在 `BattleSession`：启动并验证、推进时间、开始下一波、暂停、重试、返回布局。`BattleSimulation` 接收配置与路线，返回状态和射击事件；射击显示不决定伤害。地图锁定在 `LevelSession` 中执行，照片提交也经过同一锁定检查。首波开始至终局或主动结束期间不更换地图。
 - `Assets/ThirdParty/` 的 Algorithms 程序集包含既有 Roy 最小堆、js-aruco 标记编码解码和 Colourful 色彩转换子集。通过 `InternalsVisibleTo` 向 Domain 和 Vision 开放实际需要的内部算法类型；来源及授权见 [第三方声明](../THIRD_PARTY_NOTICES.md)。
 - `Assets/Editor/` 的场景生成、文件选择器和回归工具单独编译。文件对话框通过回调接入 `PhotoFileSource`，运行时程序集不引用 `UnityEditor`。
 - `Tests/` 的 .NET 检查编译纯 C# 模块；Unity 显示与平台读写由编辑器 Play 回归覆盖。
@@ -54,7 +60,7 @@ flowchart TD
     G --> C[LevelContext\n布局、规则、网格、出生点、结果]
     C --> R[Changed 通知]
     R --> W[LevelView\n积木、路线、出生点绘制]
-    B[DemoUI 点击出生点] --> L2[LevelSession.SelectSpawn]
+    B[DemoUI 点击添加或取消出生点] --> L2[LevelSession.ToggleSpawn]
     L2 --> G
 ```
 
@@ -70,7 +76,8 @@ flowchart TD
 - `TryLoad` 接受一个完整的 `LayoutDefinition`，其中包括布局、规则和来源。它复制输入数组及颜色映射，完成映射和校验后一次性替换当前上下文，再发送 `Changed` 通知。
 - 不确定扫描、未映射颜色、畸形输入或缺少核心时不替换当前关卡。
 - `NO_ROUTE` 和 `SPAWN_OCCUPIED` 保留实体并允许预览；无有效路线时不绘制路线。
-- `SelectSpawn` 拒绝越界坐标，对有效坐标重新计算关卡结果并整体更新上下文。
+- `ToggleSpawn` 添加/删除入口，复用同一份格位与角色网格分别计算 A*；无效新点保留原选择并给出 SpawnSelectionIssue。清空入口仍保留地图，NO_SPAWNS 禁止开局。`SelectSpawn` 保留单点替换语义供旧集成使用。
+- `LevelResult.SpawnRoutes` 保存只读的入口与独立路线集合，整体 Status 反映全部入口。单入口兼容字段描述首个入口。`BattleSession` 冻结整个集合；`BattleSimulation` 以累计计数轮流出怪，每只敌人通过 SpawnIndex 绑定其路线，跨波继续轮转。
 
 这个边界解决了之前照片入口更新规则、示例入口只更新网格而出现 `UNMAPPED_COLOR` 的问题。
 界面和视图不再分别持有可独立变化的当前网格、规则和路线。

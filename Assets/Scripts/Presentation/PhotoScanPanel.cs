@@ -8,9 +8,10 @@ using UnityEngine;
 
 namespace BrickDefense.Demo
 {
+    // 照片工作流界面：采样标定、显示证据并让用户确认数字地图。
     public sealed class PhotoScanPanel : MonoBehaviour
     {
-        private static readonly string[] SampleNames={"Paper","Core color","Wall color","Tower color"};
+        private static readonly string[] SampleNames={"格纸","核心颜色","城墙颜色","防御塔颜色"};
         private readonly Color32[] samples=new Color32[4];
         private readonly bool[] sampled=new bool[4];
         private LevelSession levels;
@@ -22,7 +23,7 @@ namespace BrickDefense.Demo
         private Texture2D photo;
         private bool calibrating;
         private int activeSample=-1;
-        private string inputPath="",message="Import a photo or use the camera. Keep all four board markers in view.";
+        private string inputPath="",message="请导入照片或使用相机拍摄，确保四个格纸标记全部可见。";
         private Vector2 issueScroll;
         private ImageFrame frame=>analysis.Frame;
         private ScanResult scan=>analysis.Result;
@@ -33,12 +34,13 @@ namespace BrickDefense.Demo
         public bool IsOpen { get; private set; }
         public PhotoInputMode InputMode=>analysis.InputMode;
 
+        // 两种输入模式使用独立标定；切换后旧分析结果和相机状态失效。
         public void SetInputMode(PhotoInputMode mode)
         {
             if (mode==analysis.InputMode) return;
             analysis.SetInputMode(mode); StopCamera(); LoadProfile(); activeSample=-1; calibrating=false;
-            message=plain?"No paper markers needed. Sample background and three role colors; layout is relative.":
-                "Use the supplied paper with all four markers. This mode restores its fixed grid.";
+            message=plain?"无需格纸标记。请采样背景与三种角色颜色，生成相对布局。":
+                "请使用配套格纸并露出四个标记，此模式恢复固定格位。";
         }
 
         public void Initialize(LevelSession owner)
@@ -57,7 +59,7 @@ namespace BrickDefense.Demo
         }
         public void Open() { IsOpen=true; }
         private void Close() { IsOpen=false; StopCamera(); activeSample=-1; }
-        private void CameraStatus(string value) { message=value; }
+        private void CameraStatus(string value) { message=ChineseUi.Message(value); }
         private void Import()
         {
             string selected=PhotoFileSource.PickPath(inputPath);
@@ -68,23 +70,24 @@ namespace BrickDefense.Demo
         {
             if (busy) return;
             try { ImportedPhoto loaded=PhotoFileSource.Load(path); SetFrame(loaded.Frame); imported=loaded; }
-            catch (Exception e) { message="Photo could not be loaded: "+e.Message; }
+            catch (Exception e) { message="照片加载失败："+ChineseUi.Message(e.Message); }
         }
         private void SetFrame(ImageFrame value)
         {
             StopCamera(); analysis.SetFrame(value); imported=null;
             if (photo!=null) Destroy(photo);
             photo=PhotoPixels.ToTexture(value);
-            message=ReadyCalibration()?"Photo loaded. Analyze, check the map, then confirm.":
-                "Choose Color setup, then sample the background and all three role colors from the photo.";
+            message=ReadyCalibration()?"照片已加载，请分析并核对地图，然后确认生成。":
+                "请点击“颜色设置”，从照片中采样背景与三种角色颜色。";
         }
         private void StartCamera() { analysis.Invalidate(); activeSample=-1; cameraCapture.Begin(); }
         private void CapturePhoto()
         {
             try { SetFrame(cameraCapture.Capture()); }
-            catch (Exception e) { message="Capture failed: "+e.Message; }
+            catch (Exception e) { message="拍摄失败："+ChineseUi.Message(e.Message); }
         }
         private void StopCamera() { if (cameraCapture!=null) cameraCapture.Stop(); }
+        // 物理颜色编号与角色由四个采样槽位确定，识别器本身不推断游戏角色。
         private ColorCalibration Calibration()
         {
             Rgb24 ToRgb(Color32 c)=>new Rgb24(c.r,c.g,c.b);
@@ -92,22 +95,23 @@ namespace BrickDefense.Demo
                 new[] {"physical-color-0","physical-color-1","physical-color-2"});
         }
         private bool ReadyCalibration()=>Array.TrueForAll(sampled,value=>value) && analysis.CalibrationReady(Calibration());
+        // UI 事件入口允许异步分析；仅在对象和当前结果仍有效时更新界面。
         private async void Analyze()
         {
             if (frame==null || busy || !ReadyCalibration()) return;
-            activeSample=-1; calibrating=false; message="Analyzing photo...";
+            activeSample=-1; calibrating=false; message="正在分析照片……";
             try
             {
                 await analysis.AnalyzeAsync(Calibration());
                 if (this==null || scan==null) return;
                 message=scan.Status==ResultStatus.Success?
-                    $"Found {scan.Bricks.Length} bricks. "+(plain?"Relative layout: check the detection boxes and digital map.":"Verify each cell below before generating the level."):
-                    "Scan rejected. Check the reasons below, adjust the photo or calibration, then analyze again.";
+                    $"识别到 {scan.Bricks.Length} 块积木。"+(plain?"当前为相对布局，请核对检测框和数字地图。":"生成关卡前，请逐格核对下方地图。"):
+                    "识别未通过。请查看下方原因，调整照片或颜色标定后重新分析。";
                 try { reports.Save(new PhotoScanRecord { Frame=frame,Result=scan,Settings=analysis.Settings,
                     Calibration=samples,Imported=imported,ProcessingMilliseconds=analysis.ProcessingMilliseconds,InputMode=analysis.InputMode }); }
-                catch (Exception e) { message+=" Scan record could not be saved: "+e.Message; }
+                catch (Exception e) { message+=" 扫描记录保存失败："+ChineseUi.Message(e.Message); }
             }
-            catch (Exception e) { if (this!=null) message="Recognition failed: "+e.Message; }
+            catch (Exception e) { if (this!=null) message="识别失败："+ChineseUi.Message(e.Message); }
         }
         private SoftStrategyTheme theme;
         private Vector2 pageScroll;
@@ -131,28 +135,28 @@ namespace BrickDefense.Demo
                 // Opaque across the whole viewport, including gaps and rounded card corners.
                 SoftStrategyTheme.Solid(new Rect(0,0,width,height),SoftStrategyTheme.Background);
                 float bodyWidth=Mathf.Min(width-44,1320),left=(width-bodyWidth)/2;
-                GUI.Label(new Rect(left,22,360,16),"BRING YOUR BUILD INTO THE WORLD",theme.Eyebrow);
-                GUI.Label(new Rect(left,44,360,32),"Scan your bricks",theme.Title);
+                GUI.Label(new Rect(left,22,360,16),"将现实积木变成你的游戏关卡",theme.Eyebrow);
+                GUI.Label(new Rect(left,44,360,32),"扫描积木",theme.Title);
                 GUI.enabled=!busy;
-                if (theme.Button(new Rect(left+bodyWidth-126,32,126,38),"Back to map")) Close();
+                if (theme.Button(new Rect(left+bodyWidth-126,32,126,38),"返回地图")) Close();
                 float x=left,slot=narrow?(bodyWidth-24)/4:112;
-                if (theme.Button(new Rect(x,96,narrow?slot:144,36),"Import photo")) Import();
+                if (theme.Button(new Rect(x,96,narrow?slot:144,36),"导入照片")) Import();
                 x+=narrow?slot+8:152;
                 GUI.enabled=!busy && !cameraStarting;
-                if (theme.Button(new Rect(x,96,slot,36),"Camera")) StartCamera();
+                if (theme.Button(new Rect(x,96,slot,36),"启动相机")) StartCamera();
                 x+=slot+8;
                 GUI.enabled=!busy && webcam!=null && webcam.width>16;
-                if (theme.Button(new Rect(x,96,slot,36),"Take photo")) CapturePhoto();
+                if (theme.Button(new Rect(x,96,slot,36),"拍照")) CapturePhoto();
                 x+=slot+8; GUI.enabled=!busy;
-                if (theme.Button(new Rect(x,96,slot,36),"Stop camera")) StopCamera();
+                if (theme.Button(new Rect(x,96,slot,36),"关闭相机")) StopCamera();
                 float modeY=narrow?144:96,modeX=narrow?left:left+bodyWidth-354,modeWidth=narrow?bodyWidth:354;
-                if (theme.Button(new Rect(modeX,modeY,(modeWidth-8)/2,36),"Board paper",selected:!plain)) SetInputMode(PhotoInputMode.MarkedBoard);
-                if (theme.Button(new Rect(modeX+(modeWidth+8)/2,modeY,(modeWidth-8)/2,36),"Plain background",selected:plain)) SetInputMode(PhotoInputMode.PlainBackground);
+                if (theme.Button(new Rect(modeX,modeY,(modeWidth-8)/2,36),"标记格纸",selected:!plain)) SetInputMode(PhotoInputMode.MarkedBoard);
+                if (theme.Button(new Rect(modeX+(modeWidth+8)/2,modeY,(modeWidth-8)/2,36),"纯色背景",selected:plain)) SetInputMode(PhotoInputMode.PlainBackground);
                 float guideY=narrow?190:144;
                 GUI.enabled=true;
                 GUI.Label(new Rect(left,guideY,bodyWidth,30),plain?
-                    "Single layer, equal cubes, near-overhead. Keep every brick and one isolated cube in view.":
-                    "Use the supplied 10 x 10 paper. Keep it flat, with all four markers visible.",theme.Small);
+                    "单层、等大立方体，接近正上方拍摄；全部积木和至少一块独立积木应完整入镜。":
+                    "使用配套 10×10 格纸，保持平整，确保四个标记全部可见。",theme.Small);
                 float bodyY=guideY+36;
 #if !UNITY_EDITOR
                 GUI.enabled=!busy;
@@ -185,7 +189,7 @@ namespace BrickDefense.Demo
         private void DrawPicture(Rect area)
         {
             theme.Card(area);
-            GUI.Label(new Rect(area.x+18,area.y+16,area.width-36,26),"01 / Your photograph",theme.Heading);
+            GUI.Label(new Rect(area.x+18,area.y+16,area.width-36,26),"01 / 照片预览",theme.Heading);
             Rect pictureArea=new Rect(area.x+16,area.y+54,area.width-32,area.height-148);
             SoftStrategyTheme.Round(pictureArea,new Color32(229,231,218,255),8);
             shownPhoto=default;
@@ -205,31 +209,31 @@ namespace BrickDefense.Demo
                     int px=Mathf.Clamp((int)((Event.current.mousePosition.x-shown.x)/shown.width*frame.Width),0,frame.Width-1);
                     int py=Mathf.Clamp((int)((Event.current.mousePosition.y-shown.y)/shown.height*frame.Height),0,frame.Height-1);
                     samples[activeSample]=SamplePatch(px,py); sampled[activeSample]=true; activeSample=-1; analysis.Invalidate();
-                    message="Sample stored. Choose the next role, then save all four colors."; Event.current.Use();
+                    message="采样已记录，请选择下一个角色，最后保存四种颜色。"; Event.current.Use();
                 }
             }
-            else GUI.Label(pictureArea,"A small build, a new map.\n\nImport a photograph or take one with the camera.",theme.Centered);
+            else GUI.Label(pictureArea,"一组积木，一张新地图。\n\n请导入照片，或使用相机拍摄。",theme.Centered);
             bool rejected=scan?.Status==ResultStatus.Rejected;
             Rect note=new Rect(area.x+16,area.yMax-78,area.width-32,62);
             SoftStrategyTheme.Round(note,rejected?SoftStrategyTheme.PaleDanger:SoftStrategyTheme.PaleSage,8);
             GUI.Label(new Rect(note.x+12,note.y+10,note.width-24,note.height-16),
-                activeSample>=0?"Click a flat, evenly lit "+(activeSample==0 && plain?"background":SampleNames[activeSample])+" area in the photo.":message,theme.Small);
+                activeSample>=0?"请点击照片中平整、光照均匀的"+(activeSample==0 && plain?"背景":SampleNames[activeSample])+"区域。":message,theme.Small);
         }
 
         private void DrawCalibration(Rect area)
         {
             theme.Card(area);
-            GUI.Label(new Rect(area.x+16,area.y+16,160,24),"02 / Role colors",theme.Heading);
+            GUI.Label(new Rect(area.x+16,area.y+16,160,24),"02 / 角色颜色",theme.Heading);
             GUI.enabled=!busy;
-            if (theme.Button(new Rect(area.xMax-128,area.y+12,112,32),calibrating?"Editing colors":"Color setup",selected:calibrating))
+            if (theme.Button(new Rect(area.xMax-128,area.y+12,112,32),calibrating?"正在取色":"颜色设置",selected:calibrating))
             { calibrating=true; analysis.Invalidate(); }
-            GUI.Label(new Rect(area.x+16,area.y+45,area.width-32,18),ReadyCalibration()?"Saved palette / roles chosen by you":"Sample the background and three roles",theme.Small);
+            GUI.Label(new Rect(area.x+16,area.y+45,area.width-32,18),ReadyCalibration()?"颜色已就绪，角色由你指定":"请采样背景与三种角色颜色",theme.Small);
             for (int i=0;i<4;i++)
             {
                 GUI.enabled=!busy && calibrating && frame!=null && webcam==null;
-                string sampleName=i==0 && plain?"Background":SampleNames[i];
+                string sampleName=i==0 && plain?"背景":SampleNames[i];
                 if (theme.Button(new Rect(area.x+16,area.y+74+i*38,area.width-86,30),
-                    (activeSample==i?"Pick: ":"Sample ")+sampleName,selected:activeSample==i)) activeSample=i;
+                    (activeSample==i?"请选取：":"采样 ")+sampleName,selected:activeSample==i)) activeSample=i;
                 Rect swatch=new Rect(area.xMax-54,area.y+74+i*38,38,30);
                 SoftStrategyTheme.Round(swatch,SoftStrategyTheme.Background,6);
                 if (sampled[i]) SoftStrategyTheme.Solid(new Rect(swatch.x+3,swatch.y+3,swatch.width-6,swatch.height-6),samples[i]);
@@ -237,22 +241,22 @@ namespace BrickDefense.Demo
             }
             GUI.enabled=!busy && calibrating && ReadyCalibration();
             float half=(area.width-40)/2;
-            if (theme.Button(new Rect(area.x+16,area.y+236,half,34),"Save colors",true))
-            { profiles.SaveCalibration(samples); calibrating=false; activeSample=-1; message="Colors saved for this set of bricks. Analyze the photo."; }
+            if (theme.Button(new Rect(area.x+16,area.y+236,half,34),"保存颜色",true))
+            { profiles.SaveCalibration(samples); calibrating=false; activeSample=-1; message="这组积木的颜色已保存，请分析照片。"; }
             GUI.enabled=!busy;
-            if (theme.Button(new Rect(area.x+24+half,area.y+236,half,34),"Reset colors"))
+            if (theme.Button(new Rect(area.x+24+half,area.y+236,half,34),"重置颜色"))
             { Array.Clear(sampled,0,4); profiles.ResetCalibration(); analysis.Invalidate(); calibrating=true; activeSample=-1; }
             GUI.enabled=true;
             GUI.Label(new Rect(area.x+16,area.y+284,area.width-32,38),
-                "Sample top faces, away from shadows. Each mode keeps its own palette; photos retain their real colors.",theme.Small);
+                "请采样积木顶面，避开阴影。两种模式分别保存颜色，照片保持原色。",theme.Small);
         }
 
         private void DrawResult(Rect area)
         {
             theme.Card(area);
-            GUI.Label(new Rect(area.x+16,area.y+14,area.width-32,26),"03 / Check the map",theme.Heading);
+            GUI.Label(new Rect(area.x+16,area.y+14,area.width-32,26),"03 / 核对地图",theme.Heading);
             bool success=scan?.Status==ResultStatus.Success;
-            theme.Badge(new Rect(area.x+16,area.y+44,144,22),busy?"Analyzing...":scan==null?"Awaiting analysis":success?"Check before using":"Needs attention",scan==null || success);
+            theme.Badge(new Rect(area.x+16,area.y+44,144,22),busy?"正在分析……":scan==null?"等待分析":success?"请核对后使用":"需要调整",scan==null || success);
             float footerY=area.yMax-50;
             if (scan?.PhysicalCells.Length==100)
             {
@@ -260,26 +264,26 @@ namespace BrickDefense.Demo
                     Mathf.Min(144,Mathf.Max(80,area.height-158));
                 DrawMap(new Rect(area.x+16,area.y+78,side,side));
                 float textX=area.x+side+30,textWidth=area.width-side-46;
-                GUI.Label(new Rect(textX,area.y+80,textWidth,90),$"{scan.Bricks.Length} bricks\n\nK  Core\nW  Wall\nT  Tower",theme.Small);
-                if (scan.Issues.Length==0) GUI.Label(new Rect(textX,area.y+174,textWidth,40),plain?"Relative grid\nNo paper origin":"Fixed paper grid\n10 x 10 cells",theme.Small);
+                GUI.Label(new Rect(textX,area.y+80,textWidth,90),$"{scan.Bricks.Length} 块积木\n\nK  核心\nW  城墙\nT  防御塔",theme.Small);
+                if (scan.Issues.Length==0) GUI.Label(new Rect(textX,area.y+174,textWidth,40),plain?"相对网格\n无格纸原点":"固定格纸网格\n10×10 格",theme.Small);
                 if (scan.Issues.Length>0)
                 {
                     float issueY=area.y+Mathf.Max(174,side+92);
                     DrawIssues(new Rect(area.x+16,issueY,area.width-32,footerY-issueY-8));
                 }
                 else if (area.height>=314) GUI.Label(new Rect(area.x+16,area.y+side+90,area.width-32,footerY-area.y-side-100),
-                    "Check count, roles and positions. If they differ, retake the photo.",theme.Small);
+                    "请核对数量、角色与位置；如有偏差，请重新拍摄。",theme.Small);
             }
             else if (scan?.Issues.Length>0)
                 DrawIssues(new Rect(area.x+16,area.y+78,area.width-32,footerY-area.y-90));
             else GUI.Label(new Rect(area.x+16,area.y+78,area.width-32,footerY-area.y-90),
-                "Your 10 x 10 map appears here after analysis.\n\nCalibrate once, analyze, then check each brick.",theme.Centered);
+                "分析后将在这里显示 10×10 地图。\n\n先完成颜色标定，再分析并逐块核对。",theme.Centered);
             bool hasCore=scan!=null && Array.Exists(scan.Bricks,b=>b.ColorId=="physical-color-0");
-            if (success && !hasCore) GUI.Label(new Rect(area.x+16,footerY-30,area.width-32,24),"No core. Add one and take another photo.",theme.Small);
+            if (success && !hasCore) GUI.Label(new Rect(area.x+16,footerY-30,area.width-32,24),"没有核心，请添加核心后重新拍摄。",theme.Small);
             GUI.enabled=!busy && frame!=null && webcam==null && ReadyCalibration() && !calibrating;
-            if (theme.Button(new Rect(area.x+16,footerY,118,34),busy?"Analyzing...":"Analyze photo")) Analyze();
+            if (theme.Button(new Rect(area.x+16,footerY,118,34),busy?"正在分析……":"分析照片")) Analyze();
             GUI.enabled=!busy && success && hasCore && !calibrating && webcam==null;
-            if (theme.Button(new Rect(area.x+144,footerY,area.width-160,34),"Use this map",true))
+            if (theme.Button(new Rect(area.x+144,footerY,area.width-160,34),"生成关卡",true))
             { if (levels.TryLoad(analysis.ConfirmLayout())) Close(); }
             GUI.enabled=true;
         }
@@ -289,8 +293,8 @@ namespace BrickDefense.Demo
             issueScroll=GUI.BeginScrollView(area,issueScroll,new Rect(0,0,area.width-20,scan.Issues.Length*72));
             for (int i=0;i<scan.Issues.Length;i++)
             {
-                GUI.Label(new Rect(0,i*72,area.width-26,18),scan.Issues[i].Code,theme.Eyebrow);
-                GUI.Label(new Rect(0,i*72+22,area.width-26,48),scan.Issues[i].Message,theme.Small);
+                GUI.Label(new Rect(0,i*72,area.width-26,18),$"问题 {i+1}",theme.Eyebrow);
+                GUI.Label(new Rect(0,i*72+22,area.width-26,48),ChineseUi.Error(scan.Issues[i]),theme.Small);
             }
             GUI.EndScrollView();
         }

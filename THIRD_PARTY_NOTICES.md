@@ -1,5 +1,12 @@
 # Third-party notices
 
+## Noto Sans SC 中文界面字体
+
+- 来源：[notofonts/noto-cjk](https://github.com/notofonts/noto-cjk)，树版本 `f8d157532fbfaeda587e826d4cd5b21a49186f7c` 的 `Sans/SubsetOTF/SC/NotoSansSC-Regular.otf`；内部字体版本 2.004。
+- 本地资源：`Assets/Resources/Fonts/NotoSansSC-Regular.otf`，未修改字体二进制、名称或字形。字体 metadata 版权为 © 2014-2021 Adobe (http://www.adobe.com/).
+- SIL Open Font License 1.1 完整文本见 `Assets/ThirdParty/NotoSansSC/OFL.txt`，播放器随包许可证为 `Assets/Resources/Fonts/NotoSansSC-OFL.txt`；来源与 SHA-256 见同目录 SOURCE.md。
+- 用于地图、战斗和扫描界面的中文 GUIStyle/输入框。3d-group/unity-simple-localization 仅作为集中错误文案查找机制参考，未采用其源码或包。检索及具体整合见 `docs/research/chinese-ui-github.md`。
+
 ## Roy-T.AStar 最小堆
 
 - 来源：[roy-t/AStar](https://github.com/roy-t/AStar)，提交 `3d57efaa83c8cd217e4973fd4738c57e2f694bd2`。
@@ -36,3 +43,37 @@
 - 适配固定棋盘中心、水平角循环、45°—75°俯仰、55°默认桌游视角复位及正交投影与尺寸。两指距离改为比例缩放正交尺寸，允许一指静止，双指不同时旋转。IMGUI 输入、手势生命周期、UI 隔离及按钮属于本项目衔接；不采用车辆跟随、缩放协程或 Input 轴。
 - Cinemachine 与 unity-cheat-sheet 仅参与比较，不引入其源码或包。详细阅读与采用依据见 `docs/research/orbit-camera-github.md`。
 - 本次缩放比较中的 WobiWanKenobi 和 sergane13 不采用源码或资产，见 `docs/research/touch-zoom-github.md`。
+
+## Brackeys 塔防战斗计算与流程子集
+
+- 来源：[Brackeys/Tower-Defense-Tutorial](https://github.com/Brackeys/Tower-Defense-Tutorial)，`master` 分支于 2026-10-11 阅读的 `WaveSpawner.cs`、`EnemyMovement.cs`、`Enemy.cs`、`Turret.cs`。未取得固定提交号；未引入上游素材或工程依赖。
+- 本地 `Assets/Scripts/Domain/BattleSimulation.cs` 局部适配路点索引、最近目标/射程、攻击倒计时和死亡保护，改为纯 C#、固定步长、共享核心、手动波次、地图快照和即时伤害。来源与比较见 `docs/research/combat-a-github.md`。
+- RyanJiff 模板只作为双条件波次完成的流程参考，不采用其源码或资产。
+- 多入口轮流分配参考 Unity Boss Room 的累计计数机制，生成器职责参考 Unity Onslaught；仅作机制参考，未复制/改编源码或引入资源与依赖。完整比较见 `docs/research/multiple-spawns-github.md`。
+
+上游 LICENSE.md 全文（Unlicense）：
+
+```text
+This is free and unencumbered software released into the public domain.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
+In jurisdictions that recognize copyright laws, the author or authors
+of this software dedicate any and all copyright interest in the
+software to the public domain. We make this dedication for the benefit
+of the public at large and to the detriment of our heirs and
+successors. We intend this dedication to be an overt act of
+relinquishment in perpetuity of all present and future rights to this
+software under copyright law.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+For more information, please refer to <http://unlicense.org>
+```

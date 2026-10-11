@@ -1,14 +1,18 @@
+using System.Collections.Generic;
 using BrickDefense.Core;
 using UnityEngine;
 
 namespace BrickDefense.Presentation
 {
+    // 根据关卡结果创建 Unity 预览对象；这里不参与照片识别或寻路决策。
     public sealed class LevelView : MonoBehaviour
     {
         private Camera sceneCamera;
         private BoardOrbitCamera orbit;
         private Transform boardRoot,entityRoot,routeRoot;
         private Material lightTile,darkTile,coreMaterial,wallMaterial,towerMaterial,routeMaterial,rejectedMaterial,baseMaterial,tableMaterial;
+        private IReadOnlyList<SpawnRoute> entrances;
+        private GUIStyle spawnLabel;
 
         private void Awake()
         {
@@ -34,6 +38,7 @@ namespace BrickDefense.Presentation
             Transform setting=NewRoot("Board setting");
             SettingCube(setting,"Board base",new Vector3(0,-0.36f,0),new Vector3(20.65f,0.5f,20.65f),baseMaterial);
             SettingCube(setting,"Table",new Vector3(0,-0.72f,0),new Vector3(200,0.12f,200),tableMaterial);
+            // 20×20 底板只创建一次，切换关卡时仅替换积木与路线对象。
             boardRoot=NewRoot("Navigation grid");
             for (int y=0; y<BoardSize.Navigation; y++)
                 for (int x=0; x<BoardSize.Navigation; x++)
@@ -47,6 +52,7 @@ namespace BrickDefense.Presentation
                 }
         }
 
+        // 实体格中心间距为 2 个世界单位，恰好覆盖其 2×2 导航格。
         public void Display(LevelResult level)
         {
             ReplaceRoot(ref entityRoot,"Physical bricks"); ReplaceRoot(ref routeRoot,"Route preview");
@@ -58,14 +64,35 @@ namespace BrickDefense.Presentation
                 brick.GetComponent<Renderer>().sharedMaterial=entity.Role==BrickRole.Core?coreMaterial:
                     entity.Role==BrickRole.Wall?wallMaterial:towerMaterial;
             }
-            foreach (GridPoint point in level.Route)
-                Marker($"Route {point.X},{point.Y}",point,0.08f,new Vector3(0.23f,0.035f,0.23f),routeMaterial);
-            GridPoint spawn=level.Spawn;
-            if (spawn.X>=0 && spawn.Y>=0 && spawn.X<BoardSize.Navigation && spawn.Y<BoardSize.Navigation)
-                Marker("Selected spawn",spawn,level.Status==ResultStatus.Success?0.22f:1.47f,new Vector3(0.62f,0.15f,0.62f),
-                    level.Status==ResultStatus.Success?routeMaterial:rejectedMaterial);
+            entrances=level.SpawnRoutes;
+            var shown=new HashSet<GridPoint>();
+            for(int i=0;i<entrances.Count;i++)
+            {
+                SpawnRoute entrance=entrances[i];
+                foreach(GridPoint point in entrance.Route)
+                    if(shown.Add(point)) Marker($"Route {point.X},{point.Y}",point,0.08f,new Vector3(0.23f,0.035f,0.23f),routeMaterial);
+                GridPoint spawn=entrance.Spawn;
+                if(spawn.X>=0 && spawn.Y>=0 && spawn.X<BoardSize.Navigation && spawn.Y<BoardSize.Navigation)
+                    Marker($"Selected spawn {i+1}",spawn,entrance.HasRoute?0.22f:1.47f,new Vector3(0.75f,0.15f,0.75f),
+                        entrance.HasRoute?routeMaterial:rejectedMaterial);
+            }
         }
 
+        // Drawn by DemoUI before its cards, so numbers disappear on the photo/configuration pages.
+        public void DrawSpawnLabels(float guiScale)
+        {
+            if(entrances==null) return;
+            spawnLabel??=new GUIStyle(GUI.skin.label) { alignment=TextAnchor.MiddleCenter,fontStyle=FontStyle.Bold,fontSize=14 };
+            spawnLabel.normal.textColor=Color.white;
+            for(int i=0;i<entrances.Count;i++)
+            {
+                SpawnRoute entry=entrances[i];
+                Vector3 pixel=sceneCamera.WorldToScreenPoint(WorldForNavigation(entry.Spawn)+Vector3.up*(entry.HasRoute?0.32f:1.57f));
+                if(pixel.z>0) GUI.Label(new Rect(pixel.x/guiScale-18,(Screen.height-pixel.y)/guiScale-10,36,20),(i+1).ToString(),spawnLabel);
+            }
+        }
+
+        // GUI 原点在左上，射线坐标在左下；先翻转 Y，再与棋盘水平面求交。
         public bool TryPickCell(Vector2 guiPosition,out GridPoint cell)
         {
             cell=default;

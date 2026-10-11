@@ -8,6 +8,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="CombatChecks.cs" />
+    <Compile Include="MultipleSpawnChecks.cs" />
     <Compile Include="RouteOracleChecks.cs" />
     <Compile Include="PhotoRecognitionChecks.cs" />
     <Compile Include="PhotoColorRegressionChecks.cs" />

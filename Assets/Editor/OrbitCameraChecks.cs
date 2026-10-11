@@ -86,18 +86,18 @@ namespace BrickDefense.Editor
                             Drag(new Vector2(0.45f,0.50f),new Vector2(0.70f,0.57f));
                         }; break;
                     case 1:
-                        Require(Quaternion.Angle(initial,Rotation)>30,"Right drag did not orbit."); Unchanged(); Framed(); Capture("map-orbited"); afterCapture=()=>ViewButton(2); break;
-                    case 2: Same(initial,"Reset did not restore view."); ViewButton(0); break;
+                        Require(Quaternion.Angle(initial,Rotation)>30,"Right drag did not orbit."); Unchanged(); Framed(); Capture("map-orbited"); afterCapture=()=>CameraCommand(2); break;
+                    case 2: Same(initial,"Reset did not restore view."); CameraCommand(0); break;
                     case 3:
-                        Require(Math.Abs(Mathf.DeltaAngle(initial.eulerAngles.y,Rotation.eulerAngles.y)+45)<0.1f,"Left button failed: "+Rotation.eulerAngles+", initial "+initial.eulerAngles+", viewport "+Screen.width+"x"+Screen.height);
-                        ViewButton(1); break;
-                    case 4: Same(initial,"Right button failed."); ViewButton(3); break;
+                        Require(Math.Abs(Mathf.DeltaAngle(initial.eulerAngles.y,Rotation.eulerAngles.y)+45)<0.1f,"Turn-left command failed: "+Rotation.eulerAngles+", initial "+initial.eulerAngles+", viewport "+Screen.width+"x"+Screen.height);
+                        CameraCommand(1); break;
+                    case 4: Same(initial,"Turn-right command failed."); CameraCommand(3); break;
                     case 5:
-                        Require(Math.Abs(initial.eulerAngles.x-Rotation.eulerAngles.x-10)<0.1f,"Lower button failed."); ViewButton(4); break;
+                        Require(Math.Abs(initial.eulerAngles.x-Rotation.eulerAngles.x-10)<0.1f,"Lower command failed."); CameraCommand(4); break;
                     case 6:
-                        Same(initial,"Higher button failed."); Unchanged();
+                        Same(initial,"Higher command failed."); Unchanged();
                         pose=Rotation; DragPixels(StatusPoint(),StatusPoint()+new Vector2(-160,80));
-                        DragPixels(ViewButtonPoint(1),ViewButtonPoint(1)+new Vector2(12,0)); break;
+                        DragPixels(StatusPoint(),StatusPoint()+new Vector2(12,0)); break;
                     case 7:
                         Same(pose,"Right drag started on status UI."); Unchanged();
                         Drag(new Vector2(0.5f,0.70f),new Vector2(0.5f,0.35f)); break;
@@ -105,7 +105,7 @@ namespace BrickDefense.Editor
                         Require(Math.Abs(Rotation.eulerAngles.x-45)<0.1f,"Lower pitch limit failed."); Framed(); Capture("map-low-angle");
                         afterCapture=()=>Drag(new Vector2(0.5f,0.35f),new Vector2(0.5f,0.70f)); break;
                     case 9:
-                        Require(Math.Abs(Rotation.eulerAngles.x-75)<0.1f,"Upper pitch limit failed."); Framed(); Capture("map-overhead"); afterCapture=()=>ViewButton(2); break;
+                        Require(Math.Abs(Rotation.eulerAngles.x-75)<0.1f,"Upper pitch limit failed."); Framed(); Capture("map-overhead"); afterCapture=()=>CameraCommand(2); break;
                     case 10:
                         Same(initial,"Reset after pitch limits failed.");
                         DragPixels(Pixel(new Vector2(0.5f,0.5f)),StatusPoint()); break;
@@ -115,7 +115,7 @@ namespace BrickDefense.Editor
                     case 12:
                         Same(pose,"Mouse-up did not end drag."); Pick(new GridPoint(9,9)); break;
                     case 13:
-                        Require(demo.Session.Current.Spawn.Equals(new GridPoint(9,9)),"Rotated left-click picked wrong cell: "+demo.Session.Current.Spawn);
+                        Require(Selected(new GridPoint(9,9)),"Rotated left-click picked wrong cell.");
                         Require(demo.Session.Current.Result.Status==ResultStatus.Success,"Rotated spawn lost route.");
                         retained=demo.Session.Current; pose=Rotation; MainButton(1); break;
                     case 14:
@@ -137,8 +137,8 @@ namespace BrickDefense.Editor
                     case 21: SendMouse(EventType.MouseDrag,Pixel(new Vector2(0.4f,0.5f)),1); break;
                     case 22:
                         Same(pose,"Photo page did not release drag capture."); SendMouse(EventType.MouseUp,Pixel(new Vector2(0.4f,0.5f)),1);
-                        // Full revolution through visible rotation controls.
-                        for(int i=0;i<8;i++) ViewButton(1); break;
+                        // Full revolution through the camera's programmatic commands.
+                        for(int i=0;i<8;i++) CameraCommand(1); break;
                     case 23:
                         Same(pose,"Full revolution did not wrap angles."); Unchanged();
                         SendMouse(EventType.MouseDown,Pixel(new Vector2(0.5f,0.5f)),1);
@@ -147,12 +147,12 @@ namespace BrickDefense.Editor
                     case 25:
                         Same(pose,"Leaving window did not stop orbit."); SendMouse(EventType.MouseUp,Pixel(new Vector2(0.6f,0.6f)),1);
                         if(!Size(540,800)) return;
-                        ViewButton(1); break;
+                        CameraCommand(1); break;
                     case 26:
-                        Require(Quaternion.Angle(pose,Rotation)>40,"Narrow rotation button failed."); Framed(); Capture("map-narrow-orbited"); afterCapture=()=>ViewButton(2); break;
+                        Require(Quaternion.Angle(pose,Rotation)>40,"Narrow rotation command failed."); Framed(); Capture("map-narrow-orbited"); afterCapture=()=>CameraCommand(2); break;
                     case 27: Same(initial,"Narrow Reset failed."); Pick(new GridPoint(10,9)); break;
                     case 28:
-                        Require(demo.Session.Current.Spawn.Equals(new GridPoint(10,9)),"Narrow rotated view picked wrong cell.");
+                        Require(Selected(new GridPoint(10,9)),"Narrow rotated view picked wrong cell.");
                         Framed(); Capture("map-narrow-reset"); afterCapture=()=>Camera.main.orthographic=false; break;
                     case 29:
                         Framed();
@@ -161,21 +161,21 @@ namespace BrickDefense.Editor
                         Scroll(Pixel(new Vector2(0.5f,0.5f)),-3); break;
                     case 30:
                         ZoomIs(1.15f); Same(pose,"Scroll rotated camera."); Unchanged();
-                        Scroll(StatusPoint(),-6); Scroll(ViewButtonPoint(1),-6); break;
-                    case 31: ZoomIs(1.15f); ViewButton(5); break;
+                        Scroll(StatusPoint(),-6); break;
+                    case 31: ZoomIs(1.15f); CameraCommand(5); break;
                     case 32:
-                        ZoomIs(1); ViewButton(6); break;
+                        ZoomIs(1); CameraCommand(6); break;
                     case 33:
                         ZoomIs(1.15f); Scroll(Pixel(new Vector2(0.5f,0.5f)),-999); break;
                     case 34:
                         ZoomIs(2.5f); Projection(); Capture("map-zoomed"); afterCapture=()=>Pick(new GridPoint(9,9)); break;
                     case 35:
-                        Require(demo.Session.Current.Spawn.Equals(new GridPoint(9,9)),"Zoomed picking failed.");
-                        ZoomIs(2.5f); retained=demo.Session.Current; ViewButton(0); break;
+                        Require(Selected(new GridPoint(9,9)),"Zoomed picking failed.");
+                        ZoomIs(2.5f); retained=demo.Session.Current; CameraCommand(0); break;
                     case 36:
                         ZoomIs(2.5f); Unchanged(); Scroll(Pixel(new Vector2(0.5f,0.5f)),999); break;
                     case 37:
-                        ZoomIs(0.65f); Projection(); Capture("map-zoom-out"); afterCapture=()=>ViewButton(2); break;
+                        ZoomIs(0.65f); Projection(); Capture("map-zoom-out"); afterCapture=()=>CameraCommand(2); break;
                     case 38:
                         ZoomIs(1); Same(initial,"Reset after zoom failed."); Framed();
                         RunTouchChecks(); break;
@@ -192,20 +192,20 @@ namespace BrickDefense.Editor
                         Debug.Log("TOUCH_FRAME_CHECKS_PASSED: tap/jitter, drag, pinch with stationary finger and reordered IDs, transitions, UI, cancellation/focus/pause/photo and duplicate mouse suppression."); break;
                     case 41:
                         if(!Size(540,800)) return;
-                        ViewButton(6); break;
+                        CameraCommand(6); break;
                     case 42:
-                        Require(Math.Abs(view.ZoomFactor-1.15f)<0.001f,"Narrow zoom button failed."); ViewButton(1); break;
+                        Require(Math.Abs(view.ZoomFactor-1.15f)<0.001f,"Narrow zoom command failed."); CameraCommand(1); break;
                     case 43:
-                        Require(Quaternion.Angle(initial,Rotation)>40,"Narrow zoomed orbit button failed.");
+                        Require(Quaternion.Angle(initial,Rotation)>40,"Narrow zoomed orbit command failed.");
                         Vector2 cell=CellPixel(new GridPoint(10,9));
                         TouchFrame(TouchAt(80,cell,TouchPhase.Began));
                         TouchFrame(TouchAt(80,cell,TouchPhase.Ended)); TouchFrame();
-                        Require(demo.Session.Current.Spawn.Equals(new GridPoint(10,9)),"Zoomed narrow touch picked wrong cell.");
-                        Projection(); Capture("map-narrow-zoomed"); afterCapture=()=>ViewButton(2); break;
+                        Require(Selected(new GridPoint(10,9)),"Zoomed narrow touch picked wrong cell.");
+                        Projection(); Capture("map-narrow-zoomed"); afterCapture=()=>CameraCommand(2); break;
                     case 44: Framed(); Require(Math.Abs(view.ZoomFactor-1)<0.001f,"Narrow Reset lost default zoom."); break;
                     default:
                         Framed();
-                        Finish(0,"ORBIT_CAMERA_CHECKS_PASSED: wheel/buttons and zoom bounds/reset/persistence; touch-frame tap/drag/pinch, pair transitions, UI/photo isolation, cancellation and duplicate mouse suppression; orthographic near/far sizes, orbit and wide/narrow zoomed picking."); return;
+                        Finish(0,"ORBIT_CAMERA_CHECKS_PASSED: wheel/camera commands and zoom bounds/reset/persistence; touch-frame tap/drag/pinch, pair transitions, UI/photo isolation, cancellation and duplicate mouse suppression; orthographic near/far sizes, orbit and wide/narrow zoomed picking."); return;
                 }
                 stage++; resizeAttempts=0; waitFrame=Time.frameCount+5;
             }
@@ -217,14 +217,25 @@ namespace BrickDefense.Editor
         private static Vector2 Pixel(Vector2 fraction)=>new Vector2(fraction.x*Screen.width,fraction.y*Screen.height);
         private static float Scale=>Mathf.Min(1.5f,Mathf.Min(Screen.width/(Screen.width/(float)Screen.height<0.95f?600f:900f),Screen.height/640f));
         private static Vector2 StatusPoint()=>new Vector2(Screen.width/Scale-156,70)*Scale;
-        private static Vector2 ViewButtonPoint(int index)
+        private static bool Selected(GridPoint point)
         {
-            float x=Screen.width/Scale-286,y=114,slot=220f/3,tiltSlot=218f/4;
-            Vector2 logical=index<3?new Vector2(x+14+slot/2+(slot+8)*index,y+50):
-                new Vector2(x+14+tiltSlot/2+(tiltSlot+6)*(index-3),y+88);
-            return logical*Scale;
+            foreach(SpawnRoute route in demo.Session.Current.Result.SpawnRoutes) if(route.Spawn.Equals(point)) return true;
+            return false;
         }
-        private static void ViewButton(int index) { Click(ViewButtonPoint(index)); }
+        // Camera buttons were removed. These calls test the retained camera API; gestures use real events.
+        private static void CameraCommand(int index)
+        {
+            switch(index)
+            {
+                case 0: view.TurnView(-45); break;
+                case 1: view.TurnView(45); break;
+                case 2: view.ResetView(); break;
+                case 3: view.TurnView(0,-10); break;
+                case 4: view.TurnView(0,10); break;
+                case 5: view.ZoomView(-1); break;
+                case 6: view.ZoomView(1); break;
+            }
+        }
         private static void MainButton(int index)
         {
             float width=Screen.width/Scale,height=Screen.height/Scale;
@@ -277,9 +288,9 @@ namespace BrickDefense.Editor
             Require(ReferenceEquals(before,demo.Session.Current),"Touch selected on press or through simulated mouse.");
             TouchFrame(TouchAt(7,cell+Vector2.one,TouchPhase.Moved,Vector2.one));
             TouchFrame(TouchAt(7,cell+Vector2.one,TouchPhase.Ended));
-            Require(demo.Session.Current.Spawn.Equals(new GridPoint(9,9)),"Tap with jitter failed.");
+            Require(Selected(new GridPoint(9,9)) && demo.Session.Current.Result.SpawnRoutes.Count==2,"Tap with jitter failed.");
             Click(CellPixel(new GridPoint(10,9)));
-            Require(demo.Session.Current.Spawn.Equals(new GridPoint(9,9)),"Touch release repeated mouse selection."); TouchFrame();
+            Require(Selected(new GridPoint(9,9)) && demo.Session.Current.Result.SpawnRoutes.Count==2,"Touch release repeated mouse selection."); TouchFrame();
 
             retained=demo.Session.Current; Quaternion angle=Rotation;
             Vector2 a=Pixel(new Vector2(0.42f,0.52f)),b=Pixel(new Vector2(0.58f,0.52f));

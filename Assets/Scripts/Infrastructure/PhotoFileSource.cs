@@ -14,6 +14,7 @@ namespace BrickDefense.Infrastructure
         { Frame=frame; OriginalBytes=bytes; Extension=extension; }
     }
 
+    // 文件入口只负责格式、尺寸和解码；识别在纯 C# 的 Vision 模块执行。
     public static class PhotoFileSource
     {
         // The Editor installs its dialog adapter; players use the entered path.

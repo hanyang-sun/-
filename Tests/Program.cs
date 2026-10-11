@@ -1,4 +1,6 @@
 using BrickDefense.Core;
+if (args.Contains("--combat-checks")) { CombatChecks.Run(); return; }
+if (args.Contains("--multiple-spawn-checks")) { MultipleSpawnChecks.Run(); return; }
 if (args.Contains("--scan-rejection-checks")) { ScanRejectionChecks.Run(); return; }
 if (args.Length>=2 && args[0]=="--replay-scan")
 {
@@ -121,6 +123,8 @@ foreach (var malformedBrick in new[]
 }
 
 RouteOracleChecks.Run();
+CombatChecks.Run();
+MultipleSpawnChecks.Run();
 PhotoRecognitionChecks.Run();
 PhotoColorRegressionChecks.Run();
 await WorkflowChecks.Run();

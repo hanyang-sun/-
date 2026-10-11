@@ -16,8 +16,10 @@ namespace BrickDefense.Core
         public int Grey => (299 * R + 587 * G + 114 * B + 500) / 1000;
     }
 
+    // 标记格纸提供固定格位；无格纸照片只能得到按积木边长估算的相对格位。
     public enum LayoutCoordinateBasis { MarkedBoard, RelativeBrickScale }
 
+    // BoardToImage 从 10×10 纸面坐标投影到原图像素坐标。
     public sealed class BoardObservation
     {
         public ImagePoint[] Corners { get; }

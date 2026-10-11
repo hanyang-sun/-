@@ -44,6 +44,7 @@ namespace BrickDefense.Core
             });
         }
 
+        // 文本中的 K/W/T 是示例角色符号；转换后仍走照片同一条关卡管线。
         public static ScanResult Parse(string scanId, string[] rows)
         {
             if (rows == null || rows.Length != BoardSize.Physical)

@@ -50,6 +50,7 @@ namespace BrickDefense.Presentation
 
         public void Reset() { yaw=InitialYaw; pitch=InitialPitch; ZoomFactor=1; Apply(); }
 
+        // 棋盘中心固定在原点；正交尺寸随窗口比例与缩放倍率调整。
         public void Apply()
         {
             Quaternion rotation=Quaternion.Euler(pitch,yaw,0);

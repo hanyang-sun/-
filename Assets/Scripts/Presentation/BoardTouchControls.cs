@@ -40,9 +40,11 @@ namespace BrickDefense.Presentation
 
         public void Cancel() { firstId=secondId=-1; dragging=pinching=false; waitForLift=true; }
 
+        // 单指在抬起时选格，超过阈值才旋转；双指捏合只控制缩放。
         public void Process(int count,Touch first,Touch second,Vector2 screenSize)
         {
             if(count==0) { Cancel(); waitForLift=false; return; }
+            // 手势被取消后必须等全部手指离屏，防止捏合尾帧误触选格。
             if(waitForLift) return;
             if(count>2) { Cancel(); return; }
             Vector2 p=Gui(first.position,screenSize.y);

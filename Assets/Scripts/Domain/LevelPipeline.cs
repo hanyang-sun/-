@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 namespace BrickDefense.Core
 {
+    // 先验证视觉数据合同，再把每个实体格映射为 2×2 导航格。
     public static class GridMapper
     {
         public static GridResult Map(ScanResult scan)
@@ -29,6 +30,7 @@ namespace BrickDefense.Core
                 return Rejected(scan.ScanId, issues);
             }
 
+            // 同时检查逐格记录和逐块记录，防止缺格、重号或占用关系不一致。
             var seen = new bool[BoardSize.PhysicalCellCount];
             var occupiedById = new Dictionary<string, PhysicalCellObservation>();
             foreach (PhysicalCellObservation cell in scan.PhysicalCells)
@@ -88,6 +90,7 @@ namespace BrickDefense.Core
             if (issues.Count > 0)
                 return Rejected(scan.ScanId, issues);
 
+            // 空导航格保留 null 来源；占用格记录对应的实体积木编号。
             var placements = new GridPlacement[scan.Bricks.Length];
             var navCells = new GridCell[BoardSize.NavigationCellCount];
             for (int y = 0; y < BoardSize.Navigation; y++)
@@ -124,8 +127,44 @@ namespace BrickDefense.Core
         }
     }
 
+    // 将物理颜色映射到游戏角色，并校验出生点与核心的可达路线。
     public static class LevelBuilder
     {
+        public static LevelResult Build(GridResult grid, LevelRules rules, IReadOnlyList<GridPoint> spawns)
+        {
+            // Map geometry once, then reuse its cells for every entrance's A* query.
+            LevelResult first=Build(grid,rules,spawns!=null && spawns.Count>0?spawns[0]:new GridPoint(-1,-1));
+            var issues=new List<Issue>();
+            foreach(Issue issue in first.Issues)
+                if(issue.Code!="SPAWN_OUT_OF_BOUNDS" && issue.Code!="SPAWN_OCCUPIED" && issue.Code!="NO_ROUTE")
+                    issues.Add(issue);
+            if(issues.Count>0)
+                return new LevelResult(ResultStatus.Rejected,first.Entities,first.Cells,first.CoreBrickIds,
+                    Array.Empty<SpawnRoute>(),issues.ToArray());
+            var paths=new List<SpawnRoute>();
+            var seen=new HashSet<GridPoint>();
+            if(spawns==null || spawns.Count==0)
+                issues.Add(new Issue("NO_SPAWNS","Choose at least one empty tile as an enemy start."));
+            else foreach(GridPoint point in spawns)
+            {
+                NavigationPath path=null;
+                if(!seen.Add(point))
+                    issues.Add(new Issue("SPAWN_DUPLICATE",$"Start {point} is selected more than once."));
+                else if(!InsideNavigation(point))
+                    issues.Add(new Issue("SPAWN_OUT_OF_BOUNDS",$"Start {point} is outside the board."));
+                else if(first.Cells[point.Y*BoardSize.Navigation+point.X].SourceBrickId!=null)
+                    issues.Add(new Issue("SPAWN_OCCUPIED",$"Start {point} must be an empty tile."));
+                else
+                {
+                    path=GridPathfinder.Find(first.Cells,first.CoreBrickIds,point);
+                    if(path==null) issues.Add(new Issue("NO_ROUTE",$"Start {point} has no route to a core."));
+                }
+                paths.Add(new SpawnRoute(point,path?.TargetBrickId,path?.Route));
+            }
+            return new LevelResult(issues.Count==0?ResultStatus.Success:ResultStatus.Rejected,
+                first.Entities,first.Cells,first.CoreBrickIds,paths.ToArray(),issues.ToArray());
+        }
+
         public static LevelResult Build(GridResult grid, LevelRules rules, GridPoint spawn)
         {
             var issues = new List<Issue>();
@@ -157,6 +196,7 @@ namespace BrickDefense.Core
             var entities = new List<LevelEntity>();
             var rolesById = new Dictionary<string, BrickRole>();
             var seenBrickIds = new HashSet<string>();
+            // 从实体位置重新推导占用，核对传入的 20×20 导航格没有错位。
             var expectedSources = new string[BoardSize.NavigationCellCount];
             foreach (GridPlacement placement in grid.Placements)
             {
@@ -217,6 +257,7 @@ namespace BrickDefense.Core
             foreach (LevelEntity entity in entities)
                 if (entity.Role == BrickRole.Core)
                     cores.Add(entity);
+            // 核心按行、列排序，等距时寻路结果有稳定的选择顺序。
             cores.Sort((a, b) =>
             {
                 int byRow = a.R.CompareTo(b.R);

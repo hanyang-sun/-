@@ -79,7 +79,10 @@ namespace BrickDefense.Editor
                         Vector3 point=Camera.main.WorldToScreenPoint(new Vector3(-0.5f,0,-5.5f));
                         Click(new Vector2(point.x,Screen.height-point.y)); break;
                     case 5:
-                        Require(demo.Session.Current.Spawn.Equals(new GridPoint(9,15)),"Scaled map click selected another cell.");
+                        bool selected=false;
+                        foreach(SpawnRoute entrance in demo.Session.Current.Result.SpawnRoutes)
+                            if(entrance.Spawn.Equals(new GridPoint(9,15))) selected=true;
+                        Require(selected,"Scaled map click selected another cell.");
                         Debug.Log("SOFT_UI_MAP_INPUT_PASSED: both buttons and projected cell (9,15)."); MainButton(2); break;
                     case 6:
                         Require(panel.IsOpen,"Scan button did not open photo page."); Capture("photo-empty"); break;

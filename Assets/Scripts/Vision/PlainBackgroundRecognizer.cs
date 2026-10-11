@@ -25,6 +25,7 @@ namespace BrickDefense.Vision
             return true;
         }
 
+        // 无格纸入口只恢复单层积木的相对布局，不声明固定的实体格纸坐标。
         public static ScanResult Recognize(CaptureSet capture, ColorCalibration calibration, PhotoScanSettings settings = null)
         {
             settings = settings ?? new PhotoScanSettings();
@@ -49,6 +50,7 @@ namespace BrickDefense.Vision
                 for (int x = 0; x < width; x++)
                     labels[y*width+x] = Classify(frame.Pixels[y*factor*frame.Width+x*factor],palette,settings,neutralForegroundFloor);
             labels = Denoise(labels,width,height);
+            // 颜色连通区域可能包含多块紧贴的同色积木，随后按估计边长拆分。
             var components = Components(labels,width,height);
             double minimumSide = Math.Max(8,settings.MinimumCellPixels/factor);
             var sizes = new List<double>();
@@ -75,6 +77,7 @@ namespace BrickDefense.Vision
                 if (columns > 10 || rows > 10 || Math.Abs(region.Width/columns-edge)/edge > 0.30 ||
                     Math.Abs(region.Height/rows-edge)/edge > 0.30)
                 { issues.Add(new Issue("BRICK_GEOMETRY_UNCERTAIN","方块尺寸或方向不一致；请单层摆放并竖直俯拍。",frameId:frame.FrameId,imageRegion:regionBox)); continue; }
+                // 每个候选小格单独计算颜色覆盖；L 形组件的空象限仍保持空白。
                 for (int r = 0; r < rows; r++)
                     for (int c = 0; c < columns; c++)
                     {
@@ -95,6 +98,7 @@ namespace BrickDefense.Vision
             if (issues.Count > 0) return new ScanResult(id,ResultStatus.Rejected,Array.Empty<PhysicalCellObservation>(),
                 Array.Empty<BrickObservation>(),issues.ToArray());
             if (pieces.Count == 0) return Reject(id,"BRICKS_NOT_FOUND","没有识别到完整积木；请检查标定和背景。");
+            // 以检测结果的左上方为相对原点；这里没有从照片恢复真实格纸原点。
             double minX = double.MaxValue,minY = double.MaxValue;
             foreach (Piece p in pieces) { minX=Math.Min(minX,p.X); minY=Math.Min(minY,p.Y); }
             double unit = edge*factor;
@@ -115,6 +119,7 @@ namespace BrickDefense.Vision
                         new ImagePoint(p.Right,p.Bottom),new ImagePoint(p.Left,p.Bottom) }) }));
             }
             bricks.Sort((a,b) => a.R != b.R ? a.R.CompareTo(b.R) : a.C.CompareTo(b.C));
+            // IsReliable=false 标识该仿射关系仅用于相对格位和证据展示。
             var basis = new BoardObservation(Array.Empty<ImagePoint>(),
                 new[] {unit,0,minX-1.5*unit,0,unit,minY-1.5*unit,0,0,1},Array.Empty<int>(),0,false,
                 LayoutCoordinateBasis.RelativeBrickScale);

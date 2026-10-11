@@ -5,6 +5,7 @@ using UnityEngine;
 
 namespace BrickDefense.Infrastructure
 {
+    // 管理相机权限、预览与拍摄；图像方向归一交给 PhotoPixels。
     public sealed class CameraCapture : MonoBehaviour
     {
         public WebCamTexture Texture { get; private set; }

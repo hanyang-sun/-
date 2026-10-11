@@ -33,6 +33,7 @@ namespace BrickDefense.Core
         }
     }
 
+    // 当前基础版只分析一帧；这里保留帧集合合同以便后续扩展多视角输入。
     public sealed class CaptureSet
     {
         public string ScanId { get; }
@@ -48,6 +49,7 @@ namespace BrickDefense.Vision
 {
     public enum PhotoInputMode { MarkedBoard, PlainBackground }
 
+    // 颜色编号与角色的对应由用户采样顺序决定，不由 RGB 值硬编码。
     public sealed class ColorCalibration
     {
         public Rgb24 Paper { get; }
@@ -56,6 +58,7 @@ namespace BrickDefense.Vision
         public ColorCalibration(Rgb24 paper, Rgb24[] colors, string[] colorIds)
         { Paper = paper; BrickColors = colors; ColorIds = colorIds; }
 
+        // 取 7×7 邻域各通道的中位数，降低单个反光或噪声像素的影响。
         public static Rgb24 SamplePatch(ImageFrame frame,int x,int y)
         {
             int count=0; var r=new byte[49]; var g=new byte[49]; var b=new byte[49];

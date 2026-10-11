@@ -17,6 +17,7 @@ namespace BrickDefense.Vision
                 (m[3] * x + m[4] * y + m[5]) / d);
         }
 
+        // 四对点给出 8 个方程；令齐次矩阵最后一项为 1，消元求其余系数。
         public static bool TryFit(ImagePoint[] source, ImagePoint[] target, out ProjectiveMap result)
         {
             result = null;
@@ -30,6 +31,7 @@ namespace BrickDefense.Vision
                 a[2*i+1,3] = x; a[2*i+1,4] = y; a[2*i+1,5] = 1;
                 a[2*i+1,6] = -v*x; a[2*i+1,7] = -v*y; a[2*i+1,8] = v;
             }
+            // 部分选主元的高斯消元；退化四边形会在主元过小时被拒绝。
             for (int col = 0; col < 8; col++)
             {
                 int pivot = col;
