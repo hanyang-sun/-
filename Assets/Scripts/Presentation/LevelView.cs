@@ -7,7 +7,7 @@ namespace BrickDefense.Presentation
     {
         private Camera sceneCamera;
         private Transform boardRoot,entityRoot,routeRoot;
-        private Material lightTile,darkTile,coreMaterial,wallMaterial,towerMaterial,routeMaterial,rejectedMaterial;
+        private Material lightTile,darkTile,coreMaterial,wallMaterial,towerMaterial,routeMaterial,rejectedMaterial,baseMaterial,tableMaterial;
 
         private void Awake()
         {
@@ -17,17 +17,23 @@ namespace BrickDefense.Presentation
                 var cameraObject=new GameObject("Demo camera"); cameraObject.tag="MainCamera";
                 cameraObject.transform.SetParent(transform); sceneCamera=cameraObject.AddComponent<Camera>();
             }
-            sceneCamera.transform.position=new Vector3(0,28,-18); sceneCamera.transform.LookAt(Vector3.zero);
-            sceneCamera.orthographic=true; sceneCamera.orthographicSize=17.5f;
-            sceneCamera.backgroundColor=new Color(0.07f,0.10f,0.15f); sceneCamera.clearFlags=CameraClearFlags.SolidColor;
+            sceneCamera.transform.position=new Vector3(23,32,-23); sceneCamera.transform.LookAt(Vector3.zero);
+            sceneCamera.orthographic=true; FrameBoard();
+            sceneCamera.backgroundColor=SoftStrategyTheme.Background; sceneCamera.clearFlags=CameraClearFlags.SolidColor;
             var lightObject=new GameObject("Demo light"); lightObject.transform.SetParent(transform);
-            var light=lightObject.AddComponent<Light>(); light.type=LightType.Directional; light.intensity=1.5f;
-            lightObject.transform.rotation=Quaternion.Euler(45,-35,0);
-            RenderSettings.ambientLight=new Color(0.55f,0.58f,0.64f);
-            lightTile=MakeMaterial(new Color(0.20f,0.29f,0.36f)); darkTile=MakeMaterial(new Color(0.17f,0.25f,0.32f));
-            coreMaterial=MakeMaterial(new Color(0.13f,0.83f,0.88f)); wallMaterial=MakeMaterial(new Color(0.62f,0.63f,0.78f));
-            towerMaterial=MakeMaterial(new Color(1,0.61f,0.18f)); routeMaterial=MakeMaterial(new Color(0.87f,0.98f,0.29f));
-            rejectedMaterial=MakeMaterial(new Color(0.98f,0.28f,0.30f));
+            var light=lightObject.AddComponent<Light>(); light.type=LightType.Directional; light.intensity=0.7f;
+            light.shadows=LightShadows.Soft; light.shadowStrength=0.28f; light.shadowBias=0.035f;
+            lightObject.transform.rotation=Quaternion.Euler(48,-38,0);
+            RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight=new Color(0.50f,0.50f,0.50f);
+            lightTile=MakeMaterial(new Color32(199,212,177,255)); darkTile=MakeMaterial(new Color32(195,207,172,255));
+            coreMaterial=MakeMaterial(SoftStrategyTheme.Core); wallMaterial=MakeMaterial(SoftStrategyTheme.Wall);
+            towerMaterial=MakeMaterial(SoftStrategyTheme.Tower); routeMaterial=MakeMaterial(SoftStrategyTheme.Route);
+            rejectedMaterial=MakeMaterial(SoftStrategyTheme.Danger);
+            baseMaterial=MakeMaterial(new Color32(213,201,165,255)); tableMaterial=MakeMaterial(SoftStrategyTheme.Background);
+            Transform setting=NewRoot("Board setting");
+            SettingCube(setting,"Board base",new Vector3(0,-0.36f,0),new Vector3(20.65f,0.5f,20.65f),baseMaterial);
+            SettingCube(setting,"Table",new Vector3(0,-0.72f,0),new Vector3(200,0.12f,200),tableMaterial);
             boardRoot=NewRoot("Navigation grid");
             for (int y=0; y<BoardSize.Navigation; y++)
                 for (int x=0; x<BoardSize.Navigation; x++)
@@ -35,8 +41,9 @@ namespace BrickDefense.Presentation
                     Vector3 center=WorldForNavigation(new GridPoint(x,y));
                     var tile=GameObject.CreatePrimitive(PrimitiveType.Cube); tile.name=$"Cell {x},{y}";
                     tile.transform.SetParent(boardRoot); tile.transform.position=new Vector3(center.x,-0.06f,center.z);
-                    tile.transform.localScale=new Vector3(0.96f,0.1f,0.96f);
-                    tile.GetComponent<Renderer>().sharedMaterial=(x+y)%2==0?lightTile:darkTile;
+                    tile.transform.localScale=new Vector3(0.975f,0.1f,0.975f);
+                    Renderer renderer=tile.GetComponent<Renderer>(); renderer.sharedMaterial=(x+y)%2==0?lightTile:darkTile;
+                    renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
                 }
         }
 
@@ -47,15 +54,15 @@ namespace BrickDefense.Presentation
             {
                 var brick=GameObject.CreatePrimitive(PrimitiveType.Cube); brick.name=$"{entity.Role} {entity.BrickId}";
                 brick.transform.SetParent(entityRoot); brick.transform.position=new Vector3(2*entity.C-9f,0.66f,9f-2*entity.R);
-                brick.transform.localScale=new Vector3(1.9f,1.3f,1.9f);
+                brick.transform.localScale=new Vector3(1.84f,1.3f,1.84f);
                 brick.GetComponent<Renderer>().sharedMaterial=entity.Role==BrickRole.Core?coreMaterial:
                     entity.Role==BrickRole.Wall?wallMaterial:towerMaterial;
             }
             foreach (GridPoint point in level.Route)
-                Marker($"Route {point.X},{point.Y}",point,0.10f,new Vector3(0.32f,0.06f,0.32f),routeMaterial);
+                Marker($"Route {point.X},{point.Y}",point,0.08f,new Vector3(0.23f,0.035f,0.23f),routeMaterial);
             GridPoint spawn=level.Spawn;
             if (spawn.X>=0 && spawn.Y>=0 && spawn.X<BoardSize.Navigation && spawn.Y<BoardSize.Navigation)
-                Marker("Selected spawn",spawn,1.45f,new Vector3(0.55f,0.12f,0.55f),
+                Marker("Selected spawn",spawn,level.Status==ResultStatus.Success?0.22f:1.47f,new Vector3(0.62f,0.15f,0.62f),
                     level.Status==ResultStatus.Success?routeMaterial:rejectedMaterial);
         }
 
@@ -79,11 +86,21 @@ namespace BrickDefense.Presentation
         private Transform NewRoot(string name) { var root=new GameObject(name).transform; root.SetParent(transform); return root; }
         private void ReplaceRoot(ref Transform root,string name)
         { if (root!=null) { root.gameObject.SetActive(false); Destroy(root.gameObject); } root=NewRoot(name); }
-        private static Material MakeMaterial(Color color) { var material=new Material(Shader.Find("Standard")); material.color=color; return material; }
+        private void LateUpdate() { FrameBoard(); }
+        private void FrameBoard()
+        { sceneCamera.orthographicSize=Mathf.Max(15.5f,16f/Mathf.Max(sceneCamera.aspect,0.1f)); }
+        private static void SettingCube(Transform parent,string name,Vector3 position,Vector3 scale,Material material)
+        {
+            var part=GameObject.CreatePrimitive(PrimitiveType.Cube); part.name=name; part.transform.SetParent(parent);
+            part.transform.position=position; part.transform.localScale=scale;
+            part.GetComponent<Renderer>().sharedMaterial=material;
+        }
+        private static Material MakeMaterial(Color color)
+        { var material=new Material(Shader.Find("Standard")); material.color=color; material.SetFloat("_Glossiness",0.08f); return material; }
         private static Vector3 WorldForNavigation(GridPoint point) => new Vector3(point.X-9.5f,0,9.5f-point.Y);
         private void OnDestroy()
         {
-            foreach (Material material in new[] {lightTile,darkTile,coreMaterial,wallMaterial,towerMaterial,routeMaterial,rejectedMaterial})
+            foreach (Material material in new[] {lightTile,darkTile,coreMaterial,wallMaterial,towerMaterial,routeMaterial,rejectedMaterial,baseMaterial,tableMaterial})
                 if (material!=null) Destroy(material);
         }
     }

@@ -22,17 +22,21 @@ namespace BrickDefense.Editor
         public static void Verify()
         {
             string project=Path.GetFullPath(Path.Combine(Application.dataPath,"..")).Replace('\\','/');
-            if (!project.EndsWith("/.scratch/scan-rejection/unity-check",StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Use the isolated scan-rejection verification project.");
+            if (!project.EndsWith("/.scratch/scan-rejection/unity-check",StringComparison.OrdinalIgnoreCase) &&
+                !project.EndsWith("/.scratch/soft-strategy-ui/unity-check",StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Use an isolated scan-rejection or soft-strategy-ui verification project.");
             string directory=Path.GetFullPath(Path.Combine(Application.dataPath,"../Artifacts/Overlay")); Directory.CreateDirectory(directory);
             SessionState.SetString(Capture,Path.Combine(directory,"overlay-"+Guid.NewGuid().ToString("N")+".png"));
             SessionState.SetBool(Running,true); stage=0; resizeAttempts=0; resizedFrame=-10; deadline=EditorApplication.timeSinceStartup+60;
             EditorSceneManager.OpenScene("Assets/Scenes/BrickDefenseDemo.unity");
             Type gameType=typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");
             if(gameType==null) throw new Exception("Editor has no Game-view window type.");
+            foreach(EditorWindow window in Resources.FindObjectsOfTypeAll<EditorWindow>())
+                if(window.GetType().Name=="GameView") window.Close();
             gameView=(EditorWindow)ScriptableObject.CreateInstance(gameType);
             gameView.titleContent=new GUIContent("Photo overlay check");
             gameView.ShowUtility(); gameView.position=new Rect(40,40,862,702); gameView.Focus();
+            gameType.GetProperty("selectedSizeIndex").SetValue(gameView,0);
             EditorApplication.update-=Tick; EditorApplication.update+=Tick; EditorApplication.EnterPlaymode();
         }
         private static void Tick()
@@ -44,17 +48,25 @@ namespace BrickDefense.Editor
                     foreach(EditorWindow window in Resources.FindObjectsOfTypeAll<EditorWindow>())
                         if(window.GetType().Name=="GameView" && !window.docked) { gameView=window;break; }
                 if(gameView==null) throw new Exception("Verification Game view disappeared.");
+                foreach(EditorWindow window in Resources.FindObjectsOfTypeAll<EditorWindow>())
+                    if(window!=gameView && window.GetType().Name=="GameView") window.Close();
+                var flags=System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance;
+                gameView.GetType().GetMethod("SetFocus",flags).Invoke(gameView,new object[] {true});
                 if(gameView!=null) gameView.Repaint();
                 if (!EditorApplication.isPlaying || Time.frameCount<3) return;
                 if (stage==0)
                 {
                     // Match the user's 862x678 Game area, accounting for editor chrome.
-                    if(Screen.width!=862 || Screen.height!=678)
+                    if(Math.Abs(Screen.width-862)>8 || Math.Abs(Screen.height-678)>8)
                     {
                         if(Time.frameCount<resizedFrame+3) return;
+                        Vector2 target=(Vector2)gameView.GetType().GetProperty("targetRenderSize",flags).GetValue(gameView);
+                        if (Math.Abs(target.x-862)<=8 && Math.Abs(target.y-678)<=8)
+                        { resizedFrame=Time.frameCount; return; }
                         if(++resizeAttempts>10) throw new Exception($"Cannot set verification Game size: {Screen.width}x{Screen.height}.");
                         Rect position=gameView.position;
-                        position.width+=862-Screen.width; position.height+=678-Screen.height;
+                        float density=target.x/position.width;
+                        position.width+=(862-target.x)/density; position.height+=(678-target.y)/density;
                         gameView.position=position;gameView.Focus();resizedFrame=Time.frameCount;return;
                     }
                     var panel=UnityEngine.Object.FindFirstObjectByType<PhotoScanPanel>();
@@ -77,17 +89,20 @@ namespace BrickDefense.Editor
                     try
                     {
                         if (!screenshot.LoadImage(File.ReadAllBytes(path))) throw new Exception("Cannot read Game-view capture.");
-                        float scale=Mathf.Min(screenshot.width/1000f,screenshot.height/880f);
+                        float scale=Mathf.Min(1.5f,Mathf.Min(screenshot.width/1000f,screenshot.height/820f));
+                        float width=screenshot.width/scale,bodyWidth=Mathf.Min(width-44,1320);
+                        float left=(width-bodyWidth)/2,rightWidth=Mathf.Clamp(bodyWidth*0.35f,326,408);
                         int minR=255,minG=255,minB=255,maxR=0,maxG=0,maxB=0,count=0;
-                        // A gap between Save colors and the instructions: no controls or text here.
-                        // It crosses the underlying 3D board, whose checker tiles vary in color.
-                        for (int logicalX=660;logicalX<980;logicalX+=7)
+                        // Gap between the calibration and result cards, above the underlying board.
+                        for (float logicalX=left+bodyWidth-rightWidth+20;logicalX<left+bodyWidth-20;logicalX+=7)
                         {
-                            int x=Mathf.RoundToInt(logicalX*scale),y=screenshot.height-1-Mathf.RoundToInt(379*scale);
+                            int x=Mathf.RoundToInt(logicalX*scale),y=screenshot.height-1-Mathf.RoundToInt(520*scale);
                             Color32 color=screenshot.GetPixel(x,y);
                             minR=Math.Min(minR,color.r);maxR=Math.Max(maxR,color.r);
                             minG=Math.Min(minG,color.g);maxG=Math.Max(maxG,color.g);
                             minB=Math.Min(minB,color.b);maxB=Math.Max(maxB,color.b);count++;
+                            if (Math.Abs(color.r-239)>3 || Math.Abs(color.g-237)>3 || Math.Abs(color.b-224)>3)
+                                throw new Exception("The photo backdrop did not cover the board.");
                         }
                         int variation=Math.Max(maxR-minR,Math.Max(maxG-minG,maxB-minB));
                         Debug.Log($"OVERLAY_PIXEL_RANGE: {screenshot.width}x{screenshot.height}, samples={count}, variation={variation}");
