@@ -125,8 +125,6 @@ foreach (var malformedBrick in new[]
 RouteOracleChecks.Run();
 CombatChecks.Run();
 MultipleSpawnChecks.Run();
-PhotoRecognitionChecks.Run();
-PhotoColorRegressionChecks.Run();
 await WorkflowChecks.Run();
 await PlainBackgroundChecks.Run();
 ScanRejectionChecks.Run();

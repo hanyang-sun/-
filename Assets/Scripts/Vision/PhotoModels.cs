@@ -47,16 +47,14 @@ namespace BrickDefense.Core
 
 namespace BrickDefense.Vision
 {
-    public enum PhotoInputMode { MarkedBoard, PlainBackground }
-
     // 颜色编号与角色的对应由用户采样顺序决定，不由 RGB 值硬编码。
     public sealed class ColorCalibration
     {
-        public Rgb24 Paper { get; }
+        public Rgb24 Background { get; }
         public Rgb24[] BrickColors { get; }
         public string[] ColorIds { get; }
-        public ColorCalibration(Rgb24 paper, Rgb24[] colors, string[] colorIds)
-        { Paper = paper; BrickColors = colors; ColorIds = colorIds; }
+        public ColorCalibration(Rgb24 background, Rgb24[] colors, string[] colorIds)
+        { Background = background; BrickColors = colors; ColorIds = colorIds; }
 
         // 取 7×7 邻域各通道的中位数，降低单个反光或噪声像素的影响。
         public static Rgb24 SamplePatch(ImageFrame frame,int x,int y)
@@ -85,11 +83,8 @@ namespace BrickDefense.Vision
         public int MaximumDetectionSide { get; set; } = 1200;
         public double MaximumColorDistance { get; set; } = 0.24;
         public double MinimumColorMargin { get; set; } = 0.08;
-        public double MinimumCellAgreement { get; set; } = 0.88;
         public double MinimumCalibrationSeparation { get; set; } = 0.32;
         public double MinimumCellPixels { get; set; } = 18;
-        public double MaximumMarkerFitError { get; set; } = 0.18;
         public double MinimumColorBrightness { get; set; } = 0.12;
-        public double MinimumCellCoverage { get; set; } = 0.65;
     }
 }

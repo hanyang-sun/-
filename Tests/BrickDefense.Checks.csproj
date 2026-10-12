@@ -11,13 +11,10 @@
     <Compile Include="CombatChecks.cs" />
     <Compile Include="MultipleSpawnChecks.cs" />
     <Compile Include="RouteOracleChecks.cs" />
-    <Compile Include="PhotoRecognitionChecks.cs" />
-    <Compile Include="PhotoColorRegressionChecks.cs" />
     <Compile Include="WorkflowChecks.cs" />
     <Compile Include="PlainBackgroundChecks.cs" />
     <Compile Include="ScanReplay.cs" />
     <Compile Include="ScanRejectionChecks.cs" />
-    <None Include="Fixtures/generated-overhead-bricks-v1.rgb.gz" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures/real-unmarked-bricks-v1.rgb.gz" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures/real-cropped-bricks-v1.rgb.gz" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../Assets/Scripts/Domain/*.cs" Link="Core/%(Filename)%(Extension)" />
@@ -25,7 +22,6 @@
     <Compile Include="../Assets/Scripts/Application/*.cs" />
     <Compile Include="../Assets/Scripts/Vision/*.cs" Link="Vision/%(Filename)%(Extension)" />
     <Compile Include="../Assets/ThirdParty/RoyTAStar/MinHeap.cs" Link="ThirdParty/MinHeap.cs" />
-    <Compile Include="../Assets/ThirdParty/JsAruco/ArucoCode.cs" Link="ThirdParty/ArucoCode.cs" />
     <Compile Include="../Assets/ThirdParty/Colourful/*.cs" Link="ThirdParty/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

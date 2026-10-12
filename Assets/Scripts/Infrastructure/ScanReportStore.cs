@@ -14,7 +14,6 @@ namespace BrickDefense.Infrastructure
         public Color32[] Calibration { get; set; }
         public ImportedPhoto Imported { get; set; }
         public double ProcessingMilliseconds { get; set; }
-        public PhotoInputMode InputMode { get; set; }
     }
 
     // 保存原图、归一化图和识别证据，供人工核对与实拍回归使用。
@@ -42,7 +41,7 @@ namespace BrickDefense.Infrastructure
                 issues=new ReportIssue[scan.Issues.Length],cells=new ReportCell[scan.PhysicalCells.Length],
                 bricks=new ReportBrick[scan.Bricks.Length],boardToImage=scan.Board?.BoardToImage,corners=Points(scan.Board?.Corners),
                 markerIds=scan.Board?.MarkerIds,settings=PhotoScanSettingsData.From(record.Settings),
-                viewfinder=Points(frame.Viewfinder),orientation=frame.Orientation,inputMode=record.InputMode.ToString(),
+                viewfinder=Points(frame.Viewfinder),orientation=frame.Orientation,inputMode="PlainBackground",
                 coordinateBasis=scan.Board?.CoordinateBasis.ToString(),direction=scan.Board?.Direction,boardIsReliable=scan.Board?.IsReliable??false };
             for (int i=0; i<report.issues.Length; i++)
             { Issue issue=scan.Issues[i]; report.issues[i]=new ReportIssue { code=issue.Code,message=issue.Message,frameId=issue.FrameId,

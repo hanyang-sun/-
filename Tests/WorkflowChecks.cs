@@ -41,18 +41,19 @@ internal static class WorkflowChecks
 
         var photo=new PhotoScanSession(new PhotoScanSettings());
         ExpectInvalid(()=>photo.ConfirmLayout(),"Unanalyzed photo was confirmed.");
-        photo.SetFrame(PhotoColorRegressionChecks.ReadGeneratedFixture());
-        var samples=new[] {photo.SampleColor(808,391),photo.SampleColor(487,385),photo.SampleColor(650,636)};
+        photo.SetFrame(PlainBackgroundChecks.ReadFixture());
+        var samples=new[] {photo.SampleColor(350,1380),photo.SampleColor(160,1040),photo.SampleColor(340,570)};
         var ids=new[] {"physical-color-0","physical-color-1","physical-color-2"};
-        var calibration=new ColorCalibration(photo.SampleColor(720,170),samples,ids);
+        var calibration=new ColorCalibration(photo.SampleColor(650,850),samples,ids);
         ScanResult result=await photo.AnalyzeAsync(calibration);
-        Check(result.Status==ResultStatus.Success && result.Bricks.Length==9 && !photo.IsBusy,"Photo workflow failed.");
+        Check(result.Status==ResultStatus.Success && result.Bricks.Length==10 && !photo.IsBusy,"Photo workflow failed.");
         samples[0]=samples[1]; ids[0]="modified-after-analysis";
         LayoutDefinition confirmed=photo.ConfirmLayout();
         Check(confirmed.Rules.ColorRoleMap["physical-color-0"]==BrickRole.Core,"Confirmation used a later calibration.");
-        Check(session.TryLoad(confirmed),"Confirmed photo could not be loaded."); CheckReference(session);
+        Check(session.TryLoad(confirmed) && session.Current.Result.Status==ResultStatus.Success &&
+            session.Current.Result.Entities.Length==10,"Confirmed photo could not be loaded.");
         string oldId=photo.ScanId;
-        photo.SetFrame(PhotoRecognitionChecks.Fixture());
+        photo.SetFrame(PlainBackgroundChecks.ReadFixture());
         Check(photo.Result==null && photo.ScanId!=oldId,"A new photo retained an old result.");
         ExpectInvalid(()=>photo.ConfirmLayout(),"A new photo confirmed an earlier scan.");
         Console.WriteLine("Workflow checks passed: repeated input switching, atomic rollback, snapshots, spawn changes and original-photo confirmation.");

@@ -8,7 +8,7 @@ namespace BrickDefense.Infrastructure
     {
         // Unity GetPixels32 is bottom-to-top. Normalize once, including webcam metadata.
         public static ImageFrame FromUnity(string frameId,Color32[] source,int width,int height,
-            int clockwiseRotation = 0,bool verticallyMirrored = false,bool squareGuide = false)
+            int clockwiseRotation = 0,bool verticallyMirrored = false)
         {
             int rotation = ((clockwiseRotation%360)+360)%360;
             if (rotation%90 != 0 || source == null || source.Length != width*(long)height)
@@ -24,19 +24,11 @@ namespace BrickDefense.Infrastructure
                     if (rotation == 90) { ox = height-1-y; oy = x; }
                     else if (rotation == 180) { ox = width-1-x; oy = height-1-y; }
                     else if (rotation == 270) { ox = y; oy = width-1-x; }
-                    // Composite PNG transparency onto paper white rather than treating invisible RGB as evidence.
+                    // Composite PNG transparency onto white rather than treating invisible RGB as evidence.
                     output[oy*outputWidth+ox] = new Rgb24((byte)((p.r*p.a+255*(255-p.a))/255),
                         (byte)((p.g*p.a+255*(255-p.a))/255),(byte)((p.b*p.a+255*(255-p.a))/255));
                 }
-            ImagePoint[] guide = null;
-            if (squareGuide)
-            {
-                double side = Math.Min(outputWidth,outputHeight)*0.9;
-                double left = (outputWidth-side)/2,top = (outputHeight-side)/2;
-                guide = new[] { new ImagePoint(left,top),new ImagePoint(left+side,top),
-                    new ImagePoint(left+side,top+side),new ImagePoint(left,top+side) };
-            }
-            return new ImageFrame(frameId,outputWidth,outputHeight,output,DateTime.UtcNow,guide);
+            return new ImageFrame(frameId,outputWidth,outputHeight,output,DateTime.UtcNow);
         }
 
         // 预览时转换回 Unity 的底部起始行顺序，不改变识别用的 ImageFrame。

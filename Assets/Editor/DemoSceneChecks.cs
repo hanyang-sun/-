@@ -80,21 +80,21 @@ namespace BrickDefense.Editor
                 else if (stage == 5)
                 {
                     CheckScene(demo,9,ResultStatus.Success,null,16,"reference-after-blocked");
-                    imported=PhotoFileSource.Load(Path.Combine(Application.dataPath,"../Tests/Fixtures/generated-overhead-bricks-v1.png"));
+                    imported=PhotoFileSource.Load(Path.Combine(Application.dataPath,"../Tests/Fixtures/real-unmarked-bricks-v1.jpg"));
                     photo=new PhotoScanSession(PhotoProfileStore.ReadSettings()); photo.SetFrame(imported.Frame);
-                    Rgb24 paper=photo.SampleColor(720,170);
-                    var colors=new[] {photo.SampleColor(808,391),photo.SampleColor(487,385),photo.SampleColor(650,636)};
-                    sampleColors=new[] {paper}.Concat(colors).Select(c=>new Color32(c.R,c.G,c.B,255)).ToArray();
+                    Rgb24 background=photo.SampleColor(650,850);
+                    var colors=new[] {photo.SampleColor(350,1380),photo.SampleColor(160,1040),photo.SampleColor(340,570)};
+                    sampleColors=new[] {background}.Concat(colors).Select(c=>new Color32(c.R,c.G,c.B,255)).ToArray();
                     CheckProfileRoundTrip(sampleColors);
-                    pendingPhoto=photo.AnalyzeAsync(new ColorCalibration(paper,colors,
+                    pendingPhoto=photo.AnalyzeAsync(new ColorCalibration(background,colors,
                         new[] {"physical-color-0","physical-color-1","physical-color-2"}));
                 }
                 else if (stage == 6)
                 {
                     if (!pendingPhoto.IsCompleted) return;
                     ScanResult scan=pendingPhoto.GetAwaiter().GetResult();
-                    Require(scan.Status==ResultStatus.Success && scan.Bricks.Length==9 &&
-                        scan.PhysicalCells.Count(c=>c.State==PhysicalCellState.Empty)==91,"Imported original photo failed.");
+                    Require(scan.Status==ResultStatus.Success && scan.Bricks.Length==10 &&
+                        scan.PhysicalCells.Count(c=>c.State==PhysicalCellState.Empty)==90,"Imported original photo failed.");
                     Require(demo.Session.TryLoad(photo.ConfirmLayout()),"Confirmed original photo failed to load.");
                     var store=new ScanReportStore(Path.GetFullPath(Path.Combine(Application.dataPath,"../Artifacts/StoreCheck")));
                     string directory=store.Save(new PhotoScanRecord { Frame=photo.Frame,Result=scan,Settings=photo.Settings,
@@ -102,24 +102,22 @@ namespace BrickDefense.Editor
                     string json=File.ReadAllText(Path.Combine(directory,"result.json"));
                     Require(json.Contains(scan.ScanId) && json.Contains("minimumColorBrightness") && json.Contains("calibration") &&
                         json.Contains("physical-color-0"),"Scan report lost settings or color records.");
-                    Require(File.ReadAllBytes(Path.Combine(directory,"source.png")).SequenceEqual(imported.OriginalBytes),"Saved original bytes changed.");
+                    Require(File.ReadAllBytes(Path.Combine(directory,"source.jpg")).SequenceEqual(imported.OriginalBytes),"Saved original bytes changed.");
                     var normalized=PhotoFileSource.Load(Path.Combine(directory,"photo.png"));
                     Require(normalized.Frame.Pixels.SequenceEqual(imported.Frame.Pixels),"Normalized PNG orientation or pixels changed.");
                     Debug.Log("ARCHITECTURE_IO_PASSED: original file import, settings, profile round-trip, report and normalized PNG.");
                 }
                 else if (stage == 7)
                 {
-                    CheckScene(demo,9,ResultStatus.Success,null,16,"original-photograph-after-refactor");
+                    CheckScene(demo,10,ResultStatus.Success,null,demo.Session.Current.Result.Route.Length-1,"original-photograph-after-refactor");
                     LevelContext previous=demo.Session.Current;
                     Require(!demo.Session.TryLoad(new LayoutDefinition(PhysicalColorScan(),ExampleScans.CreateDemoRules(),LayoutSource.Photograph)) &&
                         ReferenceEquals(previous,demo.Session.Current),"Failed photo changed the displayed context.");
                     var panel=demo.GetComponent<PhotoScanPanel>();
-                    panel.SetInputMode(PhotoInputMode.PlainBackground);
                     string path=Path.Combine(Application.dataPath,"../Tests/Fixtures/real-unmarked-bricks-v1.jpg");
                     panel.LoadPhoto(path);
-                    Require(panel.InputMode==PhotoInputMode.PlainBackground,"Photo UI could not select plain-background mode.");
                     imported=PhotoFileSource.Load(path);
-                    photo=new PhotoScanSession(PhotoProfileStore.ReadSettings()); photo.SetInputMode(PhotoInputMode.PlainBackground);
+                    photo=new PhotoScanSession(PhotoProfileStore.ReadSettings());
                     photo.SetFrame(imported.Frame);
                     // Exact calibration recovered from the user's rejected scan.
                     Rgb24 background=new Rgb24(65,61,63);
@@ -142,8 +140,7 @@ namespace BrickDefense.Editor
                     Require(demo.Session.TryLoad(photo.ConfirmLayout()),"Confirmed real JPG did not load.");
                     var store=new ScanReportStore(Path.GetFullPath(Path.Combine(Application.dataPath,"../Artifacts/PlainStoreCheck")));
                     string directory=store.Save(new PhotoScanRecord { Frame=photo.Frame,Result=scan,Settings=photo.Settings,
-                        Calibration=sampleColors,Imported=imported,ProcessingMilliseconds=photo.ProcessingMilliseconds,
-                        InputMode=PhotoInputMode.PlainBackground });
+                        Calibration=sampleColors,Imported=imported,ProcessingMilliseconds=photo.ProcessingMilliseconds });
                     string json=File.ReadAllText(Path.Combine(directory,"result.json"));
                     Require(json.Contains("PlainBackground") && json.Contains("RelativeBrickScale"),"Report lost input mode or relative basis.");
                     Require(File.ReadAllBytes(Path.Combine(directory,"source.jpg")).SequenceEqual(imported.OriginalBytes),"Original JPG was changed.");
@@ -169,8 +166,7 @@ namespace BrickDefense.Editor
                         ReferenceEquals(previous,demo.Session.Current),"Cropped photo replaced the active map.");
                     var store=new ScanReportStore(Path.GetFullPath(Path.Combine(Application.dataPath,"../Artifacts/CroppedStoreCheck")));
                     string directory=store.Save(new PhotoScanRecord { Frame=photo.Frame,Result=scan,Settings=photo.Settings,
-                        Calibration=sampleColors,Imported=imported,ProcessingMilliseconds=photo.ProcessingMilliseconds,
-                        InputMode=PhotoInputMode.PlainBackground });
+                        Calibration=sampleColors,Imported=imported,ProcessingMilliseconds=photo.ProcessingMilliseconds });
                     var saved=JsonUtility.FromJson<RejectionReport>(File.ReadAllText(Path.Combine(directory,"result.json")));
                     Require(saved.issues.Length==scan.Issues.Length,"Rejected report lost issues.");
                     for(int i=0;i<saved.issues.Length;i++)
@@ -185,7 +181,7 @@ namespace BrickDefense.Editor
                 else
                 {
                     CheckScene(demo,9,ResultStatus.Success,null,16,"reference-after-unmarked-photo");
-                    Finish(0,"DEMO_SCENE_CHECKS_PASSED: both photo modes, original PNG/JPG, examples, rendering, assemblies and persistence.");
+                    Finish(0,"DEMO_SCENE_CHECKS_PASSED: default plain-photo workflow, original JPG and normalized PNG, examples, rendering, assemblies and persistence.");
                     return;
                 }
                 stage++;

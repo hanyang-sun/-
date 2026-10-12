@@ -6,7 +6,7 @@ using BrickDefense.Vision;
 
 namespace BrickDefense.Workflow
 {
-    // 管理一张照片的分析生命周期；只有与当前图像、模式和标定一致的结果可确认。
+    // 管理无格纸照片的分析生命周期；只有与当前图像和标定一致的结果可确认。
     public sealed class PhotoScanSession
     {
         private int revision;
@@ -17,16 +17,9 @@ namespace BrickDefense.Workflow
         public bool IsBusy { get; private set; }
         public double ProcessingMilliseconds { get; private set; }
         public PhotoScanSettings Settings { get; }
-        public PhotoInputMode InputMode { get; private set; }
         public PhotoScanSession(PhotoScanSettings settings) { Settings=settings??throw new ArgumentNullException(nameof(settings)); }
-        public bool CalibrationReady(ColorCalibration calibration) => InputMode == PhotoInputMode.PlainBackground ?
-            PlainBackgroundRecognizer.CalibrationValid(calibration,Settings) : PhotoRecognizer.CalibrationValid(calibration,Settings);
-        public void SetInputMode(PhotoInputMode mode)
-        {
-            if (mode != PhotoInputMode.MarkedBoard && mode != PhotoInputMode.PlainBackground) throw new ArgumentOutOfRangeException(nameof(mode));
-            if (IsBusy) throw new InvalidOperationException("Wait for the current analysis before changing input mode.");
-            if (mode != InputMode) { InputMode=mode; Invalidate(); }
-        }
+        public bool CalibrationReady(ColorCalibration calibration) =>
+            PlainBackgroundRecognizer.CalibrationValid(calibration,Settings);
         public Rgb24 SampleColor(int x,int y)
         {
             if (Frame==null) throw new InvalidOperationException("No photo is loaded.");
@@ -47,12 +40,11 @@ namespace BrickDefense.Workflow
             if (!CalibrationReady(calibration)) throw new InvalidOperationException("Color calibration is incomplete.");
             Invalidate(); int version=revision; IsBusy=true;
             // 冻结分析时的标定，避免用户随后改色造成“结果与角色规则不一致”。
-            var frozen = new ColorCalibration(calibration.Paper,(Rgb24[])calibration.BrickColors.Clone(),(string[])calibration.ColorIds.Clone());
-            var capture = new CaptureSet(ScanId,Frame); var timer=Stopwatch.StartNew(); var mode=InputMode;
+            var frozen = new ColorCalibration(calibration.Background,(Rgb24[])calibration.BrickColors.Clone(),(string[])calibration.ColorIds.Clone());
+            var capture = new CaptureSet(ScanId,Frame); var timer=Stopwatch.StartNew();
             try
             {
-                ScanResult result=await Task.Run(() => mode == PhotoInputMode.PlainBackground ?
-                    PlainBackgroundRecognizer.Recognize(capture,frozen,Settings) : PhotoRecognizer.Recognize(capture,frozen,Settings));
+                ScanResult result=await Task.Run(() => PlainBackgroundRecognizer.Recognize(capture,frozen,Settings));
                 if (revision == version) { Result=result; analyzedCalibration=frozen; ProcessingMilliseconds=timer.Elapsed.TotalMilliseconds; }
                 return result;
             }

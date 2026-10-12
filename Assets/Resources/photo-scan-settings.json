@@ -2,10 +2,7 @@
   "maximumDetectionSide": 1200,
   "maximumColorDistance": 0.24,
   "minimumColorMargin": 0.08,
-  "minimumCellAgreement": 0.88,
   "minimumCalibrationSeparation": 0.32,
   "minimumCellPixels": 18,
-  "maximumMarkerFitError": 0.18,
-  "minimumColorBrightness": 0.12,
-  "minimumCellCoverage": 0.65
+  "minimumColorBrightness": 0.12
 }

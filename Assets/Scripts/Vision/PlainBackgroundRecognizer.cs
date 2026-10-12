@@ -37,7 +37,7 @@ namespace BrickDefense.Vision
                 frame.Width < 100 || frame.Height < 100 || frame.Width > 4096 || frame.Height > 4096 ||
                 frame.Pixels == null || frame.Pixels.Length != (long)frame.Width * frame.Height)
                 return Reject(id,"CAPTURE_INVALID","照片尺寸或像素无效。");
-            if (!PhotoRecognizer.SettingsValid(settings)) return Reject(id,"SCAN_SETTINGS_INVALID","识别配置无效。");
+            if (!SettingsValid(settings)) return Reject(id,"SCAN_SETTINGS_INVALID","识别配置无效。");
             if (!CalibrationValid(calibration,settings))
                 return Reject(id,"CALIBRATION_REQUIRED","请采样背景和三种积木颜色；背景与积木必须可区分。");
 
@@ -126,7 +126,14 @@ namespace BrickDefense.Vision
             return new ScanResult(id,ResultStatus.Success,cells,bricks.ToArray(),Array.Empty<Issue>(),basis);
         }
 
-        private static Rgb24[] Palette(ColorCalibration c) => new[] {c.Paper,c.BrickColors[0],c.BrickColors[1],c.BrickColors[2]};
+        private static bool SettingsValid(PhotoScanSettings s) => s.MaximumDetectionSide >= 300 &&
+            s.MaximumDetectionSide <= 2000 && s.MaximumColorDistance > 0 && s.MaximumColorDistance < 1 &&
+            s.MinimumColorMargin > 0 && s.MinimumColorMargin < 1 &&
+            s.MinimumCalibrationSeparation > 0 && s.MinimumCalibrationSeparation < 1 &&
+            s.MinimumCellPixels >= 10 && !double.IsInfinity(s.MinimumCellPixels) &&
+            s.MinimumColorBrightness > 0 && s.MinimumColorBrightness < 1;
+
+        private static Rgb24[] Palette(ColorCalibration c) => new[] {c.Background,c.BrickColors[0],c.BrickColors[1],c.BrickColors[2]};
         private static double Saturation(Rgb24 c)
         { double max=Math.Max(c.R,Math.Max(c.G,c.B)); return max==0?0:(max-Math.Min(c.R,Math.Min(c.G,c.B)))/max; }
         private static double Distance(Rgb24 a,Rgb24 b)

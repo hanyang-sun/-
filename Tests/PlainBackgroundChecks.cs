@@ -23,19 +23,19 @@ internal static class PlainBackgroundChecks
         AssertReal(Recognize(Half(frame),calibration));
 
         var session=new PhotoScanSession(new PhotoScanSettings());
-        session.SetInputMode(PhotoInputMode.PlainBackground); session.SetFrame(frame);
+        session.SetFrame(frame);
         Check(session.CalibrationReady(calibration),"Gray background and white cube could not be calibrated.");
         await session.AnalyzeAsync(calibration); AssertReal(session.Result);
         var active=new LevelSession(); active.LoadExample(false);
         Check(active.TryLoad(session.ConfirmLayout()) && active.Current.Result.Entities.Length==10,"Plain photo confirmation failed.");
-        var swapped=new ColorCalibration(calibration.Paper,new[] {calibration.BrickColors[2],calibration.BrickColors[1],calibration.BrickColors[0]},
+        var swapped=new ColorCalibration(calibration.Background,new[] {calibration.BrickColors[2],calibration.BrickColors[1],calibration.BrickColors[0]},
             new[] {"blue","orange","white"});
         await session.AnalyzeAsync(swapped);
         AssertReal(session.Result);
         Check(active.TryLoad(session.ConfirmLayout()) && active.Current.Result.Entities.Count(e=>e.Role==BrickRole.Core)==2 &&
             active.Current.Result.Entities.Count(e=>e.Role==BrickRole.Tower)==1,"Color setup did not control the roles.");
-        session.SetInputMode(PhotoInputMode.MarkedBoard);
-        Check(session.Result==null,"Changing mode retained a stale confirmation.");
+        session.Invalidate();
+        Check(session.Result==null,"Changing calibration retained a stale confirmation.");
         ExpectInvalid(()=>session.ConfirmLayout());
 
         var synthetic=Synthetic();
@@ -50,7 +50,11 @@ internal static class PlainBackgroundChecks
         Check(Recognize(cropped,ideal).Issues.Any(i=>i.Code=="BRICK_CROPPED"),"Cropped cube was accepted.");
         var none=Synthetic(); Array.Fill(none.Pixels,new Rgb24(80,80,80));
         Check(Recognize(none,ideal).Status==ResultStatus.Rejected,"Empty background became a valid layout.");
-        Console.WriteLine("Plain-background checks passed: original real photo (10 cubes), scale, user-controlled roles, touching L/2x2, unknown/cropped objects and mode invalidation.");
+        Check(!session.CalibrationReady(null),"Missing calibration was accepted.");
+        Check(PlainBackgroundRecognizer.Recognize(new CaptureSet("bad-settings",frame),calibration,
+            new PhotoScanSettings { MinimumCellPixels=double.PositiveInfinity }).Issues.Any(i=>i.Code=="SCAN_SETTINGS_INVALID"),
+            "Invalid object-size settings were accepted.");
+        Console.WriteLine("Plain-background checks passed: default session uses real photo (10 cubes), scale, user-controlled roles, touching L/2x2, unknown/cropped objects and calibration invalidation.");
     }
     public static ImageFrame ReadFixture()
     {

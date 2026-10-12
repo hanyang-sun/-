@@ -17,6 +17,8 @@ namespace BrickDefense.Editor
     public static class SoftStrategyUiChecks
     {
         private const string Running="BrickDefense.SoftUI.Running",DirectoryKey="BrickDefense.SoftUI.Directory";
+        private const string PlainOnly="BrickDefense.SoftUI.PlainOnly",PaletteBackup="BrickDefense.SoftUI.PaletteBackup",
+            PaletteExisted="BrickDefense.SoftUI.PaletteExisted",SavedPalette="BrickDefense.PhotoCalibration.plain.v1";
         private static EditorWindow gameView;
         private static int stage,waitFrame,resizeAttempts;
         private static double deadline;
@@ -30,13 +32,23 @@ namespace BrickDefense.Editor
         static SoftStrategyUiChecks()
         { if (SessionState.GetBool(Running,false)) { deadline=EditorApplication.timeSinceStartup+120; EditorApplication.update+=Tick; } }
 
-        public static void Verify()
+        public static void Verify() => Run(false);
+        public static void VerifyPlainOnly() => Run(true);
+        private static void Run(bool plainOnly)
         {
             string project=Path.GetFullPath(Path.Combine(Application.dataPath,"..")).Replace('\\','/');
             if (!project.EndsWith("/.scratch/soft-strategy-ui/unity-check",StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Run in the isolated soft-strategy-ui verification project.");
-            string output=Path.GetFullPath(Path.Combine(Application.dataPath,"../Artifacts/SoftUI",Guid.NewGuid().ToString("N")));
+            string output=plainOnly?Path.GetFullPath(Path.Combine(project,"../../../.scratch/plain-only-photo/verification")):
+                Path.GetFullPath(Path.Combine(Application.dataPath,"../Artifacts/SoftUI",Guid.NewGuid().ToString("N")));
             Directory.CreateDirectory(output); SessionState.SetString(DirectoryKey,output); SessionState.SetBool(Running,true);
+            SessionState.SetBool(PlainOnly,plainOnly);
+            if (plainOnly)
+            {
+                SessionState.SetBool(PaletteExisted,PlayerPrefs.HasKey(SavedPalette));
+                SessionState.SetString(PaletteBackup,PlayerPrefs.GetString(SavedPalette,""));
+                new PhotoProfileStore().SaveCalibration(ExistingPalette());
+            }
             EditorSceneManager.OpenScene("Assets/Scenes/BrickDefenseDemo.unity");
             foreach (EditorWindow window in Resources.FindObjectsOfTypeAll<EditorWindow>())
                 if (window.GetType().Name=="GameView") window.Close();
@@ -68,6 +80,7 @@ namespace BrickDefense.Editor
                 {
                     case 0:
                         if (!Size(1280,800)) return;
+                        if (SessionState.GetBool(PlainOnly,false)) PhotoScanTools.VerifyPhotoIntegration();
                         Require(demo.Session.Current.Result.Entities.Length==9,"Reference missing."); Capture("map-reference"); break;
                     case 1: MainButton(1); break;
                     case 2:
@@ -85,9 +98,17 @@ namespace BrickDefense.Editor
                         Require(selected,"Scaled map click selected another cell.");
                         Debug.Log("SOFT_UI_MAP_INPUT_PASSED: both buttons and projected cell (9,15)."); MainButton(2); break;
                     case 6:
-                        Require(panel.IsOpen,"Scan button did not open photo page."); Capture("photo-empty"); break;
+                        Require(panel.IsOpen,"Scan button did not open photo page.");
+                        if (SessionState.GetBool(PlainOnly,false))
+                        {
+                            Color32[] expected=ExistingPalette(),restored=Get<Color32[]>("samples");
+                            bool[] ready=Get<bool[]>("sampled");
+                            for (int i=0;i<4;i++) Require(ready[i] && restored[i].Equals(expected[i]),
+                                "The default scan page did not restore the existing plain-photo palette.");
+                            Debug.Log("PLAIN_DEFAULT_PROFILE_PASSED: existing background/core/wall/tower colors restored without selecting a mode.");
+                        }
+                        Capture("photo-empty"); break;
                     case 7:
-                        panel.SetInputMode(PhotoInputMode.PlainBackground);
                         panel.LoadPhoto(Fixture("real-unmarked-bricks-v1.jpg"));
                         profileKey="BrickDefense.SoftUI.Test."+Guid.NewGuid().ToString("N");
                         Set("profiles",new PhotoProfileStore(profileKey));
@@ -118,6 +139,14 @@ namespace BrickDefense.Editor
                     case 13:
                         if (Get<PhotoScanSession>("analysis").IsBusy || Result==null) return;
                         Require(Result.Status==ResultStatus.Success && Result.Bricks.Length==10,"UI analysis lost real-photo layout.");
+                        if (SessionState.GetBool(PlainOnly,false))
+                        {
+                            string reportPath=Path.Combine(SessionState.GetString(DirectoryKey,""),"ScanReports","Scans",Result.ScanId,"result.json");
+                            string report=File.ReadAllText(reportPath);
+                            Require(report.Contains("PlainBackground") && report.Contains("RelativeBrickScale") && !report.Contains("MarkedBoard"),
+                                "The default scan report did not record the relative plain-photo basis.");
+                            Debug.Log("PLAIN_REPORT_PASSED: default input and relative coordinates persisted.");
+                        }
                         Capture("photo-success"); break;
                     case 14:
                         CheckOpaque("photo-success"); CheckPhotoColor("photo-success"); ConfirmButton(); break;
@@ -148,7 +177,9 @@ namespace BrickDefense.Editor
                         if (!Size(862,678)) return; Capture("map-small"); break;
                     default:
                         Require(demo.Session.Current.Result.Entities.Length==10,"Layout lost during window resizing.");
-                        Finish(0,"SOFT_UI_CHECKS_PASSED: actual mouse controls, scaled spawn/photograph sampling, saved palette, analysis/confirm/rejection, opaque raw photos, wide/small/narrow screenshots and scrolling."); return;
+                        Finish(0,SessionState.GetBool(PlainOnly,false)?
+                            "PLAIN_ONLY_UI_CHECKS_PASSED: default saved palette, real photo without mode selection, calibration/save, 10 cubes, confirm/rejection, wide/small/narrow controls and scrolling.":
+                            "SOFT_UI_CHECKS_PASSED: actual mouse controls, scaled spawn/photograph sampling, saved palette, analysis/confirm/rejection, opaque raw photos, wide/small/narrow screenshots and scrolling."); return;
                 }
                 stage++; resizeAttempts=0; waitFrame=Time.frameCount+5;
             }
@@ -156,6 +187,8 @@ namespace BrickDefense.Editor
         }
 
         private static ScanResult Result=>Get<PhotoScanSession>("analysis").Result;
+        private static Color32[] ExistingPalette()=>new[] {new Color32(65,61,63,255),new Color32(251,251,251,255),
+            new Color32(253,97,48,255),new Color32(5,195,254,255)};
         private static string Fixture(string name)=>Path.GetFullPath(Path.Combine(Application.dataPath,"../Tests/Fixtures",name));
         private static T Get<T>(string name)=>(T)typeof(PhotoScanPanel).GetField(name,Private).GetValue(panel);
         private static void Set(string name,object value)=>typeof(PhotoScanPanel).GetField(name,Private).SetValue(panel,value);
@@ -240,6 +273,12 @@ namespace BrickDefense.Editor
         private static void Finish(int code,string message)
         {
             if (!string.IsNullOrEmpty(profileKey)) { PlayerPrefs.DeleteKey(profileKey); PlayerPrefs.Save(); }
+            if (SessionState.GetBool(PlainOnly,false))
+            {
+                if (SessionState.GetBool(PaletteExisted,false)) PlayerPrefs.SetString(SavedPalette,SessionState.GetString(PaletteBackup,""));
+                else PlayerPrefs.DeleteKey(SavedPalette);
+                PlayerPrefs.Save(); SessionState.SetBool(PlainOnly,false);
+            }
             SessionState.SetBool(Running,false); EditorApplication.update-=Tick;
             if (gameView!=null) gameView.Close();
             if (code==0) Debug.Log(message); else Debug.LogError(message);

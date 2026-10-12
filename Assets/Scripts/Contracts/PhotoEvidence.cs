@@ -16,10 +16,10 @@ namespace BrickDefense.Core
         public int Grey => (299 * R + 587 * G + 114 * B + 500) / 1000;
     }
 
-    // 标记格纸提供固定格位；无格纸照片只能得到按积木边长估算的相对格位。
-    public enum LayoutCoordinateBasis { MarkedBoard, RelativeBrickScale }
+    // 当前照片只得到按积木边长估算的相对格位；保留原数值供记录兼容。
+    public enum LayoutCoordinateBasis { RelativeBrickScale = 1 }
 
-    // BoardToImage 从 10×10 纸面坐标投影到原图像素坐标。
+    // BoardToImage 记录相对 10×10 格到原图的估算关系；MarkerIds 保留报告字段。
     public sealed class BoardObservation
     {
         public ImagePoint[] Corners { get; }
@@ -28,10 +28,9 @@ namespace BrickDefense.Core
         public double Confidence { get; }
         public bool IsReliable { get; }
         public LayoutCoordinateBasis CoordinateBasis { get; }
-        public string Direction => CoordinateBasis == LayoutCoordinateBasis.MarkedBoard ?
-            "125=top-left,248=top-right,511=bottom-right,742=bottom-left" : "image-top-left; relative brick-scale layout";
+        public string Direction => "image-top-left; relative brick-scale layout";
         public BoardObservation(ImagePoint[] corners, double[] transform, int[] ids,
-            double confidence, bool reliable, LayoutCoordinateBasis coordinateBasis = LayoutCoordinateBasis.MarkedBoard)
+            double confidence, bool reliable, LayoutCoordinateBasis coordinateBasis = LayoutCoordinateBasis.RelativeBrickScale)
         { Corners = corners; BoardToImage = transform; MarkerIds = ids;
             Confidence = confidence; IsReliable = reliable; CoordinateBasis = coordinateBasis; }
     }

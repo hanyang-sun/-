@@ -10,7 +10,7 @@
 | 模块 | 主要文件 | 职责 |
 | --- | --- | --- |
 | Domain | `Domain/ExampleScans.cs`、`LevelPipeline.cs`、`GridPathfinder.cs`、`BattleSimulation.cs` | 格位映射、结构校验与 A*；纯 C# 固定步长战斗、索敌、伤害、共享核心、波次与胜负。 |
-| Vision | `Vision/PhotoRecognizer.cs`、`PlainBackgroundRecognizer.cs`、`BoardLocator.cs`、`ProjectiveMap.cs`、`PhotoModels.cs` | 图像与标定、格纸定位与投影、颜色分类；无格纸背景分割、同色组件拆分和相对布局；拒绝证据与格纸模板。 |
+| Vision | `Vision/PlainBackgroundRecognizer.cs`、`PhotoModels.cs` | 图像与背景/积木颜色标定、背景分割、同色组件拆分和相对布局；像素证据与拒绝原因。 |
 | Application | `Application/LevelSession.cs`、`PhotoScanSession.cs`、`BattleSession.cs` | 管理关卡与异步照片分析；开局快照、地图锁定、对局推进、暂停、重试和解锁。 |
 | Presentation | `Presentation/BrickDefenseDemo.cs`、`LevelView.cs`、`DemoUI.cs`、`PhotoScanPanel.cs`、`CombatView.cs`、`BattlePanel.cs` | 场景接线、地图与照片操作；战斗参数、敌人/血条/射击/射程显示及结算；正交相机与桌面/触摸输入。 |
 | Infrastructure | `Infrastructure/PhotoFileSource.cs`、`CameraCapture.cs`、`PhotoPixels.cs`、`PhotoProfileStore.cs`、`ScanReportStore.cs` | PNG/JPG 读取与方向归一、相机权限和生命周期、Unity 像素适配、标定持久化、设置和扫描报告读写。 |
@@ -38,7 +38,7 @@ Domain 和公共数据仍使用既有 `BrickDefense.Core` 命名空间；命名�
 - `Contracts/Models.cs`、`PhotoEvidence.cs` 与 `CombatModels.cs` 保存结果、证据、不可变战斗配置/状态和射击事件。Domain 可以接收带照片证据的扫描结果，且不引用 Vision 实现。
 
 - 战斗的外部接口集中在 `BattleSession`：启动并验证、推进时间、开始下一波、暂停、重试、返回布局。`BattleSimulation` 接收配置与路线，返回状态和射击事件；射击显示不决定伤害。地图锁定在 `LevelSession` 中执行，照片提交也经过同一锁定检查。首波开始至终局或主动结束期间不更换地图。
-- `Assets/ThirdParty/` 的 Algorithms 程序集包含既有 Roy 最小堆、js-aruco 标记编码解码和 Colourful 色彩转换子集。通过 `InternalsVisibleTo` 向 Domain 和 Vision 开放实际需要的内部算法类型；来源及授权见 [第三方声明](../THIRD_PARTY_NOTICES.md)。
+- `Assets/ThirdParty/` 的 Algorithms 程序集包含 Roy 最小堆和 Colourful 色彩转换子集。通过 `InternalsVisibleTo` 向 Domain 和 Vision 开放实际需要的内部算法类型；来源及授权见 [第三方声明](../THIRD_PARTY_NOTICES.md)。
 - `Assets/Editor/` 的场景生成、文件选择器和回归工具单独编译。文件对话框通过回调接入 `PhotoFileSource`，运行时程序集不引用 `UnityEditor`。
 - `Tests/` 的 .NET 检查编译纯 C# 模块；Unity 显示与平台读写由编辑器 Play 回归覆盖。
 
@@ -50,8 +50,8 @@ Domain 和公共数据仍使用既有 `BrickDefense.Core` 命名空间；命名�
 flowchart TD
     F[照片文件或相机] --> I[Infrastructure\n读取、解码、方向归一]
     I --> P[PhotoScanSession\n当前图像、标定快照与异步分析]
-    P --> V[Vision / PhotoRecognizer\n定位、透视、颜色分类]
-    V --> S[ScanResult 与识别证据]
+    P --> V[Vision / PlainBackgroundRecognizer\n颜色分割、积木检测、相对格位]
+    V --> S[ScanResult 与相对格位证据]
     S --> U[PhotoScanPanel\n数字地图核对]
     U --> D[LayoutDefinition\n布局、配套规则、来源]
     E[LevelSession.LoadExample\n示例布局与示例规则] --> D
@@ -87,8 +87,7 @@ flowchart TD
 `PhotoScanSession` 保存图像、扫描编号、忙碌状态、耗时和结果。开始分析时复制标定数据；确认成功扫描时，用分析当时的标定创建配套规则。
 换图或重新标定会使旧结果失效；较早的异步任务返回时，不能覆盖新输入的状态。
 
-`PhotoInputMode` 显式选择 `MarkedBoard` 或 `PlainBackground`，切换模式也使旧结果失效。
-有标记模式沿用 `PhotoRecognizer`，无标记模式调用 `PlainBackgroundRecognizer`；两者都返回相同的 `ScanResult`，因此 Domain 和 LevelSession 无需猜测输入类型。
+照片统一调用 `PlainBackgroundRecognizer`，不再提供模式切换。格纸识别器、标记定位、投影拟合、模板与 ArUco 专用依赖已移除；结果仍使用相同的 `ScanResult` 合同，Domain 和 LevelSession 保持接口。
 无格纸没有固定纸面原点，结果标注 `LayoutCoordinateBasis.RelativeBrickScale`，使用图像左上方向与估计边长生成相对离散网格。它不虚构标记或纸张角点，`IsReliable=false` 表示没有定位到真实格纸，逐块测量框仍保存在 ImageEvidence。
 低饱和颜色在无格纸模式保留绝对明度，以区别灰背景和白积木；彩色描述继续复用既有 NormalizedLab。相邻组件按尺寸和实际颜色覆盖拆分，L 形中的空区域不会被填满。
 
@@ -96,11 +95,10 @@ flowchart TD
 
 - `PhotoFileSource` 校验 PNG/JPG 类型、32 MB 文件上限和 4096 像素长边上限，返回原文件字节及归一化图像帧。
 - `CameraCapture` 管理设备启动、权限、超时、拍摄及停止；面板负责取景预览。
-- `PhotoProfileStore` 保持既有 PlayerPrefs 键 `BrickDefense.PhotoCalibration.v1` 和四组颜色的 JSON 格式，读取 `Resources/photo-scan-settings.json`。
-- 无格纸模式使用独立键 `BrickDefense.PhotoCalibration.plain.v1`；界面根据当前模式加载、保存或重置标定。颜色角色仍由用户采样的 Core/Wall/Tower 顺序决定。
+- `PhotoProfileStore` 默认使用已有无格纸键 `BrickDefense.PhotoCalibration.plain.v1` 和四颜色数组格式，已有背景/核心/城墙/塔标定可直接加载；读取 `Resources/photo-scan-settings.json` 的无格纸参数。颜色角色仍由用户采样顺序决定。
 - `ScanReportStore` 在 `Application.persistentDataPath/Scans/<scanId>/` 保存原文件、方向归一后的 PNG、标定、设置、结果和耗时。
 
-报告增加 `inputMode`、`coordinateBasis`、`direction`、`boardIsReliable`，保留已有字段。无格纸照片预览绘制每个独立对象的测量框；确认后的地图显示为相对布局。
+报告继续记录 `inputMode=PlainBackground`、`coordinateBasis=RelativeBrickScale`、`direction`、`boardIsReliable=false`，保留既有报告字段。预览绘制每个独立对象的测量框；确认后的地图显示为相对布局。`ColorCalibration.Background` 表示背景色，取代旧纸面命名；旧格纸报告留作历史，不再生成。
 
 扫描记录用于诊断，当前未实现完整的关卡存档加载系统。
 
@@ -117,10 +115,10 @@ flowchart TD
 - .NET：既有识别与寻路回归、200 个布局的独立 BFS 对照，以及新增的输入切换、失败保留状态、输入快照、出生点和照片确认检查全部通过。
 - Unity 6000.3.24f1：在隔离项目实际编译全部程序集，Play 回归通过；纯逻辑程序集无 Unity 引用，运行时程序集无 UnityEditor 引用。
 - 实际渲染：普通示例 9 块、16 步路线；包围示例 5 块、`NO_ROUTE`；照片与两个示例反复切换正常。
-- 原 AI 生成 PNG 从文件解码到确认及渲染通过：6 蓝、2 红、1 绿，91 个空格；原文件字节和归一化 PNG 像素保存检查通过，标定读写通过。
+- 早期格纸 PNG 实验结果保留在历史检索/验证记录中；当前实际操作检查使用原实拍 JPG 及其归一化 PNG。
 - 保留已有场景脚本 GUID 和标定格式，场景更新为新的 Presentation 程序集名称。新增资源的 `.meta` 已核对。
-- 无格纸实拍扩展：原 JPG 在纯 C# 和 Unity 解码入口均识别 7 橙/2 蓝/1 白、10 个独立方块，确认与实际渲染通过；缩放、颜色角色互换、L 形/2×2 紧贴、未知色、裁切、空背景和模式失效回归通过。
+- 无格纸实拍：原 JPG 在纯 C# 和 Unity 默认入口均识别 7 橙/2 蓝/1 白、10 个独立方块，标定恢复、确认与实际界面通过；缩放、颜色角色互换、L 形/2×2 紧贴、未知色、裁切、空背景与旧结果失效回归通过。
 
 硬件相机、Android 构建及实拍准确率尚未验收。本次验证没有改变这些边界。
 前置候选比较、适配和结果见 [重构研究记录](research/architecture-refactor-github.md)。
-无标记入口的来源、实现与验收见 [无标记实拍研究](research/markerless-photo-github.md) 和 [v1.1 扩展规范](requirements-markerless-v1.1.md)。
+当前唯一照片入口见 [v1.2 规范](requirements-plain-only-v1.2.md)、[裁剪检索](research/plain-only-photo-github.md) 与 [实际验证](../.scratch/plain-only-photo/verification/README.md)；[v1.1](requirements-markerless-v1.1.md) 留作扩展历史。

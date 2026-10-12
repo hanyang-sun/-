@@ -47,7 +47,7 @@ namespace BrickDefense.Infrastructure
             string name=devices[0].name;
             foreach (WebCamDevice device in devices) if (!device.isFrontFacing) { name=device.name; break; }
             Texture=new WebCamTexture(name,1920,1080,15); Texture.Play();
-            StatusChanged?.Invoke("Place the complete paper inside the square guide, including all four markers.");
+            StatusChanged?.Invoke("Keep every cube fully visible on a plain background and photograph from above.");
             float timeout=Time.realtimeSinceStartup+12;
             while (Texture!=null && (!Texture.didUpdateThisFrame || Texture.width<=16) && Time.realtimeSinceStartup<timeout)
                 yield return null;
@@ -61,7 +61,7 @@ namespace BrickDefense.Infrastructure
         {
             if (Texture==null || !Texture.isPlaying || Texture.width<=16) throw new InvalidOperationException("The camera is not ready.");
             return PhotoPixels.FromUnity("frame-"+Guid.NewGuid().ToString("N"),Texture.GetPixels32(),Texture.width,Texture.height,
-                Texture.videoRotationAngle,Texture.videoVerticallyMirrored,true);
+                Texture.videoRotationAngle,Texture.videoVerticallyMirrored);
         }
         public void Stop()
         {

@@ -4,11 +4,11 @@ using UnityEngine;
 
 namespace BrickDefense.Infrastructure
 {
-    // 标定存于 PlayerPrefs；不同输入模式由调用方传入不同的键。
+    // 沿用无格纸标定键及四颜色数组，已保存的配置可直接加载。
     public sealed class PhotoProfileStore
     {
         private readonly string profileKey;
-        public PhotoProfileStore(string profileKey="BrickDefense.PhotoCalibration.v1") { this.profileKey=profileKey; }
+        public PhotoProfileStore(string profileKey="BrickDefense.PhotoCalibration.plain.v1") { this.profileKey=profileKey; }
 
         public Color32[] LoadCalibration()
         {
@@ -37,16 +37,15 @@ namespace BrickDefense.Infrastructure
     [Serializable] internal sealed class PhotoScanSettingsData
     {
         public int maximumDetectionSide=1200;
-        public double maximumColorDistance=0.24,minimumColorMargin=0.08,minimumCellAgreement=0.88,
-            minimumCalibrationSeparation=0.32,minimumCellPixels=18,maximumMarkerFitError=0.18,
-            minimumColorBrightness=0.12,minimumCellCoverage=0.65;
+        public double maximumColorDistance=0.24,minimumColorMargin=0.08,
+            minimumCalibrationSeparation=0.32,minimumCellPixels=18,minimumColorBrightness=0.12;
         public PhotoScanSettings ToSettings() => new PhotoScanSettings { MaximumDetectionSide=maximumDetectionSide,
-            MaximumColorDistance=maximumColorDistance,MinimumColorMargin=minimumColorMargin,MinimumCellAgreement=minimumCellAgreement,
-            MinimumCalibrationSeparation=minimumCalibrationSeparation,MinimumCellPixels=minimumCellPixels,MaximumMarkerFitError=maximumMarkerFitError,
-            MinimumColorBrightness=minimumColorBrightness,MinimumCellCoverage=minimumCellCoverage };
+            MaximumColorDistance=maximumColorDistance,MinimumColorMargin=minimumColorMargin,
+            MinimumCalibrationSeparation=minimumCalibrationSeparation,MinimumCellPixels=minimumCellPixels,
+            MinimumColorBrightness=minimumColorBrightness };
         public static PhotoScanSettingsData From(PhotoScanSettings s) => new PhotoScanSettingsData { maximumDetectionSide=s.MaximumDetectionSide,
-            maximumColorDistance=s.MaximumColorDistance,minimumColorMargin=s.MinimumColorMargin,minimumCellAgreement=s.MinimumCellAgreement,
-            minimumCalibrationSeparation=s.MinimumCalibrationSeparation,minimumCellPixels=s.MinimumCellPixels,maximumMarkerFitError=s.MaximumMarkerFitError,
-            minimumColorBrightness=s.MinimumColorBrightness,minimumCellCoverage=s.MinimumCellCoverage };
+            maximumColorDistance=s.MaximumColorDistance,minimumColorMargin=s.MinimumColorMargin,
+            minimumCalibrationSeparation=s.MinimumCalibrationSeparation,minimumCellPixels=s.MinimumCellPixels,
+            minimumColorBrightness=s.MinimumColorBrightness };
     }
 }

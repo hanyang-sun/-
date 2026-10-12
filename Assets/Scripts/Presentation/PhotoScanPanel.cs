@@ -11,7 +11,7 @@ namespace BrickDefense.Demo
     // 照片工作流界面：采样标定、显示证据并让用户确认数字地图。
     public sealed class PhotoScanPanel : MonoBehaviour
     {
-        private static readonly string[] SampleNames={"格纸","核心颜色","城墙颜色","防御塔颜色"};
+        private static readonly string[] SampleNames={"背景","核心颜色","城墙颜色","防御塔颜色"};
         private readonly Color32[] samples=new Color32[4];
         private readonly bool[] sampled=new bool[4];
         private LevelSession levels;
@@ -23,25 +23,14 @@ namespace BrickDefense.Demo
         private Texture2D photo;
         private bool calibrating;
         private int activeSample=-1;
-        private string inputPath="",message="请导入照片或使用相机拍摄，确保四个格纸标记全部可见。";
+        private string inputPath="",message="请导入照片或使用相机拍摄，确保全部积木完整入镜。";
         private Vector2 issueScroll;
         private ImageFrame frame=>analysis.Frame;
         private ScanResult scan=>analysis.Result;
         private bool busy=>analysis.IsBusy;
         private bool cameraStarting=>cameraCapture.IsStarting;
         private WebCamTexture webcam=>cameraCapture.Texture;
-        private bool plain=>analysis.InputMode==PhotoInputMode.PlainBackground;
         public bool IsOpen { get; private set; }
-        public PhotoInputMode InputMode=>analysis.InputMode;
-
-        // 两种输入模式使用独立标定；切换后旧分析结果和相机状态失效。
-        public void SetInputMode(PhotoInputMode mode)
-        {
-            if (mode==analysis.InputMode) return;
-            analysis.SetInputMode(mode); StopCamera(); LoadProfile(); activeSample=-1; calibrating=false;
-            message=plain?"无需格纸标记。请采样背景与三种角色颜色，生成相对布局。":
-                "请使用配套格纸并露出四个标记，此模式恢复固定格位。";
-        }
 
         public void Initialize(LevelSession owner)
         {
@@ -52,7 +41,7 @@ namespace BrickDefense.Demo
         }
         private void LoadProfile()
         {
-            profiles=new PhotoProfileStore(plain?"BrickDefense.PhotoCalibration.plain.v1":"BrickDefense.PhotoCalibration.v1");
+            profiles=new PhotoProfileStore();
             Array.Clear(sampled,0,4); Array.Clear(samples,0,4);
             Color32[] stored=profiles.LoadCalibration();
             if (stored!=null) for (int i=0; i<4; i++) { samples[i]=stored[i]; sampled[i]=true; }
@@ -105,10 +94,10 @@ namespace BrickDefense.Demo
                 await analysis.AnalyzeAsync(Calibration());
                 if (this==null || scan==null) return;
                 message=scan.Status==ResultStatus.Success?
-                    $"识别到 {scan.Bricks.Length} 块积木。"+(plain?"当前为相对布局，请核对检测框和数字地图。":"生成关卡前，请逐格核对下方地图。"):
+                    $"识别到 {scan.Bricks.Length} 块积木。当前为相对布局，请核对检测框和数字地图。":
                     "识别未通过。请查看下方原因，调整照片或颜色标定后重新分析。";
                 try { reports.Save(new PhotoScanRecord { Frame=frame,Result=scan,Settings=analysis.Settings,
-                    Calibration=samples,Imported=imported,ProcessingMilliseconds=analysis.ProcessingMilliseconds,InputMode=analysis.InputMode }); }
+                    Calibration=samples,Imported=imported,ProcessingMilliseconds=analysis.ProcessingMilliseconds }); }
                 catch (Exception e) { message+=" 扫描记录保存失败："+ChineseUi.Message(e.Message); }
             }
             catch (Exception e) { if (this!=null) message="识别失败："+ChineseUi.Message(e.Message); }
@@ -149,14 +138,10 @@ namespace BrickDefense.Demo
                 if (theme.Button(new Rect(x,96,slot,36),"拍照")) CapturePhoto();
                 x+=slot+8; GUI.enabled=!busy;
                 if (theme.Button(new Rect(x,96,slot,36),"关闭相机")) StopCamera();
-                float modeY=narrow?144:96,modeX=narrow?left:left+bodyWidth-354,modeWidth=narrow?bodyWidth:354;
-                if (theme.Button(new Rect(modeX,modeY,(modeWidth-8)/2,36),"标记格纸",selected:!plain)) SetInputMode(PhotoInputMode.MarkedBoard);
-                if (theme.Button(new Rect(modeX+(modeWidth+8)/2,modeY,(modeWidth-8)/2,36),"纯色背景",selected:plain)) SetInputMode(PhotoInputMode.PlainBackground);
-                float guideY=narrow?190:144;
+                float guideY=144;
                 GUI.enabled=true;
-                GUI.Label(new Rect(left,guideY,bodyWidth,30),plain?
-                    "单层、等大立方体，接近正上方拍摄；全部积木和至少一块独立积木应完整入镜。":
-                    "使用配套 10×10 格纸，保持平整，确保四个标记全部可见。",theme.Small);
+                GUI.Label(new Rect(left,guideY,bodyWidth,30),
+                    "单层、等大立方体，接近正上方拍摄；全部积木和至少一块独立积木应完整入镜。",theme.Small);
                 float bodyY=guideY+36;
 #if !UNITY_EDITOR
                 GUI.enabled=!busy;
@@ -200,10 +185,6 @@ namespace BrickDefense.Demo
                 GUI.color=Color.white;
                 GUI.DrawTexture(shown,photo,ScaleMode.StretchToFill,false);
                 DrawEvidence(shown);
-                if (scan?.Board!=null && !plain)
-                    foreach (ImagePoint p in scan.Board.Corners)
-                        SoftStrategyTheme.Solid(new Rect(shown.x+(float)p.X/frame.Width*shown.width-4,
-                            shown.y+(float)p.Y/frame.Height*shown.height-4,8,8),Color.cyan);
                 if (!busy && activeSample>=0 && Event.current.type==EventType.MouseDown && Event.current.button==0 && shown.Contains(Event.current.mousePosition))
                 {
                     int px=Mathf.Clamp((int)((Event.current.mousePosition.x-shown.x)/shown.width*frame.Width),0,frame.Width-1);
@@ -217,7 +198,7 @@ namespace BrickDefense.Demo
             Rect note=new Rect(area.x+16,area.yMax-78,area.width-32,62);
             SoftStrategyTheme.Round(note,rejected?SoftStrategyTheme.PaleDanger:SoftStrategyTheme.PaleSage,8);
             GUI.Label(new Rect(note.x+12,note.y+10,note.width-24,note.height-16),
-                activeSample>=0?"请点击照片中平整、光照均匀的"+(activeSample==0 && plain?"背景":SampleNames[activeSample])+"区域。":message,theme.Small);
+                activeSample>=0?"请点击照片中平整、光照均匀的"+SampleNames[activeSample]+"区域。":message,theme.Small);
         }
 
         private void DrawCalibration(Rect area)
@@ -231,7 +212,7 @@ namespace BrickDefense.Demo
             for (int i=0;i<4;i++)
             {
                 GUI.enabled=!busy && calibrating && frame!=null && webcam==null;
-                string sampleName=i==0 && plain?"背景":SampleNames[i];
+                string sampleName=SampleNames[i];
                 if (theme.Button(new Rect(area.x+16,area.y+74+i*38,area.width-86,30),
                     (activeSample==i?"请选取：":"采样 ")+sampleName,selected:activeSample==i)) activeSample=i;
                 Rect swatch=new Rect(area.xMax-54,area.y+74+i*38,38,30);
@@ -248,7 +229,7 @@ namespace BrickDefense.Demo
             { Array.Clear(sampled,0,4); profiles.ResetCalibration(); analysis.Invalidate(); calibrating=true; activeSample=-1; }
             GUI.enabled=true;
             GUI.Label(new Rect(area.x+16,area.y+284,area.width-32,38),
-                "请采样积木顶面，避开阴影。两种模式分别保存颜色，照片保持原色。",theme.Small);
+                "请先采样干净背景，再采样积木顶面，避开阴影。颜色保存后可继续使用。",theme.Small);
         }
 
         private void DrawResult(Rect area)
@@ -265,7 +246,7 @@ namespace BrickDefense.Demo
                 DrawMap(new Rect(area.x+16,area.y+78,side,side));
                 float textX=area.x+side+30,textWidth=area.width-side-46;
                 GUI.Label(new Rect(textX,area.y+80,textWidth,90),$"{scan.Bricks.Length} 块积木\n\nK  核心\nW  城墙\nT  防御塔",theme.Small);
-                if (scan.Issues.Length==0) GUI.Label(new Rect(textX,area.y+174,textWidth,40),plain?"相对网格\n无格纸原点":"固定格纸网格\n10×10 格",theme.Small);
+                if (scan.Issues.Length==0) GUI.Label(new Rect(textX,area.y+174,textWidth,40),"相对网格\n按积木尺寸定位",theme.Small);
                 if (scan.Issues.Length>0)
                 {
                     float issueY=area.y+Mathf.Max(174,side+92);
@@ -323,7 +304,7 @@ namespace BrickDefense.Demo
         { Rgb24 color=analysis.SampleColor(x,y); return new Color32(color.R,color.G,color.B,255); }
         private void DrawEvidence(Rect shown)
         {
-            if (!plain || scan==null) return;
+            if (scan==null) return;
             foreach (BrickObservation brick in scan.Bricks)
             {
                 if (brick.Evidence.Length==0) continue;
@@ -354,12 +335,6 @@ namespace BrickDefense.Demo
             Matrix4x4 old = GUI.matrix; GUIUtility.RotateAroundPivot(angle,shown.center);
             GUI.DrawTextureWithTexCoords(raw,webcam,new Rect(0,webcam.videoVerticallyMirrored ? 1 : 0,1,webcam.videoVerticallyMirrored ? -1 : 1));
             GUI.matrix = old;
-            float side = Mathf.Min(shown.width,shown.height)*0.9f;
-            Rect guide=new Rect(shown.center.x-side/2,shown.center.y-side/2,side,side);
-            SoftStrategyTheme.Solid(new Rect(guide.x,guide.y,guide.width,2),Color.white);
-            SoftStrategyTheme.Solid(new Rect(guide.x,guide.yMax-2,guide.width,2),Color.white);
-            SoftStrategyTheme.Solid(new Rect(guide.x,guide.y,2,guide.height),Color.white);
-            SoftStrategyTheme.Solid(new Rect(guide.xMax-2,guide.y,2,guide.height),Color.white);
         }
         private static Rect Fit(Rect area,int width,int height)
         { float factor = Mathf.Min(area.width/width,area.height/height); return new Rect(area.center.x-width*factor/2,area.center.y-height*factor/2,width*factor,height*factor); }

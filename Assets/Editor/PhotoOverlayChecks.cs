@@ -71,7 +71,6 @@ namespace BrickDefense.Editor
                     }
                     var panel=UnityEngine.Object.FindFirstObjectByType<PhotoScanPanel>();
                     if (panel==null) throw new Exception("Scene has no photo panel.");
-                    panel.SetInputMode(PhotoInputMode.PlainBackground);
                     panel.LoadPhoto(Path.Combine(Application.dataPath,"../Tests/Fixtures/real-cropped-bricks-v1.jpg"));
                     panel.Open(); openedFrame=Time.frameCount; stage=1;
                     Debug.Log($"OVERLAY_OPENED: frame={openedFrame}, screen={Screen.width}x{Screen.height}");
