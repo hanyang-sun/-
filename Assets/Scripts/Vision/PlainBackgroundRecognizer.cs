@@ -95,9 +95,11 @@ namespace BrickDefense.Vision
                             Right=Math.Min(frame.Width-1,right*factor),Bottom=Math.Min(frame.Height-1,bottom*factor),Fill=fill });
                     }
             }
-            if (issues.Count > 0) return new ScanResult(id,ResultStatus.Rejected,Array.Empty<PhysicalCellObservation>(),
-                Array.Empty<BrickObservation>(),issues.ToArray());
-            if (pieces.Count == 0) return Reject(id,"BRICKS_NOT_FOUND","没有识别到完整积木；请检查标定和背景。");
+            if (pieces.Count == 0)
+            {
+                if(issues.Count==0) issues.Add(new Issue("BRICKS_NOT_FOUND","没有识别到完整积木；请检查标定和背景。"));
+                return new ScanResult(id,ResultStatus.Rejected,Array.Empty<PhysicalCellObservation>(),Array.Empty<BrickObservation>(),issues.ToArray());
+            }
             // 以检测结果的左上方为相对原点；这里没有从照片恢复真实格纸原点。
             double minX = double.MaxValue,minY = double.MaxValue;
             foreach (Piece p in pieces) { minX=Math.Min(minX,p.X); minY=Math.Min(minY,p.Y); }
@@ -108,11 +110,16 @@ namespace BrickDefense.Vision
             foreach (Piece p in pieces)
             {
                 int c = 1 + (int)Math.Round((p.X-minX)/unit), r = 1 + (int)Math.Round((p.Y-minY)/unit);
-                if (c >= 10 || r >= 10) return Reject(id,"RELATIVE_LAYOUT_TOO_LARGE","相对布局超过 10×10；请缩小摆放范围。");
-                if (cells[r*10+c].State != PhysicalCellState.Empty)
-                    return Reject(id,"RELATIVE_CELL_COLLISION","两个检测方块映射到同一相对格；请调整间距或拍摄角度。");
                 string brickId = $"plain-brick-{r}-{c}";
-                cells[r*10+c] = new PhysicalCellObservation(c,r,PhysicalCellState.Occupied,brickId,p.Fill);
+                if(bricks.Exists(b=>b.BrickId==brickId)) brickId+="-"+bricks.Count;
+                if(c>=10 || r>=10)
+                    issues.Add(new Issue("RELATIVE_LAYOUT_TOO_LARGE","相对布局超过 10×10；请在校对时调整位置。",new GridPoint(c,r)));
+                else if(cells[r*10+c].State!=PhysicalCellState.Empty)
+                {
+                    issues.Add(new Issue("RELATIVE_CELL_COLLISION","两个检测方块映射到同一格；请在校对时移动。",new GridPoint(c,r)));
+                    cells[r*10+c]=new PhysicalCellObservation(c,r,PhysicalCellState.Uncertain);
+                }
+                else cells[r*10+c]=new PhysicalCellObservation(c,r,PhysicalCellState.Occupied,brickId,p.Fill);
                 bricks.Add(new BrickObservation(brickId,c,r,calibration.ColorIds[p.Color-1],p.Fill,
                     new[] { new ImageEvidence(frame.FrameId,new ImagePoint(p.X,p.Y),new[] {
                         new ImagePoint(p.Left,p.Top),new ImagePoint(p.Right,p.Top),
@@ -123,7 +130,7 @@ namespace BrickDefense.Vision
             var basis = new BoardObservation(Array.Empty<ImagePoint>(),
                 new[] {unit,0,minX-1.5*unit,0,unit,minY-1.5*unit,0,0,1},Array.Empty<int>(),0,false,
                 LayoutCoordinateBasis.RelativeBrickScale);
-            return new ScanResult(id,ResultStatus.Success,cells,bricks.ToArray(),Array.Empty<Issue>(),basis);
+            return new ScanResult(id,issues.Count==0?ResultStatus.Success:ResultStatus.Rejected,cells,bricks.ToArray(),issues.ToArray(),basis);
         }
 
         private static bool SettingsValid(PhotoScanSettings s) => s.MaximumDetectionSide >= 300 &&

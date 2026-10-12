@@ -18,6 +18,9 @@ namespace BrickDefense.Demo
         private PhotoScanSession analysis;
         private PhotoProfileStore profiles;
         private ScanReportStore reports;
+        private LayoutReviewPanel reviewPanel;
+        private ScanResult reviewSource;
+        private LayoutEditSession reviewSession;
         private CameraCapture cameraCapture;
         private ImportedPhoto imported;
         private Texture2D photo;
@@ -37,6 +40,8 @@ namespace BrickDefense.Demo
             levels=owner; analysis=new PhotoScanSession(PhotoProfileStore.ReadSettings());
             reports=new ScanReportStore(Application.persistentDataPath);
             cameraCapture=gameObject.AddComponent<CameraCapture>(); cameraCapture.StatusChanged+=CameraStatus;
+            reviewPanel=gameObject.AddComponent<LayoutReviewPanel>();
+            reviewPanel.Initialize(owner,GetComponent<LevelView>());
             LoadProfile();
         }
         private void LoadProfile()
@@ -47,13 +52,18 @@ namespace BrickDefense.Demo
             if (stored!=null) for (int i=0; i<4; i++) { samples[i]=stored[i]; sampled[i]=true; }
         }
         public void Open() { IsOpen=true; }
-        private void Close() { IsOpen=false; StopCamera(); activeSample=-1; }
+        private void Close() { reviewPanel.Close(); IsOpen=false; StopCamera(); activeSample=-1; }
         private void CameraStatus(string value) { message=ChineseUi.Message(value); }
         private void Import()
         {
-            string selected=PhotoFileSource.PickPath(inputPath);
-            if (string.IsNullOrEmpty(selected)) return;
-            inputPath=selected; LoadPhoto(inputPath);
+            if(busy) return;
+            try
+            {
+                string selected=PhotoFileSource.PickPath(inputPath);
+                if(string.IsNullOrEmpty(selected)) { message="未选择新照片，当前照片和地图保持不变。"; return; }
+                inputPath=selected; LoadPhoto(inputPath);
+            }
+            catch(Exception error) { message="照片选择失败："+ChineseUi.Message(error.Message); }
         }
         public void LoadPhoto(string path)
         {
@@ -63,6 +73,7 @@ namespace BrickDefense.Demo
         }
         private void SetFrame(ImageFrame value)
         {
+            reviewPanel.Close(); reviewSource=null; reviewSession=null;
             StopCamera(); analysis.SetFrame(value); imported=null;
             if (photo!=null) Destroy(photo);
             photo=PhotoPixels.ToTexture(value);
@@ -95,12 +106,23 @@ namespace BrickDefense.Demo
                 if (this==null || scan==null) return;
                 message=scan.Status==ResultStatus.Success?
                     $"识别到 {scan.Bricks.Length} 块积木。当前为相对布局，请核对检测框和数字地图。":
-                    "识别未通过。请查看下方原因，调整照片或颜色标定后重新分析。";
+                    "识别有待修正项目。可以进入地图校对，补加、删除或移动积木。";
                 try { reports.Save(new PhotoScanRecord { Frame=frame,Result=scan,Settings=analysis.Settings,
                     Calibration=samples,Imported=imported,ProcessingMilliseconds=analysis.ProcessingMilliseconds }); }
                 catch (Exception e) { message+=" 扫描记录保存失败："+ChineseUi.Message(e.Message); }
             }
             catch (Exception e) { if (this!=null) message="识别失败："+ChineseUi.Message(e.Message); }
+        }
+
+        public void OpenReview()
+        {
+            if(scan==null || busy || levels.IsLocked) return;
+            try
+            {
+                if(!ReferenceEquals(reviewSource,scan)) { reviewSession=analysis.BeginReview(); reviewSource=scan; }
+                reviewPanel.Open(reviewSession,photo,samples,Close);
+            }
+            catch(Exception error) { message="无法打开校对："+ChineseUi.Message(error.Message); }
         }
         private SoftStrategyTheme theme;
         private Vector2 pageScroll;
@@ -109,7 +131,7 @@ namespace BrickDefense.Demo
 
         private void OnGUI()
         {
-            if (!IsOpen) return;
+            if (!IsOpen || reviewPanel.IsOpen) return;
             theme??=new SoftStrategyTheme();
             Matrix4x4 oldMatrix=GUI.matrix; int oldDepth=GUI.depth;
             Color oldColor=GUI.color; bool oldEnabled=GUI.enabled;
@@ -143,7 +165,7 @@ namespace BrickDefense.Demo
                 GUI.Label(new Rect(left,guideY,bodyWidth,30),
                     "单层、等大立方体，接近正上方拍摄；全部积木和至少一块独立积木应完整入镜。",theme.Small);
                 float bodyY=guideY+36;
-#if !UNITY_EDITOR
+#if !UNITY_EDITOR && !UNITY_STANDALONE_WIN
                 GUI.enabled=!busy;
                 inputPath=GUI.TextField(new Rect(left,bodyY,bodyWidth,34),inputPath,theme.Field);
                 bodyY+=46;
@@ -253,19 +275,18 @@ namespace BrickDefense.Demo
                     DrawIssues(new Rect(area.x+16,issueY,area.width-32,footerY-issueY-8));
                 }
                 else if (area.height>=314) GUI.Label(new Rect(area.x+16,area.y+side+90,area.width-32,footerY-area.y-side-100),
-                    "请核对数量、角色与位置；如有偏差，请重新拍摄。",theme.Small);
+                    "进入地图校对后，可修改积木并确认实物真值。",theme.Small);
             }
             else if (scan?.Issues.Length>0)
                 DrawIssues(new Rect(area.x+16,area.y+78,area.width-32,footerY-area.y-90));
             else GUI.Label(new Rect(area.x+16,area.y+78,area.width-32,footerY-area.y-90),
                 "分析后将在这里显示 10×10 地图。\n\n先完成颜色标定，再分析并逐块核对。",theme.Centered);
             bool hasCore=scan!=null && Array.Exists(scan.Bricks,b=>b.ColorId=="physical-color-0");
-            if (success && !hasCore) GUI.Label(new Rect(area.x+16,footerY-30,area.width-32,24),"没有核心，请添加核心后重新拍摄。",theme.Small);
+            if (success && !hasCore) GUI.Label(new Rect(area.x+16,footerY-30,area.width-32,24),"未检测到核心，可在校对或设计时补加。",theme.Small);
             GUI.enabled=!busy && frame!=null && webcam==null && ReadyCalibration() && !calibrating;
             if (theme.Button(new Rect(area.x+16,footerY,118,34),busy?"正在分析……":"分析照片")) Analyze();
-            GUI.enabled=!busy && success && hasCore && !calibrating && webcam==null;
-            if (theme.Button(new Rect(area.x+144,footerY,area.width-160,34),"生成关卡",true))
-            { if (levels.TryLoad(analysis.ConfirmLayout())) Close(); }
+            GUI.enabled=!busy && scan!=null && !calibrating && webcam==null && !levels.IsLocked;
+            if (theme.Button(new Rect(area.x+144,footerY,area.width-160,34),"进入地图校对",true)) OpenReview();
             GUI.enabled=true;
         }
 

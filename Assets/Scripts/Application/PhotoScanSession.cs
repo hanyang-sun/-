@@ -57,5 +57,12 @@ namespace BrickDefense.Workflow
                 throw new InvalidOperationException("Only a completed successful scan can be confirmed.");
             return new LayoutDefinition(Result,analyzedCalibration.CreateRules(),LayoutSource.Photograph);
         }
+
+        public LayoutEditSession BeginReview()
+        {
+            if(IsBusy || Result==null || analyzedCalibration==null)
+                throw new InvalidOperationException("请先完成当前照片的分析。");
+            return new LayoutEditSession(Result,analyzedCalibration.CreateRules());
+        }
     }
 }

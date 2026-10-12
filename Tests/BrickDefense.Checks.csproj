@@ -12,6 +12,7 @@
     <Compile Include="MultipleSpawnChecks.cs" />
     <Compile Include="RouteOracleChecks.cs" />
     <Compile Include="WorkflowChecks.cs" />
+    <Compile Include="LayoutReviewChecks.cs" />
     <Compile Include="PlainBackgroundChecks.cs" />
     <Compile Include="ScanReplay.cs" />
     <Compile Include="ScanRejectionChecks.cs" />

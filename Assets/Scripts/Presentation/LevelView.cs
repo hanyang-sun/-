@@ -78,6 +78,14 @@ namespace BrickDefense.Presentation
             }
         }
 
+        public void DisplayDraft(IReadOnlyList<BrickObservation> bricks,System.Func<string,BrickRole> roleFor)
+        {
+            var entities=new LevelEntity[bricks.Count];
+            for(int i=0;i<entities.Length;i++) entities[i]=new LevelEntity(new GridPlacement(bricks[i]),roleFor(bricks[i].ColorId));
+            Display(new LevelResult(ResultStatus.Success,entities,System.Array.Empty<LevelCell>(),
+                System.Array.Empty<string>(),System.Array.Empty<SpawnRoute>(),System.Array.Empty<Issue>()));
+        }
+
         // Drawn by DemoUI before its cards, so numbers disappear on the photo/configuration pages.
         public void DrawSpawnLabels(float guiScale)
         {

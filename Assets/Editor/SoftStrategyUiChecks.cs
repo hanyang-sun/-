@@ -4,6 +4,7 @@ using System.Reflection;
 using BrickDefense.Core;
 using BrickDefense.Demo;
 using BrickDefense.Infrastructure;
+using BrickDefense.Presentation;
 using BrickDefense.Vision;
 using BrickDefense.Workflow;
 using UnityEditor;
@@ -151,6 +152,12 @@ namespace BrickDefense.Editor
                     case 14:
                         CheckOpaque("photo-success"); CheckPhotoColor("photo-success"); ConfirmButton(); break;
                     case 15:
+                        var review=UnityEngine.Object.FindFirstObjectByType<LayoutReviewPanel>();
+                        Require(review!=null && review.IsOpen,"Photo confirmation did not open review.");
+                        typeof(LayoutReviewPanel).GetField("store",Private).SetValue(review,new LayoutReviewStore(
+                            Path.Combine(SessionState.GetString(DirectoryKey,""),"ScanReports")));
+                        Require(review.Session.ConfirmPhysical(),"Real-photo physical review failed.");
+                        typeof(LayoutReviewPanel).GetMethod("Continue",Private).Invoke(review,null);
                         Require(!panel.IsOpen && demo.Session.Current.Result.Entities.Length==10,"Confirm button failed.");
                         retained=demo.Session.Current; panel.LoadPhoto(Fixture("real-cropped-bricks-v1.jpg")); panel.Open(); break;
                     case 16: AnalyzeButton(); break;
@@ -160,7 +167,9 @@ namespace BrickDefense.Editor
                         Capture("photo-rejected"); break;
                     case 18: CheckOpaque("photo-rejected"); ConfirmButton(); break;
                     case 19:
-                        Require(panel.IsOpen && ReferenceEquals(retained,demo.Session.Current),"Disabled confirmation replaced the map.");
+                        var croppedReview=UnityEngine.Object.FindFirstObjectByType<LayoutReviewPanel>();
+                        Require(panel.IsOpen && ReferenceEquals(retained,demo.Session.Current),"Cropped draft replaced the map before correction.");
+                        if(croppedReview.IsOpen) croppedReview.Close();
                         if (!Size(862,678)) return; Capture("photo-small"); break;
                     case 20:
                         if (!Size(540,800)) return; Capture("photo-narrow-top"); break;

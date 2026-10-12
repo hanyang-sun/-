@@ -20,6 +20,10 @@
 /.scratch/scan-rejection/unity-check/
 /.scratch/soft-strategy-ui/unity-check/
 /.scratch/plain-only-photo/verification/ScanReports/
+/.scratch/layout-review/unity-check/
+/.scratch/layout-review/verification/ScanReports/
+/.scratch/windows-release/verification/ScanReports/
+/.scratch/windows-photo-picker/verification/积木 示例.*
 /.scratch/color-recognition/debug/bin/
 /.scratch/color-recognition/debug/obj/
 /.scratch/color-recognition/debug/*.rgb

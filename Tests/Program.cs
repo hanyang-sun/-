@@ -2,6 +2,7 @@ using BrickDefense.Core;
 if (args.Contains("--combat-checks")) { CombatChecks.Run(); return; }
 if (args.Contains("--multiple-spawn-checks")) { MultipleSpawnChecks.Run(); return; }
 if (args.Contains("--scan-rejection-checks")) { ScanRejectionChecks.Run(); return; }
+if (args.Contains("--layout-review-checks")) { await LayoutReviewChecks.Run(); return; }
 if (args.Length>=2 && args[0]=="--replay-scan")
 {
     int backgroundFlag=Array.IndexOf(args,"--background-at");
@@ -126,6 +127,7 @@ RouteOracleChecks.Run();
 CombatChecks.Run();
 MultipleSpawnChecks.Run();
 await WorkflowChecks.Run();
+await LayoutReviewChecks.Run();
 await PlainBackgroundChecks.Run();
 ScanRejectionChecks.Run();
 Console.WriteLine("All level pipeline checks passed.");

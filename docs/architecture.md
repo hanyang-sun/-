@@ -11,9 +11,9 @@
 | --- | --- | --- |
 | Domain | `Domain/ExampleScans.cs`、`LevelPipeline.cs`、`GridPathfinder.cs`、`BattleSimulation.cs` | 格位映射、结构校验与 A*；纯 C# 固定步长战斗、索敌、伤害、共享核心、波次与胜负。 |
 | Vision | `Vision/PlainBackgroundRecognizer.cs`、`PhotoModels.cs` | 图像与背景/积木颜色标定、背景分割、同色组件拆分和相对布局；像素证据与拒绝原因。 |
-| Application | `Application/LevelSession.cs`、`PhotoScanSession.cs`、`BattleSession.cs` | 管理关卡与异步照片分析；开局快照、地图锁定、对局推进、暂停、重试和解锁。 |
-| Presentation | `Presentation/BrickDefenseDemo.cs`、`LevelView.cs`、`DemoUI.cs`、`PhotoScanPanel.cs`、`CombatView.cs`、`BattlePanel.cs` | 场景接线、地图与照片操作；战斗参数、敌人/血条/射击/射程显示及结算；正交相机与桌面/触摸输入。 |
-| Infrastructure | `Infrastructure/PhotoFileSource.cs`、`CameraCapture.cs`、`PhotoPixels.cs`、`PhotoProfileStore.cs`、`ScanReportStore.cs` | PNG/JPG 读取与方向归一、相机权限和生命周期、Unity 像素适配、标定持久化、设置和扫描报告读写。 |
+| Application | `Application/LevelSession.cs`、`PhotoScanSession.cs`、`LayoutEditSession.cs`、`BattleSession.cs` | 异步分析与两阶段草稿校对，编辑撤销、真值冻结、两项正确率；关卡提交、战斗快照、锁定、暂停与重试。 |
+| Presentation | `Presentation/BrickDefenseDemo.cs`、`LevelView.cs`、`DemoUI.cs`、`PhotoScanPanel.cs`、`LayoutReviewPanel.cs`、`CombatView.cs`、`BattlePanel.cs` | 场景接线，照片与二维编辑/三维草稿预览；战斗参数、敌人/血条/射击/射程显示及结算；正交相机与输入。 |
+| Infrastructure | `Infrastructure/PhotoFileSource.cs`、`CameraCapture.cs`、`PhotoPixels.cs`、`PhotoProfileStore.cs`、`ScanReportStore.cs`、`LayoutReviewStore.cs` | 图像、相机、标定与扫描报告；校对/设计记录和两项统计保存。 |
 
 上述路径以 `Assets/Scripts/` 为起点。Application 的命名空间为 `BrickDefense.Workflow`，避免与 Unity 的 `Application` 类型冲突。
 Domain 和公共数据仍使用既有 `BrickDefense.Core` 命名空间；命名空间兼容不影响程序集边界。
@@ -39,7 +39,7 @@ Domain 和公共数据仍使用既有 `BrickDefense.Core` 命名空间；命名�
 
 - 战斗的外部接口集中在 `BattleSession`：启动并验证、推进时间、开始下一波、暂停、重试、返回布局。`BattleSimulation` 接收配置与路线，返回状态和射击事件；射击显示不决定伤害。地图锁定在 `LevelSession` 中执行，照片提交也经过同一锁定检查。首波开始至终局或主动结束期间不更换地图。
 - `Assets/ThirdParty/` 的 Algorithms 程序集包含 Roy 最小堆和 Colourful 色彩转换子集。通过 `InternalsVisibleTo` 向 Domain 和 Vision 开放实际需要的内部算法类型；来源及授权见 [第三方声明](../THIRD_PARTY_NOTICES.md)。
-- `Assets/Editor/` 的场景生成、文件选择器和回归工具单独编译。文件对话框通过回调接入 `PhotoFileSource`，运行时程序集不引用 `UnityEditor`。
+- `Assets/Editor/` 的场景生成、编辑器文件选择器和回归工具单独编译。编辑器文件对话框通过回调接入 `PhotoFileSource`；Windows Player 经 Infrastructure 的 `WindowsPhotoFilePicker` 打开原生 Unicode 图片选择窗口。Windows 适配以平台条件编译隔离，运行时程序集不引用 `UnityEditor` 或 Windows Forms。
 - `Tests/` 的 .NET 检查编译纯 C# 模块；Unity 显示与平台读写由编辑器 Play 回归覆盖。
 
 引用方向没有环。Domain 不直接读取文件、使用相机、访问 UI 或 Unity 对象；Presentation 经 Application 改变关卡状态。
@@ -52,8 +52,13 @@ flowchart TD
     I --> P[PhotoScanSession\n当前图像、标定快照与异步分析]
     P --> V[Vision / PlainBackgroundRecognizer\n颜色分割、积木检测、相对格位]
     V --> S[ScanResult 与相对格位证据]
-    S --> U[PhotoScanPanel\n数字地图核对]
-    U --> D[LayoutDefinition\n布局、配套规则、来源]
+    S --> U[PhotoScanPanel\n进入地图校对]
+    U --> X[LayoutEditSession\n可编辑草稿与原始快照]
+    X --> Y[确认实物布局\n冻结真值和识别/格位正确率]
+    Y --> Z[自由设计游戏布局\n保持真值及指标]
+    Z --> D[LayoutDefinition\n发布设计布局、配套规则、来源]
+    Y --> J[LayoutReviewStore\n独立 review JSON]
+    Z --> J
     E[LevelSession.LoadExample\n示例布局与示例规则] --> D
     D --> L[LevelSession.TryLoad]
     L --> G[Domain\nGridMapper、LevelBuilder、寻路]
@@ -84,7 +89,7 @@ flowchart TD
 
 ## 照片分析与平台读写
 
-`PhotoScanSession` 保存图像、扫描编号、忙碌状态、耗时和结果。开始分析时复制标定数据；确认成功扫描时，用分析当时的标定创建配套规则。
+`PhotoScanSession` 保存图像、扫描编号、忙碌状态、耗时和结果。开始分析时复制标定数据；`BeginReview` 允许完整返回的成功或拒绝分析进入人工校对，使用分析时冻结的颜色规则。原 `ConfirmLayout` 仍只接受成功扫描，保留底层自动流程兼容；用户界面统一经两阶段校对发布。
 换图或重新标定会使旧结果失效；较早的异步任务返回时，不能覆盖新输入的状态。
 
 照片统一调用 `PlainBackgroundRecognizer`，不再提供模式切换。格纸识别器、标记定位、投影拟合、模板与 ArUco 专用依赖已移除；结果仍使用相同的 `ScanResult` 合同，Domain 和 LevelSession 保持接口。
@@ -101,6 +106,16 @@ flowchart TD
 报告继续记录 `inputMode=PlainBackground`、`coordinateBasis=RelativeBrickScale`、`direction`、`boardIsReliable=false`，保留既有报告字段。预览绘制每个独立对象的测量框；确认后的地图显示为相对布局。`ColorCalibration.Background` 表示背景色，取代旧纸面命名；旧格纸报告留作历史，不再生成。
 
 扫描记录用于诊断，当前未实现完整的关卡存档加载系统。
+
+## 地图校对与评价
+
+`LayoutEditSession` 管理草稿和最近 64 步可撤销修改，移动/改色保留积木 ID，补加表示漏检、删除表示误检。实物确认冻结人工真值并逐块与原始快照比较：识别看检测与颜色，格位看相对行列，分别统计漏检、误检及颜色/位置错误。各布局以 min-column/min-row → 1 的固定约定表示，整体平移不影响相对位置正确率。单次玩家核验不等同独立验收数据集。
+
+`LayoutReviewPanel` 显示原照片与二维草稿，可选中棋盘外/重叠检测进行修正；三维预览调用 `LevelView.DisplayDraft`，不更新 `LevelSession.Current`，不要求核心/道路。返回照片或取消预览恢复当前关卡视图。
+
+实物确认后进入游戏设计，保持统计与真值；重新校对从上次真值开始，需要重新确认。提交建立一致的 100 格合同，经现有 `LevelSession.TryLoad` 发布；核心与战斗可达性仍由 Domain 检查。
+
+`LayoutReviewStore` 保存原始、真值、设计三组快照和阶段操作到独立 review JSON；不覆盖原扫描 result.json，保持原始拒绝诊断。未知/裁切/拆分错误下检测到的可用积木保留，原始状态仍是 Rejected，人工修正不会伪造自动成功。
 
 ## 数据合同
 

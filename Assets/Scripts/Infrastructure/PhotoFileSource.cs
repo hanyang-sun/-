@@ -17,9 +17,17 @@ namespace BrickDefense.Infrastructure
     // 文件入口只负责格式、尺寸和解码；识别在纯 C# 的 Vision 模块执行。
     public static class PhotoFileSource
     {
-        // The Editor installs its dialog adapter; players use the entered path.
+        // Editor and Windows Player each provide a dialog; other players retain the path entry.
         public static Func<string> EditorPicker { get; set; }
-        public static string PickPath(string enteredPath) => EditorPicker!=null?EditorPicker():enteredPath;
+        public static string PickPath(string enteredPath)
+        {
+            if(EditorPicker!=null) return EditorPicker();
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+            return WindowsPhotoFilePicker.Pick(enteredPath);
+#else
+            return enteredPath;
+#endif
+        }
 
         public static ImportedPhoto Load(string path)
         {
