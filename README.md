@@ -1,4 +1,8 @@
-# BrickDefenseMVP
+# BrickDefenseMVP → Brick2Life
+
+**方向与实现状态：**本仓库将沿 `main` 发展为 Brick2Life：虚拟积木布局、固定桌面坐标下的相机识别、布局变化检测、塔防游戏联动和桌面投影反馈。当前可运行代码仍是下文的 BrickDefenseMVP 单张照片塔防原型；Brick2Life 闭环尚未实现，Unity 默认场景仍为 `Assets/Scenes/BrickDefenseDemo.unity`。新方向的范围、文件清单、三人分支和 PR 顺序见 [Brick2Life 开发方案](docs/brick2life-development-plan.md)。
+
+旧版源码由 `brickdefense-v1.3.1` 标签固定在提交 `c3bce83`。另有仓库外的 Git 历史备份与 Windows 试玩包；它们不包含尚未提交的实验记录工作。
 
 实体积木塔防项目：单张照片 → 可编辑的 10×10 草稿 → 实物校对并记录两项正确率 → 自由设计游戏布局 → 20×20 游戏格 → Unity 三维地图与波次战斗。也可直接使用模拟示例。照片仅保留无格纸识别，由用户标定背景和颜色角色。通用实拍准确率尚未验收。
 
