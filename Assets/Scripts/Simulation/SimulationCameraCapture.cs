@@ -26,10 +26,13 @@ namespace Brick2Life.Simulation
                     throw new InvalidOperationException("请配置顶置相机、RenderTexture 和积木编辑器。");
                 DateTime capturedAt = DateTime.UtcNow;
                 string frameId = "rgb_" + capturedAt.ToString("yyyyMMdd_HHmmssfff", CultureInfo.InvariantCulture) + "_" + Guid.NewGuid().ToString("N");
+                Matrix4x4 view = sourceCamera.worldToCameraMatrix, projection = sourceCamera.projectionMatrix;
                 GroundTruth truth = Snapshot(frameId, capturedAt);
                 byte[] png = ReadCurrentRgb();
                 if (truth.layoutVersion != brickEditor.LayoutVersion)
                     throw new InvalidOperationException("拍摄期间积木状态发生变化，请重新保存。");
+                if (view != sourceCamera.worldToCameraMatrix || projection != sourceCamera.projectionMatrix)
+                    throw new InvalidOperationException("拍摄期间相机参数发生变化，请重新保存。");
                 string directory = Application.isEditor
                     ? Path.GetFullPath(Path.Combine(Application.dataPath, "..", FolderName))
                     : Path.Combine(Application.persistentDataPath, FolderName);
@@ -59,6 +62,7 @@ namespace Brick2Life.Simulation
                 imageWidth = target.width, imageHeight = target.height,
                 cells = new GroundTruthCell[SimulationLayout.Size * SimulationLayout.Size]
             };
+            truth.boardCorners = SnapshotBoardCorners(truth);
             for (int y = 0; y < SimulationLayout.Size; y++)
                 for (int x = 0; x < SimulationLayout.Size; x++)
                     truth.cells[y * SimulationLayout.Size + x] = new GroundTruthCell { gridX = x, gridY = y };
@@ -69,6 +73,30 @@ namespace Brick2Life.Simulation
                 cell.colorId = brick.ColorId; cell.layer = brick.Layer;
             }
             return truth;
+        }
+
+        private BoardCorner[] SnapshotBoardCorners(GroundTruth truth)
+        {
+            // Boundary intersections, not cell centers; the order is independent of camera rotation.
+            var intersections = new[] { new Vector2Int(0, 0), new Vector2Int(truth.gridWidth, 0),
+                new Vector2Int(truth.gridWidth, truth.gridHeight), new Vector2Int(0, truth.gridHeight) };
+            var corners = new BoardCorner[intersections.Length];
+            for (int i = 0; i < intersections.Length; i++)
+            {
+                Vector2Int grid = intersections[i];
+                Vector3 world = truth.worldOrigin + new Vector3(grid.x * truth.cellSize, 0, grid.y * truth.cellSize);
+                Vector3 viewport = sourceCamera.WorldToViewportPoint(world);
+                if (viewport.z < sourceCamera.nearClipPlane || viewport.z > sourceCamera.farClipPlane)
+                    throw new InvalidOperationException("棋盘角点不在相机的有效深度范围内，请检查顶置相机。");
+                corners[i] = new BoardCorner
+                {
+                    gridX = grid.x, gridY = grid.y, worldPosition = world,
+                    // PNG row zero is at the top; integer coordinates denote pixel centers.
+                    imagePosition = new Vector2(viewport.x * truth.imageWidth - 0.5f,
+                        (1 - viewport.y) * truth.imageHeight - 0.5f)
+                };
+            }
+            return corners;
         }
 
         private static void SavePair(string imagePath, byte[] png, byte[] json)
@@ -113,7 +141,17 @@ namespace Brick2Life.Simulation
             public float cellSize = 1;
             public string coordinateConvention = "gridX=+worldX; gridY=+worldZ; layer=+worldY; image pixels originate at top-left";
             public string cellOrder = "cells[gridY * gridWidth + gridX]";
+            public string boardCornerOrder = "boundary intersections: (0,0), (gridWidth,0), (gridWidth,gridHeight), (0,gridHeight); worldY=0";
+            public string boardCornerPixelConvention = "top-left origin; integer pixel centers; x=viewportX*imageWidth-0.5; y=(1-viewportY)*imageHeight-0.5";
+            public BoardCorner[] boardCorners;
             public GroundTruthCell[] cells;
+        }
+
+        [Serializable] private sealed class BoardCorner
+        {
+            public int gridX, gridY;
+            public Vector3 worldPosition;
+            public Vector2 imagePosition;
         }
 
         [Serializable] private sealed class GroundTruthCell
