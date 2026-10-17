@@ -41,7 +41,7 @@
 
 照片页按“照片预览 → 角色颜色 → 核对地图”整理操作，宽屏双列，窄屏单列滚动。地图角色材质与实际积木颜色相互独立；原照片、标定色块、检测框和数字地图仍展示实际颜色。
 
-配色与控件样式集中在 `Assets/Scripts/Presentation/SoftStrategyTheme.cs`，三维材质、光照和底座在 `LevelView.cs`，轨道与缩放在 `BoardOrbitCamera.cs`，手机手势在 `BoardTouchControls.cs`，地图绘制与触摸共用的 UI 区域在 `BoardUiLayout.cs`。GitHub 源码比较与有限借鉴见 [界面研究记录](docs/research/soft-strategy-ui-github.md)，实现与验证见 [.scratch/soft-strategy-ui/spec.md](.scratch/soft-strategy-ui/spec.md)。
+配色与控件样式集中在 `Assets/Scripts/Presentation/SoftStrategyTheme.cs`，三维材质、光照和底座在 `LevelView.cs`，轨道与缩放在 `BoardOrbitCamera.cs`，手机手势在 `BoardTouchControls.cs`，地图绘制与触摸共用的 UI 区域在 `BoardUiLayout.cs`。GitHub 源码比较与有限借鉴见 [界面研究记录](docs/research/soft-strategy-ui-github.md)，当时的界面验证见 [截图与操作记录](.scratch/soft-strategy-ui/verification/README.md)。
 
 ## 游玩：实体布局挑战 A
 
