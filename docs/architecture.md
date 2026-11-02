@@ -97,7 +97,7 @@ Fail 用于采集/识别异常，Cancel 用于取消；ChangeCalibration 取消�
 - `LevelFeedbackSession`：Baseline 建立基线且无变更提示；Changed 重建并带变更提示；Unchanged 不推进版本、不刷新视图；Rejected/Stale 保留上一版关卡与投影并给出原因。
 - `Brick2Life.Feedback` 程序集：`SimulationFeedbackBootstrap` 用 `board.Definition` 建立 `BoardSyncSession`（标定 `brick2life-simulation`），把它交给 `SimulationLevelAdapter`；Adapter 在 `frame.Changed` 时刷新 `SimulationLevelView`（游戏对象）与 `ProjectionSimulator`（投影面片）。
 - 场景分层：`Brick2LifeObjectives`（29）放原始窗口系统目标提示，`Brick2LifeGame`（30）放游戏对象，顶置相机排除这两层，避免提示和虚拟建筑进入 RGB；`Brick2LifeProjection`（31）放真正投影面片，顶置相机包含该层。双窗口原始视角只保留目标提示和玩家积木；带/不带投影取样由 `ProjectionCaptureGate` 控制。
-- 独立演示：`SimulationFeedbackDemo` 按固定样例提交人工目标（界面与日志标注“人工目标（非识别结果）”，F5/F6/F7 切换），依据 `.scratch/task-a-simulation/spec.md` 第 2 阶段，不作为识别已接通的证据。接入 B 后禁用该组件即可。
+- 独立测试：`SimulationFeedbackDemo` 保留脚本调用的人工目标接口，日志标注“人工目标（非识别结果）”，不作为识别已接通的证据。2026-11-02 已移除 F5/F6/F7 键盘监听与配置；接入 B 后仍自动停用该组件。
 - 限制：投影是贴在可见表面上的面片（alpha 混合），不是光学投影仿真，没有镜头畸变、亮度衰减与梯形校正；升级为官方 `Projector` 组件时只替换渲染层，不改 Application 层接口。
 
 ## 采集与持久化

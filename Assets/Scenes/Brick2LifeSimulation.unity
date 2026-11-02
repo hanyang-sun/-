@@ -3404,7 +3404,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d1ceca933c9e4b4da105a827abee6dd7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Brick2Life.Feedback::Brick2Life.Feedback.SimulationFeedbackDemo
-  keyboardDemo: 1
   statusLabel: {fileID: 0}
   logToConsole: 1
 --- !u!114 &1480744934
