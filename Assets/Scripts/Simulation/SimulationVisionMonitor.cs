@@ -50,7 +50,16 @@ namespace Brick2Life.Simulation
         public long RequestFreshConfirmation() => captureSequence + requiredFrames;
         public bool HasConfirmed(long requestedSequence) => confirmedCaptureSequence >= requestedSequence;
 
-        public bool Automatic { get; set; } = true;
+        private bool automatic = true;
+        public bool Automatic
+        {
+            get => automatic;
+            set
+            {
+                automatic = value;
+                if (!automatic && capture != null) capture.CancelObservationCapture();
+            }
+        }
 
         public void ResetTracking()
         {
@@ -125,6 +134,7 @@ namespace Brick2Life.Simulation
 
         private void Rebuild()
         {
+            capture.CancelObservationCapture();
             calibration = CreateCalibration(board);
             tracker = new LayoutChangeTracker(requiredFrames);
             sync = new BoardSyncSession(board.Definition, calibration.CalibrationId);
@@ -156,12 +166,22 @@ namespace Brick2Life.Simulation
             }
             if (!Automatic || board == null) return;
             elapsed += Time.unscaledDeltaTime;
-            if (primed && elapsed < interval) return;
-            primed = true;
-            elapsed = 0;
-            try { AnalyzeOnce(); loggedError = null; }
+            try
+            {
+                if (!capture.ObservationCapturePending)
+                {
+                    if (primed && elapsed < interval) return;
+                    primed = true;
+                    elapsed = 0;
+                    capture.BeginObservationCapture();
+                }
+                if (!capture.TryCompleteObservationCapture(out SimulationObservationImage image)) return;
+                AnalyzeImage(image);
+                loggedError = null;
+            }
             catch (Exception error)
             {
+                capture.CancelObservationCapture();
                 LastError = error.Message;
                 report = "识别失败：" + error.Message;
                 if (titleText != null) titleText.text = report;
@@ -171,11 +191,21 @@ namespace Brick2Life.Simulation
             }
         }
 
+        private void OnDisable()
+        {
+            if (capture != null) capture.CancelObservationCapture();
+        }
+
         public void AnalyzeOnce()
         {
             if (board == null || !board.IsInitialized || capture == null || calibration == null)
                 throw new InvalidOperationException("识别面板尚未绑定棋盘和相机。");
             SimulationObservationImage image = capture.CaptureObservationImage();
+            AnalyzeImage(image);
+        }
+
+        private void AnalyzeImage(SimulationObservationImage image)
+        {
             captureSequence++;
             // The snapshot is only the accuracy reference. Recognize does not receive it.
             BoardSnapshot truth = board.Snapshot();

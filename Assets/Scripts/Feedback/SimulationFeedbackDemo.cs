@@ -15,10 +15,8 @@ namespace Brick2Life.Feedback
     [DisallowMultipleComponent]
     public sealed class SimulationFeedbackDemo : MonoBehaviour
     {
-        [Tooltip("人工标注目标，仅用于任务 C 的独立演示（关卡与投影反馈）。接入任务 B 后请禁用本组件。")]
-        [SerializeField] private bool keyboardDemo = true;
         [SerializeField] private Text statusLabel;
-        [Tooltip("F5 下一个人工目标，F6 空布局，F7 投影开/关。")]
+        [Tooltip("是否输出人工目标测试日志；这些布局不是识别结果。")]
         [SerializeField] private bool logToConsole = true;
 
         // Layouts are described by gameplay role; the adapter maps roles back to the board's palette colors.
@@ -54,7 +52,7 @@ namespace Brick2Life.Feedback
             session = syncSession ?? throw new ArgumentNullException(nameof(syncSession));
             adapter = levelAdapter ?? throw new ArgumentNullException(nameof(levelAdapter));
             if (logToConsole)
-                Debug.Log("人工目标演示已绑定：用 F5 / F6 / F7 驱动关卡与投影；这些布局不是识别结果。", this);
+                Debug.Log("人工目标演示已绑定：仅供脚本或测试调用；这些布局不是识别结果。", this);
         }
 
         public void NextSample()
@@ -92,14 +90,6 @@ namespace Brick2Life.Feedback
             if (!IsBound || !SimulationEditAccess.CanEdit) return false;
             if (battle == null) battle = FindFirstObjectByType<SimulationBattleController>();
             return battle == null || !battle.Running;
-        }
-
-        private void Update()
-        {
-            if (!keyboardDemo || !IsBound) return;
-            if (Input.GetKeyDown(KeyCode.F5)) NextSample();
-            else if (Input.GetKeyDown(KeyCode.F6)) SubmitEmpty();
-            else if (Input.GetKeyDown(KeyCode.F7)) ToggleProjection();
         }
 
         private void Submit((int x, int y, GameRole role)[] layout, string label)

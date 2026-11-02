@@ -12,7 +12,7 @@
 - 自动识别开启时，点开始先等待 B 新采集的 RGB 完成确认，再开战；重试可取消等待，超过 8 秒或确认会话改变则取消并提示。没有自动视觉输入的独立人工目标演示继续使用明确提交的确认布局。
 - F8 独立控制识别是否保留投影，角色投影与战斗覆盖层统一受控。展示模式不决定识别输入。
 
-进入默认场景 Play 后自动打开窗口；也可使用 `Brick2Life/Windows/Open layout and projection`。旧工程重新安装反馈使用 `Brick2Life/Simulation/Install feedback and save scene`，退出 Play 后执行。F7 保留总投影开关。
+进入默认场景 Play 后自动打开窗口；也可使用 `Brick2Life/Windows/Open layout and projection`。旧工程重新安装反馈使用 `Brick2Life/Simulation/Install feedback and save scene`，退出 Play 后执行。旧 F5/F6/F7 人工演示快捷键已于 2026-11-02 移除；F8 继续控制识别取样模式。
 
 ## 重叠实现的处理
 

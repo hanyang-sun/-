@@ -162,17 +162,18 @@ namespace Brick2Life.Editor
             brickRoot.gameObject.SetActive(!projectionOnly);
             bool confirmedProjection = level != null && projection != null && projection.LastPlan != null &&
                 projection.LastPlan.LevelVersion == level.SourceVersion;
-            projectionRoot.gameObject.SetActive(confirmedProjection && projection.IsVisible);
+            bool suppressed = ProjectionCaptureGate.IsSuppressed;
+            projectionRoot.gameObject.SetActive(confirmedProjection && projection.IsVisible && !suppressed);
             var objectives = battle != null ? battle.GetComponent<SimulationRoundMarkers>() : null;
             // System goals are public configuration; before RGB confirmation show only their guides.
-            bool showObjectiveGuides = !confirmedProjection || (!projectionOnly && !projection.IsVisible);
+            bool showObjectiveGuides = !suppressed && (!confirmedProjection || (!projectionOnly && !projection.IsVisible));
             objectiveRoot.gameObject.SetActive(showObjectiveGuides);
             MirrorMeshes(showObjectiveGuides && objectives != null ? objectives.MarkersRoot : null,
                 objectiveRoot, objectiveCopies);
             var overlay = battle != null ? battle.GetComponent<SimulationBattleOverlay>() : null;
             MirrorMeshes(confirmedProjection ? projection.MarksRoot : null, projectionRoot, projectionCopies,
                 confirmedProjection && overlay != null ? overlay.MarksRoot : null);
-            battleRoot.gameObject.SetActive(!projectionOnly);
+            battleRoot.gameObject.SetActive(!projectionOnly && !suppressed);
             MirrorMeshes(battle != null ? battle.transform : null, battleRoot, battleCopies,
                 excludedLayer: projection != null ? projection.ProjectionLayer : 31,
                 additionalExcludedLayer: SimulationRoundMarkers.LayerIndex);

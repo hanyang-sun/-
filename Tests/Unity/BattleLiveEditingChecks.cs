@@ -237,7 +237,6 @@ public static class BattleLiveEditingChecks
             Controller.TowerSettings = new TowerSettings(5, 1, 0.1, 1);
             Require(Controller.AddSpawn(new GridPoint(0, 0)), "Fixture entrance could not be created.");
             Demo = root.AddComponent<SimulationFeedbackDemo>();
-            SetField(Demo, "keyboardDemo", false);
             SetField(Demo, "logToConsole", false);
             Demo.Bind(session, adapter);
             var panelRoot = new GameObject("BattlePanelRoot");

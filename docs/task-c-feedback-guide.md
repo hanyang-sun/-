@@ -35,13 +35,13 @@ C 不读 `SimulationBoardSession.Snapshot()`，不读 GT，也不创建观测。
 | `Assets/Scripts/Feedback/SimulationLevelAdapter.cs` | 任务 C 适配器：`Apply(BoardUpdate)`、颜色规则、状态文字、角色→颜色反查 |
 | `Assets/Scripts/Feedback/SimulationLevelView.cs` | 按 `LevelState` 生成/复用/销毁游戏对象，位置为格中心，统一放到 `Brick2LifeGame` 层 |
 | `Assets/Scripts/Feedback/ProjectionSimulator.cs` | 按 `ProjectionPlan` 生成表面贴合面片，提供开/关、强度、对齐误差测量 |
-| `Assets/Scripts/Feedback/SimulationFeedbackDemo.cs` | 人工目标演示（F5/F6/F7），明确标注非识别结果 |
+| `Assets/Scripts/Feedback/SimulationFeedbackDemo.cs` | 脚本调用的人工目标测试接口，明确标注非识别结果；旧键盘监听已移除 |
 | `Assets/Editor/SimulationFeedbackSetup.cs` | 菜单安装：层、材质、对象层级、组件接线、相机掩码；另有分层复核菜单 |
 | `Tests/LevelSemanticsChecks.cs`、`Tests/ProjectionPlanChecks.cs`、`Tests/LevelFeedbackChecks.cs` | 纯 C# 断言（73 项） |
 
 ## 3. 语义规则
 
-2026-10-30 默认玩法已改为 [系统目标与实时建造](generated-defense-round-guide.md)：系统生成一个固定核心与 1–4 个入口，玩家只摆墙塔且不限配额；堵路警告并继续旧路线。目标在应用层合入，不是 B 预测的蓝色积木。下列原有颜色核心规则和人工演示步骤用于独立/旧模式；默认 B 接入后演示组件自动停用，F5/F6/F7 不作为默认玩法入口，F8 仍控制识别取样是否保留投影。
+2026-10-30 默认玩法已改为 [系统目标与实时建造](generated-defense-round-guide.md)：系统生成一个固定核心与 1–4 个入口，玩家只摆墙塔且不限配额；堵路警告并继续旧路线。目标在应用层合入，不是 B 预测的蓝色积木。下列原有颜色核心规则和人工演示步骤用于独立/旧模式；默认 B 接入后演示组件自动停用。2026-11-02 已删除 F5/F6/F7 快捷键代码，人工目标仅供脚本或测试调用；F8 仍控制识别取样是否保留投影。
 
 - `LevelRuleSet` 显式配置颜色→角色；未配置的颜色记 `UnmappedColor`，该格保留占用但 `Role=None`，不生成游戏对象也不高亮。
 - 关卡合法性：必须恰好一个核心。缺核心记 `MissingCore`，多核心记 `MultipleCores`。非法关卡仍会发布 `LevelState`（保留感知结果），只是 `IsPlayable=false`，界面显示原因。
@@ -97,8 +97,8 @@ C 不读 `SimulationBoardSession.Snapshot()`，不读 GT，也不创建观测。
    - 创建 `SimulationFeedback`（含 `Level`、`Projection` 子节点）并挂上 View/Projection/Adapter/Demo/Bootstrap；
    - 按调色板写入颜色→角色规则；
    - 调整两台相机的掩码并保存场景。
-3. 默认接入 B 后按 [新玩法指南](generated-defense-round-guide.md) 操作。仅在明确关闭自动识别接入、使用独立人工目标演示时，`F5` 提交目标、`F6` 提交空布局、`F7` 开/关投影；日志明确标注非识别结果。
-4. 建议的核对顺序：`F5` 两次（第二次应看到变更高亮）→ `F6`（应提示缺核心，游戏对象被清空）→ `F5` 恢复 → `F7` 关闭投影后保存一张 RGB 对照（`保存 RGB + 标注` 按钮），再开投影保存一张，两张应只差投影内容。
+3. 默认接入 B 后按 [新玩法指南](generated-defense-round-guide.md) 操作。独立人工测试可通过脚本调用 `SubmitCurrentSample()`、`NextSample()`、`SubmitEmpty()` 和 `ToggleProjection()`；日志明确标注非识别结果，不提供键盘入口。
+4. 独立测试可依次调用 `NextSample()` 两次检查变更高亮，调用 `SubmitEmpty()` 检查空布局，再调用 `SubmitCurrentSample()` 恢复。投影开关对照通过 `ToggleProjection()` 或 `ProjectionSimulator.SetVisible()` 控制，分别保存 RGB 样本；不要使用已移除的快捷键。
 
 ## 7. 接入任务 B
 
@@ -143,7 +143,7 @@ Unity 侧（有 6000.3.24f1 的机器）按第 6 节执行，并记录：面片�
 1. 复制 `Assets`、`Packages`、`ProjectSettings` 到新目录，例如 `E:\Brick2Life-2022`。
 2. `ProjectSettings/ProjectVersion.txt` 改成 `2022.3.62f3c1`。
 3. `Packages/manifest.json`：`com.unity.ugui` 改为 `1.0.0`；删除 `com.unity.modules.accessibility`、`com.unity.modules.adaptiveperformance`、`com.unity.modules.vectorgraphics`（2022.3 没有这些模块）；删掉 `packages-lock.json`。
-4. 用 2022.3 打开该副本，打开 `Assets/Scenes/Brick2LifeSimulation.unity`，运行菜单 `Brick2Life/Simulation/Install feedback`，进 Play 按 F5/F6/F7。
+4. 用 2022.3 打开该副本，打开 `Assets/Scenes/Brick2LifeSimulation.unity`，运行菜单 `Brick2Life/Simulation/Install feedback`。当前版本的独立人工测试通过第 6 节所列脚本接口进行，旧键盘入口已移除。
 
 2026-10-25 在本机按此流程得到的实测结果（详见验证记录）：关卡对象 3 个、投影面片 134 个、对齐误差 0、顶置相机看不到游戏对象但能看到投影（开/关图像差 25136 像素）、隐藏游戏对象后顶置图像 0 像素变化。
 
