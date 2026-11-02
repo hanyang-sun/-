@@ -22,6 +22,7 @@ namespace Brick2Life.Editor
             EditorApplication.playModeStateChanged += OnPlayMode;
             EditorApplication.update += Tick;
             AssemblyReloadEvents.beforeAssemblyReload += Close;
+            ProjectionCaptureGate.VisibilityChanged += RepaintWindows;
             EditorApplication.delayCall += AutoOpen;
         }
 
@@ -80,6 +81,12 @@ namespace Brick2Life.Editor
             if (layoutWindow == null && displayWindow == null) return;
             if (!EditorApplication.isPlaying || layoutWindow == null || displayWindow == null) { Close(); return; }
             SimulationEditAccess.Refresh();
+        }
+
+        private static void RepaintWindows()
+        {
+            if (layoutWindow != null) layoutWindow.Repaint();
+            if (displayWindow != null) displayWindow.Repaint();
         }
 
         [MenuItem("Brick2Life/Windows/Close layout and projection")]

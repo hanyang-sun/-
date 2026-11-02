@@ -20,15 +20,64 @@ namespace Brick2Life.Simulation
         [SerializeField] private Text statusLabel;
         [Tooltip("识别取样前先关闭虚拟投影，避免投影光污染识别输入。")]
         [SerializeField] private bool captureWithoutProjection = true;
-        [Tooltip("关闭投影后额外渲染的帧数，模拟投影画面稳定时间。")]
+        [Tooltip("自动采样消隐至少跨越的实际帧数；同步单次采集使用同等次数的额外渲染。")]
         [SerializeField, Min(0)] private int projectionSettleFrames = 2;
+        [Tooltip("自动采样消隐最短持续时间（秒），让两个窗口有机会显示相同的消隐状态；非硬件同步参数。")]
+        [SerializeField, Min(0f)] private float projectionBlankSeconds = 0.05f;
+        private IDisposable observationSuppression;
+        private bool observationPending, pendingIncludesProjection;
+        private int observationStartedFrame;
+        private double observationStartedTime;
 
         public string LastSavedPath { get; private set; }
         public bool CaptureWithoutProjection
         {
             get => captureWithoutProjection;
-            set => captureWithoutProjection = value;
+            set
+            {
+                if (captureWithoutProjection == value) return;
+                CancelObservationCapture();
+                captureWithoutProjection = value;
+            }
         }
+        public bool ObservationCapturePending => observationPending;
+
+        // Automatic capture holds the shared gate across real frames so both windows can render it.
+        public void BeginObservationCapture()
+        {
+            if (observationPending) throw new InvalidOperationException("已有识别采样正在进行。");
+            pendingIncludesProjection = !captureWithoutProjection;
+            observationStartedFrame = Time.frameCount;
+            observationStartedTime = Time.realtimeSinceStartupAsDouble;
+            try
+            {
+                if (!pendingIncludesProjection) observationSuppression = ProjectionCaptureGate.Suppress();
+                observationPending = true;
+            }
+            catch { CancelObservationCapture(); throw; }
+        }
+
+        public bool TryCompleteObservationCapture(out SimulationObservationImage image)
+        {
+            image = null;
+            if (!observationPending) return false;
+            if (!pendingIncludesProjection &&
+                (Time.frameCount - observationStartedFrame < Mathf.Max(1, projectionSettleFrames) ||
+                 Time.realtimeSinceStartupAsDouble - observationStartedTime < projectionBlankSeconds)) return false;
+            try { image = CaptureObservationImageInternal(pendingIncludesProjection); }
+            finally { CancelObservationCapture(); }
+            return true;
+        }
+
+        public void CancelObservationCapture()
+        {
+            observationPending = false;
+            IDisposable suppression = observationSuppression;
+            observationSuppression = null;
+            suppression?.Dispose();
+        }
+
+        private void OnDisable() => CancelObservationCapture();
         public void Bind(SimulationBoardSession session) => board = session ?? throw new ArgumentNullException(nameof(session));
 
         public void SaveImage()
@@ -245,6 +294,7 @@ namespace Brick2Life.Simulation
         // Recognition samples hide the virtual projection first: clear → settle → capture → restore.
         public SimulationObservationImage CaptureObservationImage(bool includeProjection)
         {
+            CancelObservationCapture();
             IDisposable suppression = includeProjection ? null : ProjectionCaptureGate.Suppress();
             try
             {
