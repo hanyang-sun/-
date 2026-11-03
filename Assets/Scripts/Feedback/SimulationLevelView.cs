@@ -30,12 +30,15 @@ namespace Brick2Life.Feedback
         [SerializeField] private int fallbackGameLayer = 30;
         [Tooltip("可选的顶置相机，仅用于检查分层是否会把游戏对象拍进实验图像。")]
         [SerializeField] private Camera overheadCamera;
+        [Tooltip("关闭后不生成核心/城墙/防御塔的实体替身，角色只由投影层 31 的图案表达。")]
+        [SerializeField] private bool renderGameObjects = false;
 
         private readonly Dictionary<int, GameObject> objects = new Dictionary<int, GameObject>();
         private readonly Dictionary<int, GameRole> roles = new Dictionary<int, GameRole>();
         private BoardDefinition definition;
 
         public int RenderedCount => roles.Count;
+        public bool RenderGameObjects => renderGameObjects;
         public int GameLayer { get; private set; }
 
         public RoleStyle[] Styles
@@ -54,6 +57,7 @@ namespace Brick2Life.Feedback
         public void Render(LevelState level)
         {
             if (level == null) throw new ArgumentNullException(nameof(level));
+            if (!renderGameObjects) { if (roles.Count > 0) Clear(); return; }
             if (definition == null || !definition.IsCompatible(level.Definition))
             {
                 Clear();
