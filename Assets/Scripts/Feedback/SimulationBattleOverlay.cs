@@ -53,7 +53,9 @@ namespace Brick2Life.Feedback
         private readonly List<TextMesh> enemyIds = new List<TextMesh>();
         private readonly List<Vector2> lastEnemyPositions = new List<Vector2>();
         private readonly List<GameObject> spawnMarkers = new List<GameObject>();
-        private Material arrowMaterial, ringMaterial, enemyMaterial, barMaterial;
+        private readonly List<GameObject> pathBands = new List<GameObject>();
+        private readonly List<GameObject> pathArrowsPool = new List<GameObject>();
+        private Material arrowMaterial, ringMaterial, enemyMaterial, barMaterial, pathMaterial, rangeMaterial;
         private Font labelFont;
         public int ActiveEnemyCount { get { int c = 0; foreach (GameObject e in enemyIcons) if (e != null && e.activeSelf) c++; return c; } }
         public int SpawnMarkerCount => spawnMarkers.Count;
@@ -62,6 +64,7 @@ namespace Brick2Life.Feedback
         public int ActiveRangeRingCount { get { int c = 0; foreach (GameObject r in rangeRings) if (r != null && r.activeSelf) c++; return c; } }
         public int ActiveTowerArrowCount { get { int c = 0; foreach (GameObject a in towerArrows) if (a != null && a.activeSelf) c++; return c; } }
         public int ActiveEffectCount => effects.Count;
+        public int PathSegmentCount { get { int c = 0; foreach (GameObject b in pathBands) if (b != null && b.activeSelf) c++; return c; } }
         private int projectionLayer;
         private int lastCoreHealth = -1;
 
@@ -109,12 +112,13 @@ namespace Brick2Life.Feedback
             foreach (Fx fx in effects) if (fx.Quad != null) Destroy(fx.Quad);
             foreach (GameObject arrow in arrows) if (arrow != null) Destroy(arrow);
             foreach (GameObject ring in rangeRings) if (ring != null) Destroy(ring);
+            foreach (GameObject band in pathBands) if (band != null) Destroy(band);
             foreach (GameObject arrow in towerArrows) if (arrow != null) Destroy(arrow);
             foreach (GameObject icon in enemyIcons) if (icon != null) Destroy(icon);
             foreach (GameObject bar in enemyBars) if (bar != null) Destroy(bar);
             foreach (TextMesh id in enemyIds) if (id != null) Destroy(id.gameObject);
             foreach (GameObject marker in spawnMarkers) if (marker != null) Destroy(marker);
-            foreach (Material material in new[] { arrowMaterial, ringMaterial, enemyMaterial, barMaterial })
+            foreach (Material material in new[] { arrowMaterial, ringMaterial, enemyMaterial, barMaterial, pathMaterial, rangeMaterial })
                 if (material != null) { if (material.mainTexture != null) Destroy(material.mainTexture); Destroy(material); }
         }
 
@@ -141,7 +145,7 @@ namespace Brick2Life.Feedback
             if (controller == null || controller.State == null || controller.State.WaitingForLayout ||
                 (projector != null && !projector.IsVisible)) { HideAll(); return; }
             SyncRoutes();
-            SyncRangeRings();
+            SyncRangeRings(controller.State);
             SyncTowerArrows(controller.State);
         }
 
@@ -154,7 +158,7 @@ namespace Brick2Life.Feedback
             BattleState state = controller.State;
             if (!state.Paused) animationTime += Time.deltaTime;
             SyncRoutes();
-            SyncRangeRings();
+            SyncRangeRings(state);
             SyncTowerArrows(state);
             HandleShots(state);
             HandleCore(state);
@@ -166,6 +170,7 @@ namespace Brick2Life.Feedback
         {
             foreach (GameObject arrow in arrows) if (arrow != null) arrow.SetActive(false);
             foreach (GameObject ring in rangeRings) if (ring != null) ring.SetActive(false);
+            foreach (GameObject band in pathBands) if (band != null) band.SetActive(false);
             foreach (GameObject arrow in towerArrows) if (arrow != null) arrow.SetActive(false);
             foreach (Fx fx in effects) if (fx.Quad != null) fx.Quad.SetActive(false);
         }
@@ -208,7 +213,7 @@ namespace Brick2Life.Feedback
         private static Vector3 World(GridPoint cell) => new Vector3(cell.X * 0.5f, 0.035f, cell.Y * 0.5f);
 
         // ---- range rings --------------------------------------------------------------------
-        private void SyncRangeRings()
+        private void SyncRangeRings(BattleState state)
         {
             int towers = 0;
             BattleLevel level = controller.Level;
@@ -216,7 +221,7 @@ namespace Brick2Life.Feedback
             if (level != null)
                 for (int i = 0; i < level.Cells.Count; i++)
                     if (level.Cells[i].Role == Application.GameRole.Tower && seenTowers.Add(level.Cells[i].SourceBrickId)) towers++;
-            while (rangeRings.Count < towers) rangeRings.Add(CreateQuad("BattleRange", ringMaterial, 1f));
+            while (rangeRings.Count < towers) rangeRings.Add(CreateQuad("BattleRange", rangeMaterial, 1f));
             seenTowers.Clear();
             float range = (float)(controller.Battle != null ? controller.Battle.Towers.Range : controller.TowerSettings.Range) * 0.5f;
             int used = 0;
@@ -226,12 +231,49 @@ namespace Brick2Life.Feedback
                 if (cell.Role != Application.GameRole.Tower || !seenTowers.Add(cell.SourceBrickId)) continue;
                 GameObject ring = rangeRings[used++];
                 ring.SetActive(true);
-                ring.transform.position = BrickCenter(cell, ringHeight);
-                ring.transform.localScale = new Vector3(range * 2f, range * 2f, 1f);
-                SetColor(ring, new Color(0.35f, 0.85f, 1f, 0.16f));
+                Vector3 center = BrickCenter(cell, ringHeight);
+                ring.transform.position = center;
+                float pulse = 0.94f + 0.06f * Mathf.Sin(animationTime * 2.2f + used);
+                ring.transform.localScale = new Vector3(range * 2f * pulse, range * 2f * pulse, 1f);
+                bool invaded = false;
+                foreach (EnemyState enemy in state.Enemies)
+                {
+                    float dx = (float)enemy.X * 0.5f - center.x, dz = (float)enemy.Y * 0.5f - center.z;
+                    if (dx * dx + dz * dz <= range * range) { invaded = true; break; }
+                }
+                SetColor(ring, invaded ? new Color(1f, 0.55f, 0.2f, 0.28f) : new Color(0.35f, 0.85f, 1f, 0.18f));
             }
             for (int i = towers; i < rangeRings.Count; i++) rangeRings[i].SetActive(false);
         }
+
+        // Soft flowing band under each route; UV offset animates the flow without moving geometry.
+        private void SyncPathBands(IReadOnlyList<BattleRoute> routes)
+        {
+            int segments = 0;
+            if (routes != null)
+                foreach (BattleRoute route in routes) segments += Mathf.Max(0, route.Route.Count - 1);
+            while (pathBands.Count < segments) pathBands.Add(CreateQuad("BattlePath", pathMaterial, 1f));
+            int used = 0;
+            if (routes != null)
+                foreach (BattleRoute route in routes)
+                    for (int i = 0; i < route.Route.Count - 1; i++)
+                    {
+                        Vector3 from = World(route.Route[i], 0.028f), to = World(route.Route[i + 1], 0.028f);
+                        Vector3 direction = to - from;
+                        float length = direction.magnitude;
+                        if (length < 0.01f) continue;
+                        GameObject band = pathBands[used++];
+                        band.SetActive(true);
+                        band.transform.position = (from + to) * 0.5f;
+                        band.transform.rotation = Quaternion.Euler(90f, -Mathf.Atan2(direction.z, direction.x) * Mathf.Rad2Deg, 0f);
+                        band.transform.localScale = new Vector3(length, 0.3f, 1f);
+                        SetColor(band, new Color(0.35f, 0.85f, 1f, 0.28f));
+                    }
+            for (int i = used; i < pathBands.Count; i++) pathBands[i].SetActive(false);
+            if (pathMaterial != null) pathMaterial.mainTextureOffset = new Vector2(0f, -animationTime * 0.8f);
+        }
+
+        private static Vector3 World(GridPoint cell, float height) => new Vector3(cell.X * 0.5f, height, cell.Y * 0.5f);
 
         // Every tower aims an arrow at its nearest enemy; without enemies the last heading is kept.
         private void SyncTowerArrows(BattleState state)
@@ -531,6 +573,45 @@ namespace Brick2Life.Feedback
                     float alpha = 0f;
                     if (u > 0.15f && u < 0.95f && Mathf.Abs(v - 0.5f) < (0.95f - u) * 0.5f) alpha = 1f;
                     pixels[y * size + x] = new Color32(255, 255, 255, (byte)(alpha * 255f));
+                }
+            texture.SetPixels32(pixels); texture.Apply(false, false);
+            return texture;
+        }
+
+        // Soft band: bright centre, transparent edges, repeated along the route for the flow offset.
+        private static Texture2D MakePathTexture(int size)
+        {
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Bilinear };
+            var pixels = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float v = y / (float)(size - 1);
+                    float edge = Mathf.SmoothStep(0f, 0.5f, Mathf.Min(v, 1f - v));
+                    float u = x / (float)(size - 1);
+                    float pulse = 0.75f + 0.25f * Mathf.Sin(u * Mathf.PI * 2f);
+                    byte a = (byte)(Mathf.Clamp01(edge * pulse) * 255f);
+                    pixels[y * size + x] = new Color32(255, 255, 255, a);
+                }
+            texture.SetPixels32(pixels); texture.Apply(false, false);
+            return texture;
+        }
+
+        // Radial glow: faint interior, bright rim, used for tower ranges.
+        private static Texture2D MakeRangeTexture(int size)
+        {
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var pixels = new Color32[size * size];
+            float center = (size - 1) * 0.5f;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float r = new Vector2(x - center, y - center).magnitude / center;
+                    float alpha = 0f;
+                    if (r < 0.98f) alpha = 0.06f;
+                    if (r > 0.86f) alpha = Mathf.Lerp(0.25f, 0f, (r - 0.86f) / 0.12f);
+                    if (r > 0.9f && r < 0.97f) alpha = 0.55f;
+                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(alpha) * 255f));
                 }
             texture.SetPixels32(pixels); texture.Apply(false, false);
             return texture;

@@ -18,3 +18,24 @@
 ## 验收
 layer30Renderers == 0；projectionEnemies == 敌人数；rings == 塔数；pathSegments > 0；
 cameraDiffGameObjects == 0；projection on/off pixel diff 单独记录；monitor == Unchanged。
+
+## 实施结果（2026-11-03）
+
+已完成 M1+M3+M4 的代码部分：
+
+- `SimulationBattleView` 改为纯门面（Build/Render/SetSpawns/Clear* 全部转发 Overlay，计数走 Overlay，RouteCount 无 Overlay 时回退控制器路线）；
+- 安装器不再创建 `Game_*.mat`，显式 `renderGameObjects=false`，29/30 相机排除保持不变；
+- Overlay 新增：敌人投影（菱形贴片 + 血条（最大值取 `WavePlan.EnemyHealth`）+ 编号 TextMesh）、激光弹道（塔顶→命中点，0.12s）、入口投影环（层 31）、路径柔边光带（UV 流动）、范围环渐变发光 + 呼吸 + 敌人入侵变橙。
+
+验证（Unity 6000.3.24f1，合成关卡直连 Overlay）：
+
+```text
+PROBE_SYN2_OK enemies=2 overlayEnemies=2 rings=2 textMeshes=2 effects=3
+  partialHealth=True maxHealth=40 shots=1 layer30=0 pathSegments=20
+```
+
+- `layer30=0`：核心/墙/塔/敌人/路线/入口柱已无实体替身；
+- 敌人投影 2、血条（部分血量）、编号 2、激光+闪光+涟漪 3 个特效、路线 20 段光带、范围环 2；
+- 当前场景确认为“生成防守回合”，物理积木为 0、关卡无塔，因此真实战斗截图暂未取得；需在有关卡的场景（或生成回合后放置塔）复测。
+
+待办：M5 真机截图（原始积木/投影窗口/混合模式）与双窗口镜像复测。
