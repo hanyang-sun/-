@@ -36,6 +36,7 @@ namespace Brick2Life.Feedback
             public float StartScale;
             public float EndScale;
             public Color Color;
+            public bool FixedScale;
         }
 
         private readonly List<Fx> effects = new List<Fx>();
@@ -46,7 +47,17 @@ namespace Brick2Life.Feedback
         private readonly List<string> towerIds = new List<string>();
         private readonly List<Vector2> towerPositions = new List<Vector2>();
         private int arrowLevelHash;
-        private Material arrowMaterial, ringMaterial;
+        private readonly List<GameObject> enemyIcons = new List<GameObject>();
+        private readonly List<GameObject> enemyBars = new List<GameObject>();
+        private readonly List<GameObject> enemyFills = new List<GameObject>();
+        private readonly List<TextMesh> enemyIds = new List<TextMesh>();
+        private readonly List<Vector2> lastEnemyPositions = new List<Vector2>();
+        private readonly List<GameObject> spawnMarkers = new List<GameObject>();
+        private Material arrowMaterial, ringMaterial, enemyMaterial, barMaterial;
+        private Font labelFont;
+        public int ActiveEnemyCount { get { int c = 0; foreach (GameObject e in enemyIcons) if (e != null && e.activeSelf) c++; return c; } }
+        public int SpawnMarkerCount => spawnMarkers.Count;
+        public int RouteCount => controller != null && controller.DisplayRoutes != null ? controller.DisplayRoutes.Count : 0;
         public int ActiveArrowCount { get { int c = 0; foreach (GameObject a in arrows) if (a != null && a.activeSelf) c++; return c; } }
         public int ActiveRangeRingCount { get { int c = 0; foreach (GameObject r in rangeRings) if (r != null && r.activeSelf) c++; return c; } }
         public int ActiveTowerArrowCount { get { int c = 0; foreach (GameObject a in towerArrows) if (a != null && a.activeSelf) c++; return c; } }
@@ -99,7 +110,11 @@ namespace Brick2Life.Feedback
             foreach (GameObject arrow in arrows) if (arrow != null) Destroy(arrow);
             foreach (GameObject ring in rangeRings) if (ring != null) Destroy(ring);
             foreach (GameObject arrow in towerArrows) if (arrow != null) Destroy(arrow);
-            foreach (Material material in new[] { arrowMaterial, ringMaterial })
+            foreach (GameObject icon in enemyIcons) if (icon != null) Destroy(icon);
+            foreach (GameObject bar in enemyBars) if (bar != null) Destroy(bar);
+            foreach (TextMesh id in enemyIds) if (id != null) Destroy(id.gameObject);
+            foreach (GameObject marker in spawnMarkers) if (marker != null) Destroy(marker);
+            foreach (Material material in new[] { arrowMaterial, ringMaterial, enemyMaterial, barMaterial })
                 if (material != null) { if (material.mainTexture != null) Destroy(material.mainTexture); Destroy(material); }
         }
 
@@ -260,6 +275,103 @@ namespace Brick2Life.Feedback
                 SetColor(arrow, new Color(1f, 0.7f, 0.25f, 0.95f));
             }
         }
+        // ---- enemies (projected decals with health bar and id) -----------------------------
+        private void SyncEnemies(BattleState state)
+        {
+            if (state == null) return;
+            int count = state.Enemies.Count;
+            EnsureEnemyPool(count);
+            int maxHealth = controller != null && controller.Battle != null ? controller.Battle.Plan.EnemyHealth : 1;
+            for (int i = 0; i < enemyIcons.Count; i++)
+            {
+                bool active = i < count;
+                enemyIcons[i].SetActive(active);
+                enemyBars[i].SetActive(active);
+                enemyFills[i].SetActive(active);
+                enemyIds[i].gameObject.SetActive(active);
+                if (!active) continue;
+                EnemyState enemy = state.Enemies[i];
+                float x = (float)enemy.X * 0.5f, z = (float)enemy.Y * 0.5f;
+                float surface = SurfaceHeight(x, z);
+                enemyIcons[i].transform.position = new Vector3(x, surface + 0.045f, z);
+                enemyIcons[i].transform.localScale = new Vector3(0.34f, 0.34f, 1f);
+                SetColor(enemyIcons[i], new Color(1f, 0.35f, 0.3f, 0.95f));
+                float ratio = Mathf.Clamp01(enemy.Health / (float)Mathf.Max(1, maxHealth));
+                enemyBars[i].transform.position = new Vector3(x, surface + 0.05f, z - 0.24f);
+                enemyBars[i].transform.localScale = new Vector3(0.62f, 0.08f, 1f);
+                SetColor(enemyBars[i], new Color(0.05f, 0.05f, 0.07f, 0.85f));
+                float width = 0.58f * ratio;
+                enemyFills[i].transform.position = new Vector3(x - 0.29f + width * 0.5f, surface + 0.052f, z - 0.24f);
+                enemyFills[i].transform.localScale = new Vector3(Mathf.Max(0.001f, width), 0.05f, 1f);
+                SetColor(enemyFills[i], Color.Lerp(new Color(1f, 0.25f, 0.2f, 0.95f), new Color(0.4f, 1f, 0.5f, 0.95f), ratio));
+                TextMesh id = enemyIds[i];
+                id.text = enemy.Id.ToString();
+                id.transform.position = new Vector3(x + 0.22f, surface + 0.046f, z + 0.2f);
+                id.color = new Color(1f, 0.9f, 0.75f, 0.95f);
+            }
+        }
+
+        private float SurfaceHeight(float x, float z)
+        {
+            BattleLevel level = controller != null ? controller.Level : null;
+            if (level == null) return 0.04f;
+            int cx = Mathf.FloorToInt(x), cz = Mathf.FloorToInt(z);
+            for (int i = 0; i < level.Cells.Count; i++)
+            {
+                BattleCell cell = level.Cells[i];
+                if (cell.Position.X / 2 != cx || cell.Position.Y / 2 != cz) continue;
+                if (cell.Role == Application.GameRole.None) continue;
+                return 1.0f;
+            }
+            return 0.04f;
+        }
+
+        private void EnsureEnemyPool(int count)
+        {
+            while (enemyIcons.Count < count)
+            {
+                enemyIcons.Add(CreateQuad("BattleEnemy", enemyMaterial, 0.34f));
+                enemyBars.Add(CreateQuad("BattleEnemyBar", barMaterial, 0.62f));
+                enemyFills.Add(CreateQuad("BattleEnemyFill", barMaterial, 0.3f));
+                var labelObject = new GameObject("BattleEnemyId");
+                labelObject.layer = projectionLayer;
+                labelObject.transform.SetParent(root, false);
+                labelObject.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+                var label = labelObject.AddComponent<TextMesh>();
+                label.font = labelFont != null ? labelFont : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                label.fontSize = 64;
+                label.characterSize = 0.06f;
+                label.anchor = TextAnchor.MiddleCenter;
+                label.alignment = TextAlignment.Center;
+                label.color = Color.white;
+                enemyIds.Add(label);
+                lastEnemyPositions.Add(Vector2.zero);
+            }
+        }
+
+        // ---- entrances on the projection layer -----------------------------------------------
+        public void SetSpawnMarkers(IReadOnlyList<GridPoint> cells)
+        {
+            int count = cells != null ? cells.Count : 0;
+            while (spawnMarkers.Count < count)
+                spawnMarkers.Add(CreateQuad("BattleEntranceMarker", ringMaterial, 0.8f));
+            for (int i = 0; i < spawnMarkers.Count; i++)
+            {
+                bool active = i < count;
+                spawnMarkers[i].SetActive(active);
+                if (!active) continue;
+                GridPoint cell = cells[i];
+                spawnMarkers[i].transform.position = new Vector3(cell.X + 0.5f, 0.03f, cell.Y + 0.5f);
+                SetColor(spawnMarkers[i], new Color(0.2f, 0.95f, 1f, 0.9f));
+            }
+        }
+
+        public void ClearSpawnMarkers()
+        {
+            foreach (GameObject marker in spawnMarkers) if (marker != null) marker.SetActive(false);
+            spawnMarkers.Clear();
+        }
+
         // ---- shot / hit / core / walls ------------------------------------------------------
         private void HandleShots(BattleState state)
         {
@@ -271,6 +383,7 @@ namespace Brick2Life.Feedback
             {
                 SpawnEffect(WorldAt(shot.TowerX, shot.TowerY), 1.03f, 0.5f, 1.5f, new Color(1f, 0.85f, 0.3f, 0.9f), flashSeconds);
                 SpawnEffect(WorldAt(shot.TargetX, shot.TargetY), 0.2f, 0.4f, 1.8f, new Color(1f, 0.45f, 0.25f, 0.85f), rippleSeconds);
+                SpawnLaser(shot);
             }
         }
 
@@ -313,6 +426,25 @@ namespace Brick2Life.Feedback
                     break;
                 }
             }
+        }
+
+        // Laser tracer from the tower top to the hit point, short and bright.
+        private void SpawnLaser(ShotEvent shot)
+        {
+            Vector3 from = new Vector3((float)shot.TowerX * 0.5f, 1.04f, (float)shot.TowerY * 0.5f);
+            Vector3 to = new Vector3((float)shot.TargetX * 0.5f, 1.04f, (float)shot.TargetY * 0.5f);
+            Vector3 direction = to - from;
+            float length = direction.magnitude;
+            if (length < 0.01f) return;
+            GameObject quad = CreateQuad("BattleLaser", barMaterial, 1f);
+            quad.SetActive(true);
+            quad.transform.position = (from + to) * 0.5f;
+            quad.transform.rotation = Quaternion.Euler(90f, -Mathf.Atan2(direction.z, direction.x) * Mathf.Rad2Deg, 0f);
+            quad.transform.localScale = new Vector3(length, 0.06f, 1f);
+            var fx = new Fx { Quad = quad, Age = 0f, Life = 0.12f, StartScale = length, EndScale = length,
+                Color = new Color(0.55f, 0.95f, 1f, 0.95f), FixedScale = true };
+            SetColor(quad, fx.Color);
+            effects.Add(fx);
         }
 
         private void SpawnEffect(Vector3 position, float height, float startScale, float endScale, Color color, float life)
@@ -399,6 +531,27 @@ namespace Brick2Life.Feedback
                     float alpha = 0f;
                     if (u > 0.15f && u < 0.95f && Mathf.Abs(v - 0.5f) < (0.95f - u) * 0.5f) alpha = 1f;
                     pixels[y * size + x] = new Color32(255, 255, 255, (byte)(alpha * 255f));
+                }
+            texture.SetPixels32(pixels); texture.Apply(false, false);
+            return texture;
+        }
+
+        // Diamond with a bright core reads clearly as a projected enemy marker from above.
+        private static Texture2D MakeEnemyTexture(int size)
+        {
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var pixels = new Color32[size * size];
+            float center = (size - 1) * 0.5f;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = Mathf.Abs((x - center) / center), dy = Mathf.Abs((y - center) / center);
+                    float diamond = dx + dy;
+                    float alpha = 0f;
+                    if (diamond < 0.9f) alpha = 0.25f;
+                    if (diamond > 0.72f && diamond < 0.9f) alpha = 0.95f;
+                    if (diamond < 0.28f) alpha = 1f;
+                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(alpha) * 255f));
                 }
             texture.SetPixels32(pixels); texture.Apply(false, false);
             return texture;
