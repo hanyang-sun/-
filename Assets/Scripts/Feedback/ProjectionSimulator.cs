@@ -38,9 +38,14 @@ namespace Brick2Life.Feedback
         private MaterialPropertyBlock properties;
         private static readonly int ColorId = Shader.PropertyToID("_Color");
         private Material runtimeMaterial;
-        private Material ringMaterial, coreMaterial, towerMaterial, wallMaterial;
+        private Material ringMaterial, coreMaterial, wallMaterial;
         private bool[] isChangeMark = Array.Empty<bool>();
-        private bool[] isCoreMark = Array.Empty<bool>();
+        private const int CoreHitFrameCount = 17;
+        private const int CoreIdleFrameCount = 24;
+        private const float CoreHitFrameSeconds = 0.02f;
+        private const float CoreIdleFrameSeconds = 0.065f;
+        private Texture2D[] coreFrames;
+        private float coreHitTime = float.NegativeInfinity;
         private float[] baseAlpha = Array.Empty<float>();
         private float fadeStart = -1f;
         private float fadeDuration = 1.6f;
@@ -101,7 +106,7 @@ namespace Brick2Life.Feedback
             if (LastPlan == null || pool.Count == 0) return;
             float now = Time.unscaledTime;
             float fade = fadeStart < 0f ? 1f : Mathf.Clamp01((now - fadeStart) / fadeDuration);
-            float breath = 0.85f + 0.15f * Mathf.Sin(now * 2.2f);
+            UpdateCoreFrame(now);
             for (int i = 0; i < pool.Count; i++)
             {
                 GameObject quad = pool[i];
@@ -111,7 +116,6 @@ namespace Brick2Life.Feedback
                 if (!visible) continue;
                 float alpha = i < baseAlpha.Length ? baseAlpha[i] : 1f;
                 if (change) alpha *= 1f - fade;
-                else if (i < isCoreMark.Length && isCoreMark[i]) alpha *= breath;
                 ApplyAlpha(quad, alpha);
             }
         }
@@ -131,7 +135,10 @@ namespace Brick2Life.Feedback
         private void OnDestroy()
         {
             if (runtimeMaterial != null) Destroy(runtimeMaterial);
-            foreach (Material material in new[] { ringMaterial, coreMaterial, towerMaterial, wallMaterial })
+            if (coreFrames != null)
+                foreach (Texture2D frame in coreFrames) Destroy(frame);
+            if (coreMaterial != null) Destroy(coreMaterial);
+            foreach (Material material in new[] { ringMaterial, wallMaterial })
                 if (material != null) { if (material.mainTexture != null) Destroy(material.mainTexture); Destroy(material); }
         }
 
@@ -154,7 +161,6 @@ namespace Brick2Life.Feedback
             {
                 GameObject quad = Obtain(used);
                 isChangeMark[used] = mark.Kind == ProjectionMarkKind.ChangeHighlight;
-                isCoreMark[used] = mark.Kind == ProjectionMarkKind.RoleHighlight && mark.Role == GameRole.Core;
                 baseAlpha[used] = mark.Color.Alpha;
                 Place(quad, mark, material);
                 used++;
@@ -169,12 +175,13 @@ namespace Brick2Life.Feedback
             foreach (GameObject quad in pool)
                 if (quad != null) { quad.SetActive(false); Destroy(quad); }
             pool.Clear(); VisibleMarkCount = 0; LastPlan = null;
+            ResetCoreHit();
         }
 
         public void SetVisible(bool value)
         {
             visible = value;
-            if (visible) ShowAll(); else HideAll();
+            if (visible) { UpdateCoreFrame(Time.unscaledTime); ShowAll(); } else HideAll();
         }
 
         public void SetIntensity(float value)
@@ -228,11 +235,10 @@ namespace Brick2Life.Feedback
         {
             if (isChangeMark.Length >= count) return;
             isChangeMark = new bool[count];
-            isCoreMark = new bool[count];
             baseAlpha = new float[count];
         }
 
-        // Change rings, core emblems, tower targets and wall courses carry the role identity; color stays auxiliary.
+        // Change rings, core emblems and wall courses carry the role identity; color stays auxiliary.
         private Material MaterialFor(ProjectionMark mark, Material fallback)
         {
             EnsureTextures(fallback);
@@ -242,7 +248,6 @@ namespace Brick2Life.Feedback
             switch (mark.Role)
             {
                 case GameRole.Core: return coreMaterial != null ? coreMaterial : fallback;
-                case GameRole.Tower: return towerMaterial != null ? towerMaterial : fallback;
                 case GameRole.Wall: return wallMaterial != null ? wallMaterial : fallback;
                 default: return fallback;
             }
@@ -254,8 +259,7 @@ namespace Brick2Life.Feedback
             Shader shader = fallback != null ? fallback.shader : Shader.Find("Sprites/Default");
             if (shader == null) return;
             ringMaterial = new Material(shader) { name = "ProjectionRing", mainTexture = MakeRing(96, 0.55f) };
-            coreMaterial = new Material(shader) { name = "ProjectionCore", mainTexture = MakeCoreEmblem(96) };
-            towerMaterial = new Material(shader) { name = "ProjectionTower", mainTexture = MakeTowerTarget(96) };
+            coreMaterial = new Material(shader) { name = "ProjectionCore", mainTexture = LoadCoreFrames() };
             wallMaterial = new Material(shader) { name = "ProjectionWall", mainTexture = MakeWallPattern(96) };
         }
 
@@ -281,48 +285,56 @@ namespace Brick2Life.Feedback
             return texture;
         }
 
-        private static Texture2D MakeCoreEmblem(int size)
+        private Texture2D LoadCoreFrames()
         {
-            Texture2D texture = NewTexture(size);
-            float center = (size - 1) * 0.5f;
-            var pixels = new Color32[size * size];
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                {
-                    float dx = (x - center) / center, dy = (y - center) / center;
-                    float r = Mathf.Sqrt(dx * dx + dy * dy);
-                    float diamond = Mathf.Abs(dx) + Mathf.Abs(dy);
-                    float alpha = 0f;
-                    if (r < 0.85f) alpha = 0.18f;
-                    if (r > 0.52f && r < 0.62f) alpha = 0.9f;
-                    if (r > 0.78f && r < 0.86f) alpha = 0.75f;
-                    if (diamond < 0.3f) alpha = Mathf.Max(alpha, 0.95f);
-                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(alpha) * 255f));
-                }
-            texture.SetPixels32(pixels); texture.Apply(false, false);
-            return texture;
+            const int columns = 8;
+            int frameCount = CoreHitFrameCount + CoreIdleFrameCount;
+            int rows = (frameCount + columns - 1) / columns;
+            TextAsset data = Resources.Load<TextAsset>("SparkCoreFrames");
+            var strip = NewTexture(2);
+            if (data == null || !ImageConversion.LoadImage(strip, data.bytes) ||
+                strip.width % columns != 0 || strip.height != strip.width / columns * rows)
+            {
+                Destroy(strip);
+                Debug.LogError("小焰投影帧资源缺失或尺寸不正确。", this);
+                return null;
+            }
+
+            int size = strip.width / columns;
+            coreFrames = new Texture2D[frameCount];
+            for (int i = 0; i < coreFrames.Length; i++)
+            {
+                Texture2D frame = NewTexture(size);
+                frame.SetPixels(strip.GetPixels(i % columns * size, (rows - 1 - i / columns) * size, size, size));
+                frame.Apply(false, true);
+                coreFrames[i] = frame;
+            }
+            Destroy(strip);
+            return coreFrames[CoreHitFrameCount];
         }
 
-        private static Texture2D MakeTowerTarget(int size)
+        public void PlayCoreHit()
         {
-            Texture2D texture = NewTexture(size);
-            float center = (size - 1) * 0.5f;
-            var pixels = new Color32[size * size];
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                {
-                    float dx = (x - center) / center, dy = (y - center) / center;
-                    float r = Mathf.Sqrt(dx * dx + dy * dy);
-                    float alpha = 0f;
-                    if (r < 0.9f && r > 0.84f) alpha = 0.85f;
-                    if (r < 0.5f && r > 0.44f) alpha = 0.7f;
-                    if (Mathf.Abs(dx) < 0.035f && Mathf.Abs(dy) < 0.42f) alpha = Mathf.Max(alpha, 0.8f);
-                    if (Mathf.Abs(dy) < 0.035f && Mathf.Abs(dx) < 0.42f) alpha = Mathf.Max(alpha, 0.8f);
-                    if (r < 0.12f) alpha = 0.95f;
-                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(alpha) * 255f));
-                }
-            texture.SetPixels32(pixels); texture.Apply(false, false);
-            return texture;
+            coreHitTime = Time.unscaledTime;
+        }
+
+        public void ResetCoreHit()
+        {
+            coreHitTime = float.NegativeInfinity;
+            UpdateCoreFrame(Time.unscaledTime);
+        }
+
+        private void UpdateCoreFrame(float now)
+        {
+            if (coreFrames == null || coreMaterial == null) return;
+            float elapsed = now - coreHitTime;
+            float hitDuration = (CoreHitFrameCount - 1) * CoreHitFrameSeconds;
+            float idleTime = float.IsPositiveInfinity(elapsed) ? now : Mathf.Max(0f, elapsed - hitDuration);
+            int index = elapsed < hitDuration
+                ? Mathf.FloorToInt(elapsed / CoreHitFrameSeconds)
+                : CoreHitFrameCount + Mathf.FloorToInt(idleTime / CoreIdleFrameSeconds) % CoreIdleFrameCount;
+            if (coreMaterial.mainTexture != coreFrames[index])
+                coreMaterial.mainTexture = coreFrames[index];
         }
 
         private static Texture2D MakeWallPattern(int size)
@@ -357,7 +369,10 @@ namespace Brick2Life.Feedback
             Renderer renderer = quad.GetComponent<Renderer>();
             renderer.sharedMaterial = MaterialFor(mark, material);
             ProjectionColor color = mark.Color;
-            properties.SetColor(ColorId, new Color(color.Red, color.Green, color.Blue, color.Alpha * intensity));
+            bool core = mark.Kind == ProjectionMarkKind.RoleHighlight && mark.Role == GameRole.Core;
+            properties.SetColor(ColorId, core
+                ? new Color(1f, 1f, 1f, color.Alpha * intensity)
+                : new Color(color.Red, color.Green, color.Blue, color.Alpha * intensity));
             renderer.SetPropertyBlock(properties);
         }
 

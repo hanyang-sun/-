@@ -44,6 +44,11 @@ internal static class ProjectionPlanChecks
         Check(Math.Abs(highlight.Color.Alpha - 0.32f) < 1e-4, "Role highlight alpha does not follow the options.");
         Check(ProjectionPlanBuilder.ColorOf(GameRole.Tower).Red > ProjectionPlanBuilder.ColorOf(GameRole.Wall).Red, "Role colors are not distinguishable.");
 
+        var battleProjection = ProjectionPlanBuilder.Build(level, null, new ProjectionOptions { IncludeTowerHighlights = false });
+        Check(battleProjection.Count(ProjectionMarkKind.RoleHighlight) == 2 &&
+            !battleProjection.Marks.Any(mark => mark.Kind == ProjectionMarkKind.RoleHighlight && mark.Role == GameRole.Tower),
+            "Battle projection must omit the old tower mark while retaining core and wall marks.");
+
         var noGrid = ProjectionPlanBuilder.Build(level, null, new ProjectionOptions { IncludeGridPoints = false });
         Check(noGrid.Count(ProjectionMarkKind.GridPoint) == 0 && noGrid.Count(ProjectionMarkKind.RoleHighlight) == 3, "Disabling lattice points changed highlights.");
 

@@ -27,6 +27,23 @@ namespace Brick2Life.Battle
             public double X, Y, Cooldown;
         }
 
+        public const double BubbleWindup = 0.2;
+        public const double BubbleFlight = 0.45;
+
+        public sealed class Bubble
+        {
+            public string TowerId { get; internal set; }
+            public int EnemyId { get; internal set; }
+            internal double OriginX, OriginY;
+            public double X { get; internal set; }
+            public double Y { get; internal set; }
+            public double TimeRemaining { get; internal set; }
+        }
+
+        private readonly List<Bubble> bubbles = new List<Bubble>();
+        public IReadOnlyList<Bubble> Bubbles { get; }
+        private readonly bool useBubbles;
+
         private GridPoint[][] routes;
         private BattleLevel currentLevel;
         private readonly bool keepLastValidRoutes;
@@ -53,12 +70,14 @@ namespace Brick2Life.Battle
         public BattleLevel CurrentLevel => currentLevel;
         public IReadOnlyList<BattleRoute> ActiveRoutes => activeRoutes;
 
-        public BattleSimulation(BattleLevel level, WavePlan plan, TowerSettings tower, bool keepLastValidRoutes = false)
+        public BattleSimulation(BattleLevel level, WavePlan plan, TowerSettings tower, bool keepLastValidRoutes = false, bool useBubbles = false)
         {
             IReadOnlyList<BattleIssue> issues = BattleValidation.Check(level, plan, tower);
             if (issues.Count != 0) throw new ArgumentException(issues[0].ToString());
             this.plan = plan; this.tower = tower; coreHealth = tower.InitialCoreHealth;
             this.keepLastValidRoutes = keepLastValidRoutes;
+            this.useBubbles = useBubbles;
+            Bubbles = bubbles.AsReadOnly();
             currentLevel = level;
             fixedEntrances = level.Entrances;
             fixedCoreBrickIds = level.CoreBrickIds;
@@ -85,14 +104,18 @@ namespace Brick2Life.Battle
             var existing = new Dictionary<string, Tower>();
             foreach (Tower item in towers) existing[item.Id] = item;
             towers.Clear();
+            var seenBricks = new HashSet<string>();
             for (int y = 0; y < level.Height; y++)
                 for (int x = 0; x < level.Width; x++)
                 {
                     BattleCell cell = level.CellAt(x, y);
                     if (cell.Role != Application.GameRole.Tower) continue;
-                    string id = cell.SourceBrickId + "-" + x + "-" + y;
-                    if (!existing.TryGetValue(id, out Tower item))
-                        item = new Tower { Id = id, X = x + 0.5, Y = y + 0.5,
+                    if (useBubbles && !seenBricks.Add(cell.SourceBrickId)) continue;
+                    string id = useBubbles ? cell.SourceBrickId : cell.SourceBrickId + "-" + x + "-" + y;
+                    double centerX = useBubbles ? x / BattleLevel.NavigationPerPhysical * BattleLevel.NavigationPerPhysical + BattleLevel.NavigationCenterOffset : x + 0.5;
+                    double centerY = useBubbles ? y / BattleLevel.NavigationPerPhysical * BattleLevel.NavigationPerPhysical + BattleLevel.NavigationCenterOffset : y + 0.5;
+                    if (!existing.TryGetValue(id, out Tower item) || item.X != centerX || item.Y != centerY)
+                        item = new Tower { Id = id, X = centerX, Y = centerY,
                             Cooldown = initial ? 0 : tower.AttackInterval };
                     towers.Add(item);
                 }
@@ -218,6 +241,7 @@ namespace Brick2Life.Battle
         public void Restart()
         {
             enemies.Clear();
+            bubbles.Clear();
             phase = BattlePhase.Ready;
             coreHealth = tower.InitialCoreHealth;
             wave = spawned = killed = leaked = nextId = 0;
@@ -276,6 +300,7 @@ namespace Brick2Life.Battle
                     if (remaining <= 1e-10) break;
                 }
             }
+            AdvanceBubbles(shots);
             foreach (Tower item in towers)
             {
                 item.Cooldown = Math.Max(0, item.Cooldown - FixedStep);
@@ -290,11 +315,17 @@ namespace Brick2Life.Battle
                     { target = enemy; best = distance; }
                 }
                 if (target == null) continue;
-                target.Health = Math.Max(0, target.Health - tower.Damage);
-                item.Cooldown = tower.AttackInterval;
-                bool dead = target.Health == 0;
-                if (dead) killed++;
-                shots.Add(new ShotEvent(item.Id, target.Id, item.X, item.Y, target.X, target.Y, dead));
+                item.Cooldown = useBubbles ? Math.Max(tower.AttackInterval, BubbleWindup + BubbleFlight) : tower.AttackInterval;
+                if (useBubbles)
+                {
+                    bubbles.Add(new Bubble { TowerId = item.Id, EnemyId = target.Id,
+                        OriginX = item.X, OriginY = item.Y, X = item.X, Y = item.Y,
+                        TimeRemaining = BubbleWindup + BubbleFlight });
+                }
+                else
+                {
+                    Hit(item.Id, item.X, item.Y, target, shots);
+                }
             }
             // Damage settles before arrival in the same tick, so a killed enemy cannot leak.
             for (int i = 0; i < enemies.Count;)
@@ -306,13 +337,65 @@ namespace Brick2Life.Battle
                     leaked++;
                     coreHealth = Math.Max(0, coreHealth - plan.CoreDamage);
                     enemies.RemoveAt(i);
-                    if (coreHealth == 0) { phase = BattlePhase.Defeat; return; }
+                    if (coreHealth == 0) { bubbles.Clear(); phase = BattlePhase.Defeat; return; }
                     continue;
                 }
                 i++;
             }
+            bubbles.RemoveAll(bubble => !enemies.Exists(enemy => enemy.Id == bubble.EnemyId));
             if (spawned == plan.EnemiesPerWave && enemies.Count == 0)
                 phase = wave == plan.WaveCount ? BattlePhase.Victory : BattlePhase.AwaitingNextWave;
+        }
+
+        private void AdvanceBubbles(List<ShotEvent> shots)
+        {
+            for (int i = 0; i < bubbles.Count;)
+            {
+                Bubble bubble = bubbles[i];
+                Enemy target = enemies.Find(enemy => enemy.Id == bubble.EnemyId);
+                Tower source = towers.Find(item => item.Id == bubble.TowerId);
+                if (target == null || target.Health == 0 ||
+                    (bubble.TimeRemaining > BubbleFlight && (source == null || source.X != bubble.X || source.Y != bubble.Y)))
+                {
+                    bubbles.RemoveAt(i);
+                    continue;
+                }
+
+                double previousTime = bubble.TimeRemaining;
+                bubble.TimeRemaining -= FixedStep;
+                if (bubble.TimeRemaining <= 1e-10)
+                {
+                    Hit(bubble.TowerId, bubble.OriginX, bubble.OriginY, target, shots);
+                    bubbles.RemoveAt(i);
+                    continue;
+                }
+                if (bubble.TimeRemaining <= BubbleFlight)
+                {
+                    if (previousTime > BubbleFlight)
+                    {
+                        double dx = target.X - bubble.X, dy = target.Y - bubble.Y;
+                        double length = Math.Sqrt(dx * dx + dy * dy);
+                        double reach = Math.Min(1.7, length * 0.5);
+                        if (length > 1e-10)
+                        {
+                            bubble.X += dx * reach / length;
+                            bubble.Y += dy * reach / length;
+                        }
+                    }
+                    double progress = 1 - bubble.TimeRemaining / Math.Min(previousTime, BubbleFlight);
+                    bubble.X += (target.X - bubble.X) * progress;
+                    bubble.Y += (target.Y - bubble.Y) * progress;
+                }
+                i++;
+            }
+        }
+
+        private void Hit(string towerId, double x, double y, Enemy target, List<ShotEvent> shots)
+        {
+            target.Health = Math.Max(0, target.Health - tower.Damage);
+            bool dead = target.Health == 0;
+            if (dead) killed++;
+            shots.Add(new ShotEvent(towerId, target.Id, x, y, target.X, target.Y, dead));
         }
 
         private bool Finished() => phase == BattlePhase.Victory || phase == BattlePhase.Defeat;

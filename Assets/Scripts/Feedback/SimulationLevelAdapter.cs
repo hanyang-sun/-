@@ -65,7 +65,8 @@ namespace Brick2Life.Feedback
                 enabled = false;
                 return;
             }
-            feedback = new LevelFeedbackSession(session.Definition, new LevelRuleSet(pairs), round: round);
+            feedback = new LevelFeedbackSession(session.Definition, new LevelRuleSet(pairs),
+                new ProjectionOptions { IncludeTowerHighlights = false }, round: round);
             if (levelView == null) Debug.LogWarning("关卡适配器缺少关卡视图，只更新投影与状态文字。", this);
             if (projection == null) Debug.LogWarning("关卡适配器缺少投影组件，只更新关卡与状态文字。", this);
             UpdateStatus(null);

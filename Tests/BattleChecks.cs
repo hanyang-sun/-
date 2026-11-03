@@ -45,8 +45,8 @@ internal static class BattleChecks
         Check(built.CoreBrickIds.Count == 1, "One core brick expected.");
         Check(built.Routes.Count == 1 && built.Routes[0].Route.Count > 1, "A route is expected.");
         var route = built.Routes[0].Route;
-        Check(route[0].Equals(new GridPoint(0, 0)), "Route must start at the entrance nav cell.");
-        Check(route[route.Count - 1].Equals(new GridPoint(18, 18)), "Route must end on the core cell.");
+        Check(route[0].Equals(new GridPoint(1, 1)), "Route must start at the entrance center.");
+        Check(route[route.Count - 1].Equals(new GridPoint(19, 19)), "Route must end at the core center.");
         for (int i = 1; i < route.Count; i++)
         {
             int step = Math.Abs(route[i].X - route[i - 1].X) + Math.Abs(route[i].Y - route[i - 1].Y);
@@ -56,7 +56,7 @@ internal static class BattleChecks
         }
 
         ExpectIssue(BattleLevel.Build(level, new[] { new GridPoint(9, 9) }), "SPAWN_OCCUPIED", "Occupied entrance must be rejected", ref assertions);
-        ExpectIssue(BattleLevel.Build(level, new[] { new GridPoint(10, 0) }), "SPAWN_OUT_OF_BOUNDS", "Out-of-bounds entrance must be rejected", ref assertions);
+        ExpectIssue(BattleLevel.Build(level, new[] { new GridPoint(11, 1) }), "SPAWN_OUT_OF_BOUNDS", "Out-of-bounds entrance must be rejected", ref assertions);
         ExpectIssue(BattleLevel.Build(level, new[] { new GridPoint(0, 0), new GridPoint(0, 0) }), "SPAWN_DUPLICATE", "Duplicate entrance must be rejected", ref assertions);
         ExpectIssue(BattleLevel.Build(level, Array.Empty<GridPoint>()), "NO_SPAWNS", "Missing entrance must be rejected", ref assertions);
 
@@ -68,14 +68,29 @@ internal static class BattleChecks
         for (int y = 0; y < 20; y++)
             for (int x = 0; x < 20; x++)
                 tieGrid[y * 20 + x] = new BattleCell(new GridPoint(x, y), GameRole.None, null);
-        tieGrid[0 * 20 + 10] = new BattleCell(new GridPoint(10, 0), GameRole.Core, "a");
-        tieGrid[10 * 20 + 0] = new BattleCell(new GridPoint(0, 10), GameRole.Core, "b");
-        var tieRoute = RouteSearch.Find(tieGrid, 20, 20, new[] { "a", "b" }, new GridPoint(10, 10));
+        tieGrid[1 * 20 + 11] = new BattleCell(new GridPoint(11, 1), GameRole.Core, "a");
+        tieGrid[11 * 20 + 1] = new BattleCell(new GridPoint(1, 11), GameRole.Core, "b");
+        var tieRoute = RouteSearch.Find(tieGrid, 20, 20, new[] { "a", "b" }, new GridPoint(11, 11));
         Check(tieRoute != null && tieGrid[tieRoute[tieRoute.Length - 1].Y * 20 + tieRoute[tieRoute.Length - 1].X].SourceBrickId == "a",
             "An equal-distance tie must pick the earlier core.");
-        var reversedTie = RouteSearch.Find(tieGrid, 20, 20, new[] { "b", "a" }, new GridPoint(10, 10));
+        var reversedTie = RouteSearch.Find(tieGrid, 20, 20, new[] { "b", "a" }, new GridPoint(11, 11));
         Check(reversedTie != null && tieGrid[reversedTie[reversedTie.Length - 1].Y * 20 + reversedTie[reversedTie.Length - 1].X].SourceBrickId == "b",
             "Reordering the core priority must change the chosen core.");
+
+        // Four ticks per navigation unit, so the last step is the move onto the center.
+        var centeredHit = new BattleSimulation(built, new WavePlan(1, 1, 100, 15, 10, 0.5),
+            new TowerSettings(100, 1, 0.1, 1));
+        Check(centeredHit.StartWave(), "Centered arrival scenario must start.");
+        for (int i = 0; i < (route.Count - 2) * 4; i++) centeredHit.Step(BattleSimulation.FixedStep);
+        Check(centeredHit.State.CoreHealth == 100 && centeredHit.State.Enemies.Count == 1,
+            "Entering the core footprint must not deal damage before reaching its center.");
+        var arriving = centeredHit.State.Enemies[0];
+        GridPoint beforeCenter = route[route.Count - 2];
+        Check(arriving.X == beforeCenter.X && arriving.Y == beforeCenter.Y,
+            "The enemy must reach the node immediately before the core center without jumping.");
+        for (int i = 0; i < 4; i++) centeredHit.Step(BattleSimulation.FixedStep);
+        Check(centeredHit.State.CoreHealth == 90 && centeredHit.State.Enemies.Count == 0,
+            "Reaching the core center must deal damage and remove the enemy in the same tick.");
 
         var plan = new WavePlan(2, 3, 5, 4, 10, 0.4);
         var towers = new TowerSettings(100, 6, 8, 0.5);
@@ -115,6 +130,23 @@ internal static class BattleChecks
             foreach (ShotEvent shot in kill.Step(0.05)) if (shot.Killed) killed = true;
         Check(killed && kill.State.Killed == 1, "A one-health enemy must be killed by the tower.");
         Check(kill.State.Phase == BattlePhase.Victory, "Killing the only enemy of the last wave must win.");
+
+        var bubbleBattle = new BattleSimulation(built, new WavePlan(1, 1, 10, 1, 10, 0.5),
+            new TowerSettings(100, 5, 20, 1), useBubbles: true);
+        bubbleBattle.StartWave();
+        Check(bubbleBattle.Step(0.3).Count == 0 && bubbleBattle.Bubbles.Count == 1 &&
+            bubbleBattle.State.Enemies[0].Health == 10, "A bubble in flight must leave its target unharmed.");
+        double remainingFlight = bubbleBattle.Bubbles[0].TimeRemaining;
+        Check(remainingFlight < BattleSimulation.BubbleFlight, "The windup must release a moving bubble.");
+        bubbleBattle.SetPaused(true);
+        Check(bubbleBattle.Step(1).Count == 0 && bubbleBattle.Bubbles[0].TimeRemaining == remainingFlight,
+            "Pausing must freeze the bubble.");
+        bubbleBattle.SetPaused(false);
+        Check(bubbleBattle.Step(0.4).Count == 1 && bubbleBattle.State.Enemies[0].Health == 5 &&
+            bubbleBattle.Bubbles.Count == 0, "Contact must deal damage exactly once and remove the bubble.");
+        bubbleBattle.Step(0.75);
+        bubbleBattle.Restart();
+        Check(bubbleBattle.Bubbles.Count == 0, "Restart must clear pending bubbles.");
 
         // 泄漏与失败：伤害 10、核心生命 10 → 一只敌人泄漏即失败。
         var leak = new BattleSimulation(built, new WavePlan(1, 1, 9999, 20, 10, 0.2), new TowerSettings(10, 1, 0.1, 1));

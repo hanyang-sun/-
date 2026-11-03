@@ -72,12 +72,12 @@ public static class BattleControllerChecks
         BattleLevel level = fixture.Controller.Level;
         Require(level != null && level.Routes.Count == 1, context + ": expected one route.");
         BattleRoute route = level.Routes[0];
-        var expectedSpawn = new GridPoint(spawn.X * 2, spawn.Y * 2);
+        var expectedSpawn = new GridPoint(spawn.X * 2 + 1, spawn.Y * 2 + 1);
         Check(route.Spawn.Equals(expectedSpawn), context + ": starts at " + route.Spawn + ", expected " + expectedSpawn + ".");
         Check(route.TargetCoreId == "brick-" + core.X + "-" + core.Y,
             context + ": targets " + route.TargetCoreId + ", expected brick-" + core.X + "-" + core.Y + ".");
         GridPoint end = route.Route[route.Route.Count - 1];
-        Check(end.X / 2 == core.X && end.Y / 2 == core.Y, context + ": ends in the previous core cell.");
+        Check(end.X == core.X * 2 + 1 && end.Y == core.Y * 2 + 1, context + ": ends at the core center.");
     }
 
     private static void RestartUsesLatestInputs()
