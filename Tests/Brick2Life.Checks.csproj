@@ -14,6 +14,7 @@
     <Compile Include="DatasetPlanChecks.cs" />
     <Compile Include="LevelSemanticsChecks.cs" />
     <Compile Include="ProjectionPlanChecks.cs" />
+    <Compile Include="AudienceProjectionChecks.cs" />
     <Compile Include="LevelFeedbackChecks.cs" />
     <Compile Include="VisionChecks.cs" />
     <Compile Include="BattleChecks.cs" />

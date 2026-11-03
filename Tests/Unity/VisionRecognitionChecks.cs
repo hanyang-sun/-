@@ -151,7 +151,11 @@ public static class VisionRecognitionChecks
         Check(eventScroll.content.rect.height > eventScroll.viewport.rect.height, "The event list does not extend beyond the visible area.");
         Check(GameObject.Find("VisionMatrix").GetComponentInParent<ScrollRect>() == null, "The matrix was placed inside the event scroller.");
         foreach (Graphic graphic in eventScroll.GetComponentsInChildren<Graphic>(true))
-            Check(!graphic.raycastTarget, "Event area still blocks the workbench: " + graphic.name);
+        {
+            bool scrollbar = graphic.GetComponent<Scrollbar>() != null ||
+                (graphic.transform.parent != null && graphic.transform.parent.GetComponent<Scrollbar>() != null);
+            Check(graphic.raycastTarget == scrollbar, "Event area raycast mismatch: " + graphic.name);
+        }
         var pointer = new PointerEventData(EventSystem.current);
         Vector3[] corners = new Vector3[4];
         eventScroll.viewport.GetWorldCorners(corners);
@@ -169,6 +173,29 @@ public static class VisionRecognitionChecks
             after = eventScroll.verticalNormalizedPosition;
         }
         Check(Mathf.Abs(after - before) > 0.001f, "The mouse wheel did not scroll the event list.");
+        Scrollbar bar = eventScroll.verticalScrollbar;
+        Check(bar != null && bar.interactable && bar.handleRect != null, "Event log has no draggable scrollbar.");
+        bar.gameObject.SetActive(true);
+        bar.transform.GetComponent<RectTransform>().GetWorldCorners(corners);
+        Vector2 trackBottom = RectTransformUtility.WorldToScreenPoint(null, (corners[0] + corners[3]) * 0.5f);
+        Vector2 trackTop = RectTransformUtility.WorldToScreenPoint(null, (corners[1] + corners[2]) * 0.5f);
+        pointer.position = Vector2.Lerp(trackBottom, trackTop, 0.85f);
+        hits.Clear();
+        EventSystem.current.RaycastAll(pointer, hits);
+        Check(hits.Exists(hit => hit.gameObject == bar.gameObject || hit.gameObject == bar.handleRect.gameObject),
+            "A click on the scrollbar does not land on it.");
+        var drag = new PointerEventData(EventSystem.current)
+        {
+            button = PointerEventData.InputButton.Left,
+            position = pointer.position
+        };
+        bar.OnPointerDown(drag);
+        float jumped = eventScroll.verticalNormalizedPosition;
+        drag.position = Vector2.Lerp(trackBottom, trackTop, 0.15f);
+        bar.OnDrag(drag);
+        bar.OnPointerUp(drag);
+        Check(Mathf.Abs(eventScroll.verticalNormalizedPosition - jumped) > 0.05f,
+            "Dragging the scrollbar did not move the event list.");
         result.rawExact = monitor.LastRawScore.ExactMatches;
         result.eventCount = monitor.Events.Count;
         result.events = EventText(monitor);

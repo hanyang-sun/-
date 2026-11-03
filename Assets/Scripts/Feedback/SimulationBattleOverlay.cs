@@ -1,5 +1,5 @@
-using System;
 using System.Collections.Generic;
+using Brick2Life.Application;
 using Brick2Life.Battle;
 using Brick2Life.Core;
 using Brick2Life.Simulation;
@@ -9,9 +9,9 @@ using UnityEngine.Rendering;
 namespace Brick2Life.Feedback
 {
     /// <summary>
-    /// Battle projection overlay: flowing route arrows, tower range rings, muzzle flashes, hit ripples,
-    /// core shock rings and wall ripples. Everything sits on the projection layer, so the overhead camera
-    /// sees it exactly like the rest of the projector output and the top camera can keep sampling it.
+    /// Paints the battle onto one board-aligned sheet: cyan path, orange enemies, dashed range,
+    /// spawn and goal rings, orange aim and shot beams. The same <see cref="AudienceProjectionFrame"/>
+    /// is what a later hardware projector should display. Recognition no longer hides this sheet.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class SimulationBattleOverlay : MonoBehaviour, IProjectionGate
@@ -28,70 +28,79 @@ namespace Brick2Life.Feedback
         [SerializeField, Min(0.1f)] private float flashSeconds = 0.18f;
         [SerializeField, Min(0.1f)] private float rippleSeconds = 0.5f;
 
-        private sealed class Fx
+        private sealed class Transient
         {
-            public GameObject Quad;
-            public float Age;
-            public float Life;
-            public float StartScale;
-            public float EndScale;
-            public Color Color;
-            public bool FixedScale;
+            public bool Beam;
+            public AudienceRingKind Kind;
+            public float X, Y, X1, Y1;
+            public float Age, Life, StartRadius, EndRadius;
         }
 
-        private readonly List<Fx> effects = new List<Fx>();
-        private readonly List<GameObject> arrows = new List<GameObject>();
-        private readonly List<GameObject> rangeRings = new List<GameObject>();
-        private readonly List<GameObject> towerArrows = new List<GameObject>();
-        private readonly List<Vector2> towerAim = new List<Vector2>();
-        private readonly List<string> towerIds = new List<string>();
-        private readonly List<Vector2> towerPositions = new List<Vector2>();
-        private int arrowLevelHash;
-        private readonly List<GameObject> enemyIcons = new List<GameObject>();
-        private readonly List<GameObject> enemyBars = new List<GameObject>();
-        private readonly List<GameObject> enemyFills = new List<GameObject>();
-        private readonly List<TextMesh> enemyIds = new List<TextMesh>();
-        private readonly List<Vector2> lastEnemyPositions = new List<Vector2>();
-        private readonly List<GameObject> spawnMarkers = new List<GameObject>();
-        private readonly List<GameObject> pathBands = new List<GameObject>();
-        private readonly List<GameObject> pathArrowsPool = new List<GameObject>();
-        private Material arrowMaterial, ringMaterial, enemyMaterial, barMaterial, pathMaterial, rangeMaterial;
-        private Font labelFont;
-        public int ActiveEnemyCount { get { int c = 0; foreach (GameObject e in enemyIcons) if (e != null && e.activeSelf) c++; return c; } }
-        public int SpawnMarkerCount => spawnMarkers.Count;
-        public int RouteCount => controller != null && controller.DisplayRoutes != null ? controller.DisplayRoutes.Count : 0;
-        public int ActiveArrowCount { get { int c = 0; foreach (GameObject a in arrows) if (a != null && a.activeSelf) c++; return c; } }
-        public int ActiveRangeRingCount { get { int c = 0; foreach (GameObject r in rangeRings) if (r != null && r.activeSelf) c++; return c; } }
-        public int ActiveTowerArrowCount { get { int c = 0; foreach (GameObject a in towerArrows) if (a != null && a.activeSelf) c++; return c; } }
-        public int ActiveEffectCount => effects.Count;
-        public int PathSegmentCount { get { int c = 0; foreach (GameObject b in pathBands) if (b != null && b.activeSelf) c++; return c; } }
+        private readonly List<Transient> transients = new List<Transient>();
+        private readonly List<GridPoint> spawnCells = new List<GridPoint>();
+        private readonly List<float> wallCooldown = new List<float>();
+        private readonly AudienceProjectionFrame frame = new AudienceProjectionFrame();
+        private GameObject sheet;
+        private Renderer sheetRenderer;
+        private Texture2D sheetTexture;
+        private Material sheetMaterial;
+        private byte[] sheetPixels;
         private int projectionLayer;
         private int lastCoreHealth = -1;
-
-        private BattleLevel lastLevel;
-        private BattleSimulation lastBattle;
         private long lastShotSequence = -1;
-        public BattleLevel DisplayedLevel => lastLevel;
+        private BattleLevel lastLevel;
         private bool captureVisible = true;
         private float animationTime;
-        public Transform MarksRoot => root;
-        bool IProjectionGate.IsProjectionVisible => captureVisible;
 
+        public AudienceProjectionFrame Frame => frame;
+        public Transform MarksRoot => root;
+        public BattleLevel DisplayedLevel => lastLevel;
+        public int ActiveEnemyCount => frame.Dots.Count;
+        public int SpawnMarkerCount => spawnCells.Count;
+        public int RouteCount => controller != null && controller.DisplayRoutes != null ? controller.DisplayRoutes.Count : 0;
+        public int ActiveArrowCount => frame.Paths.Count * arrowsPerRoute;
+        public int ActiveRangeRingCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (AudienceRing ring in frame.Rings) if (ring.Kind == AudienceRingKind.Range) count++;
+                return count;
+            }
+        }
+        public int ActiveTowerArrowCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (AudienceBeam beam in frame.Beams) if (beam.Aim) count++;
+                return count;
+            }
+        }
+        public int ActiveEffectCount => transients.Count;
+        public int PathSegmentCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (AudiencePath path in frame.Paths) count += path.Points.Length - 1;
+                return count;
+            }
+        }
+
+        bool IProjectionGate.IsProjectionVisible => captureVisible;
         void IProjectionGate.SetProjectionVisible(bool value)
         {
             captureVisible = value;
-            if (root != null)
-                foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
-                    renderer.forceRenderingOff = !value;
+            ApplyCaptureVisibility();
         }
 
         private void OnEnable() => ProjectionCaptureGate.Register(this);
         private void OnDisable()
         {
             ProjectionCaptureGate.Unregister(this);
-            HideAll();
+            if (sheet != null) sheet.SetActive(false);
         }
-        private readonly List<float> wallCooldown = new List<float>();
 
         private void Awake()
         {
@@ -104,321 +113,194 @@ namespace Brick2Life.Feedback
             }
             projectionLayer = LayerMask.NameToLayer(projectionLayerName);
             if (projectionLayer < 0) projectionLayer = fallbackLayer;
-            BuildMaterials();
+            EnsureSheet();
         }
 
         private void OnDestroy()
         {
-            foreach (Fx fx in effects) if (fx.Quad != null) Destroy(fx.Quad);
-            foreach (GameObject arrow in arrows) if (arrow != null) Destroy(arrow);
-            foreach (GameObject ring in rangeRings) if (ring != null) Destroy(ring);
-            foreach (GameObject band in pathBands) if (band != null) Destroy(band);
-            foreach (GameObject arrow in towerArrows) if (arrow != null) Destroy(arrow);
-            foreach (GameObject icon in enemyIcons) if (icon != null) Destroy(icon);
-            foreach (GameObject bar in enemyBars) if (bar != null) Destroy(bar);
-            foreach (TextMesh id in enemyIds) if (id != null) Destroy(id.gameObject);
-            foreach (GameObject marker in spawnMarkers) if (marker != null) Destroy(marker);
-            foreach (Material material in new[] { arrowMaterial, ringMaterial, enemyMaterial, barMaterial, pathMaterial, rangeMaterial })
-                if (material != null) { if (material.mainTexture != null) Destroy(material.mainTexture); Destroy(material); }
-        }
-
-        private void SynchronizeLevel()
-        {
-            if (controller != null && lastLevel != controller.Level)
-            {
-                foreach (Fx fx in effects) if (fx.Quad != null) Destroy(fx.Quad);
-                effects.Clear();
-                wallCooldown.Clear();
-                towerIds.Clear();
-                lastLevel = controller.Level;
-                if (!ReferenceEquals(lastBattle, controller.Battle)) lastCoreHealth = -1;
-                lastBattle = controller.Battle;
-                lastShotSequence = -1;
-                animationTime = 0;
-            }
-        }
-
-        // Confirmation may arrive after this component's Update. Refresh geometry before any preview renders it.
-        public void RefreshLayout()
-        {
-            SynchronizeLevel();
-            if (controller == null || controller.State == null || controller.State.WaitingForLayout ||
-                (projector != null && !projector.IsVisible)) { HideAll(); return; }
-            SyncRoutes();
-            SyncRangeRings(controller.State);
-            SyncTowerArrows(controller.State);
-            SyncEnemies(controller.State);
+            if (sheetTexture != null) Destroy(sheetTexture);
+            if (sheetMaterial != null) Destroy(sheetMaterial);
+            if (sheet != null) Destroy(sheet);
         }
 
         private void Update()
         {
             SynchronizeLevel();
-            if (controller == null || controller.State == null || controller.State.WaitingForLayout) { HideAll(); return; }
-            bool visible = projector == null || projector.IsVisible;
-            if (!visible) { HideAll(); return; }
-            BattleState state = controller.State;
-            if (!state.Paused) animationTime += Time.deltaTime;
-            SyncRoutes();
-            SyncRangeRings(state);
-            SyncTowerArrows(state);
-            SyncEnemies(state);
-            HandleShots(state);
-            HandleCore(state);
-            if (!state.Paused && !state.Finished) HandleWallRipples(state);
-            UpdateEffects();
+            bool running = controller != null && controller.State != null && !controller.State.Paused && !controller.State.Finished;
+            if (running) animationTime += Time.deltaTime;
+            AgeTransients();
+            RebuildFrame();
         }
 
-        private void HideAll()
+        public void RefreshLayout()
         {
-            foreach (GameObject arrow in arrows) if (arrow != null) arrow.SetActive(false);
-            foreach (GameObject ring in rangeRings) if (ring != null) ring.SetActive(false);
-            foreach (GameObject band in pathBands) if (band != null) band.SetActive(false);
-            foreach (GameObject arrow in towerArrows) if (arrow != null) arrow.SetActive(false);
-            foreach (Fx fx in effects) if (fx.Quad != null) fx.Quad.SetActive(false);
+            SynchronizeLevel();
+            RebuildFrame();
         }
 
-        // ---- arrows -------------------------------------------------------------------------
-        private void SyncRoutes()
-        {
-            IReadOnlyList<BattleRoute> activeRoutes = controller.DisplayRoutes;
-            int routes = activeRoutes != null ? activeRoutes.Count : 0;
-            SyncPathBands(activeRoutes);
-            int wanted = routes * arrowsPerRoute;
-            while (arrows.Count < wanted) arrows.Add(CreateQuad("BattleArrow", arrowMaterial, arrowSize));
-            for (int i = 0; i < arrows.Count; i++) arrows[i].SetActive(i < wanted);
-            if (routes == 0) return;
-            float t = animationTime * arrowSpeed;
-            for (int r = 0; r < routes; r++)
-            {
-                IReadOnlyList<GridPoint> route = activeRoutes[r].Route;
-                for (int a = 0; a < arrowsPerRoute; a++)
-                {
-                    float progress = Mathf.Repeat(t / Mathf.Max(1, route.Count) + a / (float)arrowsPerRoute, 1f);
-                    Sample(route, progress, out Vector3 position, out Vector3 direction);
-                    GameObject arrow = arrows[r * arrowsPerRoute + a];
-                    arrow.transform.position = position;
-                    if (direction.sqrMagnitude > 1e-4f)
-                        arrow.transform.rotation = Quaternion.Euler(90f, -Mathf.Atan2(direction.z, direction.x) * Mathf.Rad2Deg, 0f);
-                }
-            }
-        }
-
-        private static void Sample(IReadOnlyList<GridPoint> route, float progress, out Vector3 position, out Vector3 direction)
-        {
-            float scaled = Mathf.Clamp01(progress) * (route.Count - 1);
-            int index = Mathf.Min((int)scaled, route.Count - 2);
-            float fraction = scaled - index;
-            Vector3 from = World(route[index]), to = World(route[index + 1]);
-            position = Vector3.Lerp(from, to, fraction);
-            direction = to - from;
-        }
-
-        private static Vector3 World(GridPoint cell) => new Vector3(cell.X * 0.5f, 0.035f, cell.Y * 0.5f);
-
-        // ---- range rings --------------------------------------------------------------------
-        private void SyncRangeRings(BattleState state)
-        {
-            int towers = 0;
-            BattleLevel level = controller.Level;
-            var seenTowers = new System.Collections.Generic.HashSet<string>();
-            if (level != null)
-                for (int i = 0; i < level.Cells.Count; i++)
-                    if (level.Cells[i].Role == Application.GameRole.Tower && seenTowers.Add(level.Cells[i].SourceBrickId)) towers++;
-            while (rangeRings.Count < towers) rangeRings.Add(CreateQuad("BattleRange", rangeMaterial, 1f));
-            seenTowers.Clear();
-            float range = (float)(controller.Battle != null ? controller.Battle.Towers.Range : controller.TowerSettings.Range) * 0.5f;
-            int used = 0;
-            for (int i = 0; i < level.Cells.Count && used < towers; i++)
-            {
-                BattleCell cell = level.Cells[i];
-                if (cell.Role != Application.GameRole.Tower || !seenTowers.Add(cell.SourceBrickId)) continue;
-                GameObject ring = rangeRings[used++];
-                ring.SetActive(true);
-                Vector3 center = BrickCenter(cell, ringHeight);
-                ring.transform.position = center;
-                float pulse = 0.94f + 0.06f * Mathf.Sin(animationTime * 2.2f + used);
-                ring.transform.localScale = new Vector3(range * 2f * pulse, range * 2f * pulse, 1f);
-                bool invaded = false;
-                foreach (EnemyState enemy in state.Enemies)
-                {
-                    float dx = (float)enemy.X * 0.5f - center.x, dz = (float)enemy.Y * 0.5f - center.z;
-                    if (dx * dx + dz * dz <= range * range) { invaded = true; break; }
-                }
-                SetColor(ring, invaded ? new Color(1f, 0.55f, 0.2f, 0.28f) : new Color(0.35f, 0.85f, 1f, 0.18f));
-            }
-            for (int i = towers; i < rangeRings.Count; i++) rangeRings[i].SetActive(false);
-        }
-
-        // Soft flowing band under each route; UV offset animates the flow without moving geometry.
-        private void SyncPathBands(IReadOnlyList<BattleRoute> routes)
-        {
-            int segments = 0;
-            if (routes != null)
-                foreach (BattleRoute route in routes) segments += Mathf.Max(0, route.Route.Count - 1);
-            while (pathBands.Count < segments) pathBands.Add(CreateQuad("BattlePath", pathMaterial, 1f));
-            int used = 0;
-            if (routes != null)
-                foreach (BattleRoute route in routes)
-                    for (int i = 0; i < route.Route.Count - 1; i++)
-                    {
-                        Vector3 from = World(route.Route[i], 0.028f), to = World(route.Route[i + 1], 0.028f);
-                        Vector3 direction = to - from;
-                        float length = direction.magnitude;
-                        if (length < 0.01f) continue;
-                        GameObject band = pathBands[used++];
-                        band.SetActive(true);
-                        band.transform.position = (from + to) * 0.5f;
-                        band.transform.rotation = Quaternion.Euler(90f, -Mathf.Atan2(direction.z, direction.x) * Mathf.Rad2Deg, 0f);
-                        band.transform.localScale = new Vector3(length, 0.3f, 1f);
-                        SetColor(band, new Color(0.35f, 0.85f, 1f, 0.28f));
-                    }
-            for (int i = used; i < pathBands.Count; i++) pathBands[i].SetActive(false);
-            if (pathMaterial != null) pathMaterial.mainTextureOffset = new Vector2(0f, -animationTime * 0.8f);
-        }
-
-        private static Vector3 World(GridPoint cell, float height) => new Vector3(cell.X * 0.5f, height, cell.Y * 0.5f);
-
-        // Every tower aims an arrow at its nearest enemy; without enemies the last heading is kept.
-        private void SyncTowerArrows(BattleState state)
-        {
-            BattleLevel level = controller.Level;
-            if (level == null) { foreach (GameObject a in towerArrows) if (a != null) a.SetActive(false); return; }
-            int hash = level.Width * 397 ^ level.Height * 17 ^ level.Cells.Count;
-            if (towerIds.Count == 0 || arrowLevelHash != hash)
-            {
-                arrowLevelHash = hash;
-                towerIds.Clear(); towerPositions.Clear();
-                foreach (BattleCell cell in level.Cells)
-                {
-                    if (cell.Role != Application.GameRole.Tower || towerIds.Contains(cell.SourceBrickId)) continue;
-                    towerIds.Add(cell.SourceBrickId);
-                    Vector3 center = BrickCenter(cell, 1.03f);
-                    towerPositions.Add(new Vector2(center.x, center.z));
-                }
-                while (towerArrows.Count < towerIds.Count) { towerArrows.Add(CreateQuad("BattleTowerAim", arrowMaterial, 0.3f)); towerAim.Add(Vector2.right); }
-            }
-            for (int i = 0; i < towerArrows.Count; i++)
-            {
-                bool active = i < towerIds.Count;
-                towerArrows[i].SetActive(active);
-                if (!active) continue;
-                Vector2 tower = towerPositions[i];
-                Vector2 aim = towerAim[i];
-                double best = double.MaxValue;
-                foreach (EnemyState enemy in state.Enemies)
-                {
-                    double dx = enemy.X * 0.5 - tower.x, dz = enemy.Y * 0.5 - tower.y;
-                    double distance = dx * dx + dz * dz;
-                    if (distance >= best) continue;
-                    best = distance; aim = new Vector2((float)dx, (float)dz);
-                }
-                if (aim.sqrMagnitude < 1e-4f) aim = Vector2.right;
-                towerAim[i] = aim.normalized;
-                GameObject arrow = towerArrows[i];
-                arrow.transform.position = new Vector3(tower.x, 1.03f, tower.y);
-                arrow.transform.rotation = Quaternion.Euler(90f, -Mathf.Atan2(aim.y, aim.x) * Mathf.Rad2Deg, 0f);
-                SetColor(arrow, new Color(1f, 0.7f, 0.25f, 0.95f));
-            }
-        }
-        // ---- enemies (projected decals with health bar and id) -----------------------------
-        private void SyncEnemies(BattleState state)
-        {
-            if (state == null) return;
-            int count = state.Enemies.Count;
-            EnsureEnemyPool(count);
-            int maxHealth = controller != null && controller.Battle != null ? controller.Battle.Plan.EnemyHealth : 1;
-            for (int i = 0; i < enemyIcons.Count; i++)
-            {
-                bool active = i < count;
-                enemyIcons[i].SetActive(active);
-                enemyBars[i].SetActive(active);
-                enemyFills[i].SetActive(active);
-                enemyIds[i].gameObject.SetActive(active);
-                if (!active) continue;
-                EnemyState enemy = state.Enemies[i];
-                float x = (float)enemy.X * 0.5f, z = (float)enemy.Y * 0.5f;
-                float surface = SurfaceHeight(x, z);
-                enemyIcons[i].transform.position = new Vector3(x, surface + 0.045f, z);
-                enemyIcons[i].transform.localScale = new Vector3(0.34f, 0.34f, 1f);
-                SetColor(enemyIcons[i], new Color(1f, 0.35f, 0.3f, 0.95f));
-                float ratio = Mathf.Clamp01(enemy.Health / (float)Mathf.Max(1, maxHealth));
-                enemyBars[i].transform.position = new Vector3(x, surface + 0.05f, z - 0.24f);
-                enemyBars[i].transform.localScale = new Vector3(0.62f, 0.08f, 1f);
-                SetColor(enemyBars[i], new Color(0.05f, 0.05f, 0.07f, 0.85f));
-                float width = 0.58f * ratio;
-                enemyFills[i].transform.position = new Vector3(x - 0.29f + width * 0.5f, surface + 0.052f, z - 0.24f);
-                enemyFills[i].transform.localScale = new Vector3(Mathf.Max(0.001f, width), 0.05f, 1f);
-                SetColor(enemyFills[i], Color.Lerp(new Color(1f, 0.25f, 0.2f, 0.95f), new Color(0.4f, 1f, 0.5f, 0.95f), ratio));
-                TextMesh id = enemyIds[i];
-                id.text = enemy.Id.ToString();
-                id.transform.position = new Vector3(x + 0.22f, surface + 0.046f, z + 0.2f);
-                id.color = new Color(1f, 0.9f, 0.75f, 0.95f);
-            }
-        }
-
-        private float SurfaceHeight(float x, float z)
-        {
-            BattleLevel level = controller != null ? controller.Level : null;
-            if (level == null) return 0.04f;
-            int cx = Mathf.FloorToInt(x), cz = Mathf.FloorToInt(z);
-            for (int i = 0; i < level.Cells.Count; i++)
-            {
-                BattleCell cell = level.Cells[i];
-                if (cell.Position.X / 2 != cx || cell.Position.Y / 2 != cz) continue;
-                if (cell.Role == Application.GameRole.None) continue;
-                return 1.0f;
-            }
-            return 0.04f;
-        }
-
-        private void EnsureEnemyPool(int count)
-        {
-            while (enemyIcons.Count < count)
-            {
-                enemyIcons.Add(CreateQuad("BattleEnemy", enemyMaterial, 0.34f));
-                enemyBars.Add(CreateQuad("BattleEnemyBar", barMaterial, 0.62f));
-                enemyFills.Add(CreateQuad("BattleEnemyFill", barMaterial, 0.3f));
-                var labelObject = new GameObject("BattleEnemyId");
-                labelObject.layer = projectionLayer;
-                labelObject.transform.SetParent(root, false);
-                labelObject.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
-                var label = labelObject.AddComponent<TextMesh>();
-                label.font = labelFont != null ? labelFont : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                label.fontSize = 64;
-                label.characterSize = 0.06f;
-                label.anchor = TextAnchor.MiddleCenter;
-                label.alignment = TextAlignment.Center;
-                label.color = Color.white;
-                enemyIds.Add(label);
-                lastEnemyPositions.Add(Vector2.zero);
-            }
-        }
-
-        // ---- entrances on the projection layer -----------------------------------------------
         public void SetSpawnMarkers(IReadOnlyList<GridPoint> cells)
         {
-            int count = cells != null ? cells.Count : 0;
-            while (spawnMarkers.Count < count)
-                spawnMarkers.Add(CreateQuad("BattleEntranceMarker", ringMaterial, 0.8f));
-            for (int i = 0; i < spawnMarkers.Count; i++)
-            {
-                bool active = i < count;
-                spawnMarkers[i].SetActive(active);
-                if (!active) continue;
-                GridPoint cell = cells[i];
-                spawnMarkers[i].transform.position = new Vector3(cell.X + 0.5f, 0.03f, cell.Y + 0.5f);
-                SetColor(spawnMarkers[i], new Color(0.2f, 0.95f, 1f, 0.9f));
-            }
+            spawnCells.Clear();
+            if (cells != null) foreach (GridPoint cell in cells) spawnCells.Add(cell);
+            RebuildFrame();
         }
 
         public void ClearSpawnMarkers()
         {
-            foreach (GameObject marker in spawnMarkers) if (marker != null) marker.SetActive(false);
-            spawnMarkers.Clear();
+            spawnCells.Clear();
+            RebuildFrame();
         }
 
-        // ---- shot / hit / core / walls ------------------------------------------------------
-        private void HandleShots(BattleState state)
+        private void SynchronizeLevel()
+        {
+            if (controller == null || lastLevel == controller.Level) return;
+            transients.Clear();
+            wallCooldown.Clear();
+            lastLevel = controller.Level;
+            lastCoreHealth = -1;
+            lastShotSequence = -1;
+            animationTime = 0f;
+        }
+
+        private void AgeTransients()
+        {
+            if (controller == null || controller.Battle == null)
+            {
+                transients.Clear();
+                return;
+            }
+            bool paused = controller.State != null && controller.State.Paused;
+            float delta = paused ? 0f : Time.deltaTime;
+            for (int i = wallCooldown.Count - 1; i >= 0; i--) wallCooldown[i] = Mathf.Max(0f, wallCooldown[i] - delta);
+            for (int i = transients.Count - 1; i >= 0; i--)
+            {
+                transients[i].Age += delta;
+                if (transients[i].Age >= transients[i].Life) transients.RemoveAt(i);
+            }
+        }
+
+        private void RebuildFrame()
+        {
+            frame.Clear();
+            bool projectionOn = projector == null || projector.IsVisible;
+            bool showBattle = projectionOn && controller != null && controller.State != null &&
+                !controller.State.WaitingForLayout && controller.Battle != null;
+            if (showBattle)
+            {
+                HandleShots();
+                HandleCore(controller.State);
+                if (!controller.State.Paused && !controller.State.Finished) HandleWallRipples(controller.State);
+                AddPaths();
+                AddTowers(controller.State);
+                AddEnemies(controller.State);
+                AddGoal();
+                AddTransients();
+            }
+            if (projectionOn) AddSpawns();
+            frame.Flow = animationTime * arrowSpeed;
+            bool hasContent = frame.Paths.Count + frame.Rings.Count + frame.Dots.Count + frame.Beams.Count > 0;
+            if (!hasContent || sheet == null)
+            {
+                if (sheet != null) sheet.SetActive(false);
+                return;
+            }
+            sheet.SetActive(true);
+            PlaceSheet();
+            PaintSheet();
+            ApplyCaptureVisibility();
+        }
+
+        private void AddPaths()
+        {
+            IReadOnlyList<BattleRoute> routes = controller.DisplayRoutes;
+            if (routes == null) return;
+            foreach (BattleRoute route in routes)
+            {
+                if (route.Route == null || route.Route.Count < 2) continue;
+                var points = new List<AudiencePoint>(route.Route.Count);
+                foreach (GridPoint cell in route.Route)
+                    points.Add(new AudiencePoint(cell.X * 0.5f, cell.Y * 0.5f));
+                frame.Paths.Add(new AudiencePath(points, Mathf.Max(0.2f, arrowSize)));
+            }
+        }
+
+        private void AddTowers(BattleState state)
+        {
+            BattleLevel level = controller.Level;
+            if (level == null) return;
+            float radius = (float)(controller.Battle != null ? controller.Battle.Towers.Range : controller.TowerSettings.Range) * 0.5f;
+            if (radius <= 0.05f) return;
+            var seen = new HashSet<string>();
+            foreach (BattleCell cell in level.Cells)
+            {
+                if (cell.Role != GameRole.Tower || !seen.Add(cell.SourceBrickId)) continue;
+                Vector2 center = BoardCenter(cell);
+                bool invaded = false;
+                foreach (EnemyState enemy in state.Enemies)
+                {
+                    float dx = (float)enemy.X * 0.5f - center.x;
+                    float dy = (float)enemy.Y * 0.5f - center.y;
+                    if (dx * dx + dy * dy <= radius * radius) { invaded = true; break; }
+                }
+                frame.Rings.Add(new AudienceRing(center.x, center.y, radius, AudienceRingKind.Range, invaded, 1f));
+                Vector2 aim = new Vector2(center.x + 0.45f, center.y);
+                float best = float.MaxValue;
+                foreach (EnemyState enemy in state.Enemies)
+                {
+                    float ex = (float)enemy.X * 0.5f, ey = (float)enemy.Y * 0.5f;
+                    float dx = ex - center.x, dy = ey - center.y;
+                    float distance = dx * dx + dy * dy;
+                    if (distance >= best) continue;
+                    best = distance;
+                    aim = new Vector2(ex, ey);
+                }
+                frame.Beams.Add(new AudienceBeam(center.x, center.y, aim.x, aim.y, 0.95f, true));
+            }
+        }
+
+        private void AddEnemies(BattleState state)
+        {
+            foreach (EnemyState enemy in state.Enemies)
+                frame.Dots.Add(new AudienceDot((float)enemy.X * 0.5f, (float)enemy.Y * 0.5f, 0.22f, 1f));
+        }
+
+        private void AddGoal()
+        {
+            BattleLevel level = controller.Level;
+            if (level == null) return;
+            var seen = new HashSet<string>();
+            foreach (BattleCell cell in level.Cells)
+            {
+                if (cell.Role != GameRole.Core || !seen.Add(cell.SourceBrickId)) continue;
+                Vector2 center = BoardCenter(cell);
+                frame.Rings.Add(new AudienceRing(center.x, center.y, 0.55f, AudienceRingKind.Goal, false, 1f));
+            }
+        }
+
+        private void AddSpawns()
+        {
+            foreach (GridPoint cell in spawnCells)
+                frame.Rings.Add(new AudienceRing(cell.X + 0.5f, cell.Y + 0.5f, 0.42f, AudienceRingKind.Spawn, false, 1f));
+        }
+
+        private void AddTransients()
+        {
+            foreach (Transient fx in transients)
+            {
+                float t = fx.Life <= 0f ? 1f : Mathf.Clamp01(fx.Age / fx.Life);
+                float alpha = 1f - t;
+                if (fx.Beam)
+                {
+                    frame.Beams.Add(new AudienceBeam(fx.X, fx.Y, fx.X1, fx.Y1, alpha, false));
+                    continue;
+                }
+                float radius = Mathf.Lerp(fx.StartRadius, fx.EndRadius, t);
+                if (radius <= 0.02f) continue;
+                frame.Rings.Add(new AudienceRing(fx.X, fx.Y, radius, fx.Kind, fx.Kind == AudienceRingKind.Impact, alpha));
+            }
+        }
+
+        private void HandleShots()
         {
             if (lastShotSequence == controller.ShotSequence) return;
             lastShotSequence = controller.ShotSequence;
@@ -426,9 +308,19 @@ namespace Brick2Life.Feedback
             if (shots == null) return;
             foreach (ShotEvent shot in shots)
             {
-                SpawnEffect(WorldAt(shot.TowerX, shot.TowerY), 1.03f, 0.5f, 1.5f, new Color(1f, 0.85f, 0.3f, 0.9f), flashSeconds);
-                SpawnEffect(WorldAt(shot.TargetX, shot.TargetY), 0.2f, 0.4f, 1.8f, new Color(1f, 0.45f, 0.25f, 0.85f), rippleSeconds);
-                SpawnLaser(shot);
+                transients.Add(new Transient
+                {
+                    Beam = true,
+                    X = (float)shot.TowerX * 0.5f, Y = (float)shot.TowerY * 0.5f,
+                    X1 = (float)shot.TargetX * 0.5f, Y1 = (float)shot.TargetY * 0.5f,
+                    Life = flashSeconds
+                });
+                transients.Add(new Transient
+                {
+                    Kind = AudienceRingKind.Ripple,
+                    X = (float)shot.TargetX * 0.5f, Y = (float)shot.TargetY * 0.5f,
+                    StartRadius = 0.12f, EndRadius = 0.42f, Life = rippleSeconds
+                });
             }
         }
 
@@ -439,228 +331,101 @@ namespace Brick2Life.Feedback
             lastCoreHealth = state.CoreHealth;
             BattleLevel level = controller.Level;
             if (level == null) return;
-            for (int i = 0; i < level.Cells.Count; i++)
+            foreach (BattleCell cell in level.Cells)
             {
-                if (level.Cells[i].Role != Application.GameRole.Core) continue;
-                float height = controller.Round != null ? 0.025f : 1.03f;
-                SpawnEffect(BrickCenter(level.Cells[i], height),
-                    height, 0.6f, 3.2f, new Color(1f, 0.3f, 0.35f, 0.95f), rippleSeconds * 1.4f);
+                if (cell.Role != GameRole.Core) continue;
+                Vector2 center = BoardCenter(cell);
+                transients.Add(new Transient
+                {
+                    Kind = AudienceRingKind.Impact,
+                    X = center.x, Y = center.y,
+                    StartRadius = 0.35f, EndRadius = 0.85f, Life = rippleSeconds * 1.4f
+                });
                 break;
             }
         }
 
-        // A wall ripple appears where an enemy is passing next to a wall, with a per-cell cooldown.
         private void HandleWallRipples(BattleState state)
         {
             BattleLevel level = controller.Level;
             if (level == null) return;
             while (wallCooldown.Count < level.Cells.Count) wallCooldown.Add(0f);
-            for (int i = 0; i < wallCooldown.Count; i++) wallCooldown[i] = Mathf.Max(0f, wallCooldown[i] - Time.deltaTime);
             foreach (EnemyState enemy in state.Enemies)
             {
-                float wx = (float)enemy.X * 0.5f, wz = (float)enemy.Y * 0.5f;
+                float wx = (float)enemy.X * 0.5f, wy = (float)enemy.Y * 0.5f;
                 for (int i = 0; i < level.Cells.Count; i++)
                 {
-                    if (level.Cells[i].Role != Application.GameRole.Wall) continue;
                     BattleCell cell = level.Cells[i];
-                    float cx = cell.Position.X * 0.5f + 0.25f, cz = cell.Position.Y * 0.5f + 0.25f;
-                    if (Mathf.Abs(cx - wx) > 0.8f || Mathf.Abs(cz - wz) > 0.8f) continue;
+                    if (cell.Role != GameRole.Wall) continue;
+                    float cx = cell.Position.X * 0.5f + 0.25f, cy = cell.Position.Y * 0.5f + 0.25f;
+                    if (Mathf.Abs(cx - wx) > 0.8f || Mathf.Abs(cy - wy) > 0.8f) continue;
                     if (wallCooldown[i] > 0f) continue;
                     wallCooldown[i] = 0.7f;
-                    SpawnEffect(new Vector3(cx, 1.01f, cz), 1.02f, 0.4f, 1.4f, new Color(0.75f, 0.9f, 1f, 0.7f), rippleSeconds);
+                    transients.Add(new Transient
+                    {
+                        Kind = AudienceRingKind.Ripple,
+                        X = cx, Y = cy, StartRadius = 0.12f, EndRadius = 0.35f, Life = rippleSeconds
+                    });
                     break;
                 }
             }
         }
 
-        // Laser tracer from the tower top to the hit point, short and bright.
-        private void SpawnLaser(ShotEvent shot)
+        private void EnsureSheet()
         {
-            Vector3 from = new Vector3((float)shot.TowerX * 0.5f, 1.04f, (float)shot.TowerY * 0.5f);
-            Vector3 to = new Vector3((float)shot.TargetX * 0.5f, 1.04f, (float)shot.TargetY * 0.5f);
-            Vector3 direction = to - from;
-            float length = direction.magnitude;
-            if (length < 0.01f) return;
-            GameObject quad = CreateQuad("BattleLaser", barMaterial, 1f);
-            quad.SetActive(true);
-            quad.transform.position = (from + to) * 0.5f;
-            quad.transform.rotation = Quaternion.Euler(90f, -Mathf.Atan2(direction.z, direction.x) * Mathf.Rad2Deg, 0f);
-            quad.transform.localScale = new Vector3(length, 0.06f, 1f);
-            var fx = new Fx { Quad = quad, Age = 0f, Life = 0.12f, StartScale = length, EndScale = length,
-                Color = new Color(0.55f, 0.95f, 1f, 0.95f), FixedScale = true };
-            SetColor(quad, fx.Color);
-            effects.Add(fx);
-        }
-
-        private void SpawnEffect(Vector3 position, float height, float startScale, float endScale, Color color, float life)
-        {
-            GameObject quad = CreateQuad("BattleFx", ringMaterial, 1f);
-            quad.SetActive(true);
-            quad.transform.position = new Vector3(position.x, height + 0.01f, position.z);
-            var fx = new Fx { Quad = quad, Age = 0f, Life = life, StartScale = startScale, EndScale = endScale, Color = color };
-            ApplyFx(fx, 0f);
-            effects.Add(fx);
-        }
-
-        private void UpdateEffects()
-        {
-            for (int i = effects.Count - 1; i >= 0; i--)
-            {
-                Fx fx = effects[i];
-                if (fx.Quad == null) { effects.RemoveAt(i); continue; }
-                fx.Age += controller.State != null && controller.State.Paused ? 0 : Time.deltaTime;
-                float t = fx.Age / fx.Life;
-                if (t >= 1f) { Destroy(fx.Quad); effects.RemoveAt(i); continue; }
-                ApplyFx(fx, t);
-            }
-        }
-
-        private void ApplyFx(Fx fx, float t)
-        {
-            float scale = Mathf.Lerp(fx.StartScale, fx.EndScale, t);
-            fx.Quad.transform.localScale = new Vector3(scale, scale, 1f);
-            Color color = fx.Color;
-            color.a *= 1f - t;
-            SetColor(fx.Quad, color);
-        }
-
-        // ---- helpers ------------------------------------------------------------------------
-        private static Vector3 WorldAt(double x, double y) => new Vector3((float)x * 0.5f, 0.03f, (float)y * 0.5f);
-        private static Vector3 BrickCenter(BattleCell cell, float height) =>
-            new Vector3(cell.Position.X / 2 + 0.5f, height, cell.Position.Y / 2 + 0.5f);
-
-        private void SetColor(GameObject quad, Color color)
-        {
-            var renderer = quad.GetComponent<Renderer>();
-            if (renderer == null) return;
-            var block = new MaterialPropertyBlock();
-            block.SetColor(Shader.PropertyToID("_Color"), color);
-            renderer.SetPropertyBlock(block);
-        }
-
-        private GameObject CreateQuad(string name, Material material, float size)
-        {
-            GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            quad.name = name;
-            quad.layer = projectionLayer;
-            quad.transform.SetParent(root, false);
-            quad.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
-            quad.transform.localScale = new Vector3(size, size, 1f);
-            var renderer = quad.GetComponent<Renderer>();
-            renderer.sharedMaterial = material;
-            renderer.shadowCastingMode = ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-            renderer.forceRenderingOff = !captureVisible;
-            var collider = quad.GetComponent<Collider>();
+            if (sheet != null) return;
+            sheet = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            sheet.name = "AudienceSheet";
+            sheet.layer = projectionLayer;
+            sheet.transform.SetParent(root, false);
+            sheet.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            Collider collider = sheet.GetComponent<Collider>();
             if (collider != null) Destroy(collider);
-            return quad;
+            sheetRenderer = sheet.GetComponent<Renderer>();
+            sheetRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            sheetRenderer.receiveShadows = false;
+            sheetTexture = new Texture2D(AudienceProjectionRaster.DefaultResolution, AudienceProjectionRaster.DefaultResolution, TextureFormat.RGBA32, false)
+            {
+                name = "AudienceProjection",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear
+            };
+            Shader shader = Shader.Find("Brick2Life/AudienceProjection");
+            if (shader == null) shader = Shader.Find("Sprites/Default");
+            sheetMaterial = new Material(shader) { name = "AudienceProjection", mainTexture = sheetTexture, color = Color.white };
+            sheetRenderer.sharedMaterial = sheetMaterial;
+            sheet.SetActive(false);
         }
 
-        private void BuildMaterials()
+        private void PlaceSheet()
         {
-            Shader shader = Shader.Find("Sprites/Default");
-            if (shader == null) return;
-            arrowMaterial = new Material(shader) { name = "BattleArrow", mainTexture = MakeArrowTexture(64) };
-            ringMaterial = new Material(shader) { name = "BattleRing", mainTexture = MakeRingTexture(64) };
-            enemyMaterial = new Material(shader) { name = "BattleEnemyIcon", mainTexture = MakeEnemyTexture(64) };
-            barMaterial = new Material(shader) { name = "BattleBar", mainTexture = Texture2D.whiteTexture };
-            pathMaterial = new Material(shader) { name = "BattlePathBand", mainTexture = MakePathTexture(64) };
-            if (pathMaterial.mainTexture != null) pathMaterial.mainTexture.wrapMode = TextureWrapMode.Repeat;
-            rangeMaterial = new Material(shader) { name = "BattleRangeGlow", mainTexture = MakeRangeTexture(128) };
-            labelFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            float board = BoardSize();
+            sheet.transform.position = new Vector3(board * 0.5f, Mathf.Max(0.03f, ringHeight), board * 0.5f);
+            sheet.transform.localScale = new Vector3(board, board, 1f);
         }
 
-        // Triangle pointing along +X so the quad rotation can aim it down the route.
-        private static Texture2D MakeArrowTexture(int size)
+        private void PaintSheet()
         {
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-            var pixels = new Color32[size * size];
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                {
-                    float u = x / (float)(size - 1), v = y / (float)(size - 1);
-                    float alpha = 0f;
-                    if (u > 0.15f && u < 0.95f && Mathf.Abs(v - 0.5f) < (0.95f - u) * 0.5f) alpha = 1f;
-                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)(alpha * 255f));
-                }
-            texture.SetPixels32(pixels); texture.Apply(false, false);
-            return texture;
+            if (sheetTexture == null) return;
+            float board = BoardSize();
+            sheetPixels = AudienceProjectionRaster.Draw(frame, board, board, sheetTexture.width, sheetPixels);
+            sheetTexture.LoadRawTextureData(sheetPixels);
+            sheetTexture.Apply(false, false);
         }
 
-        // Soft band: bright centre, transparent edges, repeated along the route for the flow offset.
-        private static Texture2D MakePathTexture(int size)
+        private void ApplyCaptureVisibility()
         {
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Bilinear };
-            var pixels = new Color32[size * size];
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                {
-                    float v = y / (float)(size - 1);
-                    float edge = Mathf.SmoothStep(0f, 0.5f, Mathf.Min(v, 1f - v));
-                    float u = x / (float)(size - 1);
-                    float pulse = 0.75f + 0.25f * Mathf.Sin(u * Mathf.PI * 2f);
-                    byte a = (byte)(Mathf.Clamp01(edge * pulse) * 255f);
-                    pixels[y * size + x] = new Color32(255, 255, 255, a);
-                }
-            texture.SetPixels32(pixels); texture.Apply(false, false);
-            return texture;
+            if (sheetRenderer != null) sheetRenderer.forceRenderingOff = !captureVisible;
         }
 
-        // Radial glow: faint interior, bright rim, used for tower ranges.
-        private static Texture2D MakeRangeTexture(int size)
+        private float BoardSize()
         {
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-            var pixels = new Color32[size * size];
-            float center = (size - 1) * 0.5f;
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                {
-                    float r = new Vector2(x - center, y - center).magnitude / center;
-                    float alpha = 0f;
-                    if (r < 0.98f) alpha = 0.06f;
-                    if (r > 0.86f) alpha = Mathf.Lerp(0.25f, 0f, (r - 0.86f) / 0.12f);
-                    if (r > 0.9f && r < 0.97f) alpha = 0.55f;
-                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(alpha) * 255f));
-                }
-            texture.SetPixels32(pixels); texture.Apply(false, false);
-            return texture;
+            if (controller != null && controller.Level != null)
+                return controller.Level.Width / (float)BattleLevel.NavigationPerPhysical;
+            return 10f;
         }
 
-        // Diamond with a bright core reads clearly as a projected enemy marker from above.
-        private static Texture2D MakeEnemyTexture(int size)
-        {
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-            var pixels = new Color32[size * size];
-            float center = (size - 1) * 0.5f;
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                {
-                    float dx = Mathf.Abs((x - center) / center), dy = Mathf.Abs((y - center) / center);
-                    float diamond = dx + dy;
-                    float alpha = 0f;
-                    if (diamond < 0.9f) alpha = 0.25f;
-                    if (diamond > 0.72f && diamond < 0.9f) alpha = 0.95f;
-                    if (diamond < 0.28f) alpha = 1f;
-                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(alpha) * 255f));
-                }
-            texture.SetPixels32(pixels); texture.Apply(false, false);
-            return texture;
-        }
-
-        private static Texture2D MakeRingTexture(int size)
-        {
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-            var pixels = new Color32[size * size];
-            float center = (size - 1) * 0.5f;
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                {
-                    float r = new Vector2(x - center, y - center).magnitude / center;
-                    float alpha = (r > 0.78f && r < 0.98f) ? 1f : 0f;
-                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)(alpha * 255f));
-                }
-            texture.SetPixels32(pixels); texture.Apply(false, false);
-            return texture;
-        }
+        private static Vector2 BoardCenter(BattleCell cell) =>
+            new Vector2(cell.Position.X / 2f + 0.5f, cell.Position.Y / 2f + 0.5f);
     }
 }

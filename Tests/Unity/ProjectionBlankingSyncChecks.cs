@@ -11,7 +11,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-// Exercises the automatic sampling path across displayed frames, not only synchronous captures.
+// Automatic sampling must keep the audience projection visible while the stored RGB excludes it.
 public static class ProjectionBlankingSyncChecks
 {
     [Serializable] private sealed class Result
@@ -115,42 +115,32 @@ public static class ProjectionBlankingSyncChecks
         capture.CaptureWithoutProjection = true;
         monitor.Automatic = true;
         double deadline = EditorApplication.timeSinceStartup + 1.5;
+        var overlay = battle.GetComponent<SimulationBattleOverlay>();
         while (EditorApplication.timeSinceStartup < deadline)
         {
             RenderPreview(adapter, battle);
+            result.visibleFrames++;
             Check((workspace.cullingMask & (1 << projection.ProjectionLayer)) == 0,
                 "Sampling changed the layout window's projection-free configuration.");
-            if (!projection.IsVisible)
-            {
-                result.hiddenFrames++;
-                Check(!PreviewProjectionVisible, "Preview projection remains visible during source blanking.");
-                Check(preview.BricksVisible, "Blanking hid the preview bricks.");
-                var overlay = battle.GetComponent<SimulationBattleOverlay>();
-                foreach (Renderer renderer in overlay.MarksRoot.GetComponentsInChildren<Renderer>())
-                    Check(renderer.forceRenderingOff, "A battle projection renderer escaped blanking.");
-            }
-            else
-            {
-                result.visibleFrames++;
-                Check(PreviewProjectionVisible, "Preview failed to restore with source projection.");
-            }
+            Check(projection.IsVisible, "Automatic sampling hid the audience projection.");
+            Check(PreviewProjectionVisible, "Automatic sampling hid the preview projection.");
+            Check(preview.BricksVisible, "Automatic sampling hid the preview bricks.");
+            foreach (Renderer renderer in overlay.MarksRoot.GetComponentsInChildren<Renderer>())
+                Check(!renderer.forceRenderingOff, "Automatic sampling suppressed a battle projection renderer.");
             yield return null;
         }
-        Check(result.hiddenFrames > 0, "Automatic sampling never exposes a blanked display frame to either window.");
-        Check(result.visibleFrames > 0, "Automatic sampling never restores a displayed projection frame.");
-        if (result.hiddenFrames == 0) yield break;
+        Check(result.visibleFrames > 0, "Automatic sampling produced no displayed frames.");
+        Check(result.hiddenFrames == 0, "Automatic sampling still blanked a displayed frame.");
 
-        yield return Wait(() => !projection.IsVisible, "Could not enter blanking to test cancellation.");
         monitor.Automatic = false;
         yield return null; yield return null;
-        Check(projection.IsVisible, "Stopping automatic recognition left projection hidden.");
+        Check(projection.IsVisible, "Stopping automatic recognition hid projection.");
         RenderPreview(adapter, battle);
-        Check(PreviewProjectionVisible, "Stopping recognition did not restore the view.");
+        Check(PreviewProjectionVisible, "Stopping recognition hid the view.");
 
         monitor.Automatic = true;
-        yield return Wait(() => !projection.IsVisible, "Could not enter blanking before disabling.");
         monitor.enabled = false;
-        Check(projection.IsVisible, "Disabling recognition left projection hidden.");
+        Check(projection.IsVisible, "Disabling recognition hid projection.");
         monitor.Automatic = false; monitor.enabled = true;
 
         projection.SetVisible(false);
@@ -166,19 +156,35 @@ public static class ProjectionBlankingSyncChecks
         for (int i = 0; i < 8; i++)
         {
             yield return null;
-            Check(projection.IsVisible, "Projection-inclusive sampling unexpectedly blanks the display.");
+            Check(projection.IsVisible, "Projection-inclusive sampling hid the display.");
         }
 
         capture.CaptureWithoutProjection = true;
-        yield return Wait(() => !projection.IsVisible, "Could not enter blanking before camera failure.");
         overhead.targetTexture = null;
-        yield return Wait(() => monitor.LastError != null && projection.IsVisible, "Failed capture did not restore projection.");
+        monitor.Automatic = true;
+        yield return Wait(() => monitor.LastError != null && projection.IsVisible, "Failed capture hid or skipped the projection.");
         overhead.targetTexture = originalTarget;
         monitor.Automatic = false;
         yield return null;
         RenderPreview(adapter, battle);
-        Check(PreviewProjectionVisible, "Failed capture left view hidden.");
+        Check(PreviewProjectionVisible, "Failed capture left the view hidden.");
         monitor.AnalyzeOnce();
         Check(monitor.LastError == null, "Recognition did not recover after restoring camera.");
+        SimulationObservationImage clean = capture.CaptureObservationImage(false);
+        SimulationObservationImage repeated = capture.CaptureObservationImage(false);
+        Check(ChangedPixels(clean, repeated) == 0, "Repeated clean samples differ.");
+        SimulationObservationImage withProjection = capture.CaptureObservationImage(true);
+        Check(ChangedPixels(clean, withProjection) > 0, "Excluding the projection layer did not change the sample.");
+        Check(projection.IsVisible, "Sampling toggled audience visibility.");
+    }
+
+    private static int ChangedPixels(SimulationObservationImage a, SimulationObservationImage b)
+    {
+        int count = 0;
+        int length = Math.Min(a.Rgb.Length, b.Rgb.Length);
+        for (int i = 0; i < length; i += 3)
+            if (Math.Abs(a.Rgb[i] - b.Rgb[i]) > 1 || Math.Abs(a.Rgb[i + 1] - b.Rgb[i + 1]) > 1 ||
+                Math.Abs(a.Rgb[i + 2] - b.Rgb[i + 2]) > 1) count++;
+        return count;
     }
 }

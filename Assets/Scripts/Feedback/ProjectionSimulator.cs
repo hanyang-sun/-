@@ -32,6 +32,8 @@ namespace Brick2Life.Feedback
         [Tooltip("投影强度，乘到标记 alpha 上；用于投影开/关与强弱对照。")]
         [SerializeField, Range(0f, 1f)] private float intensity = 1f;
         [SerializeField] private bool visible = true;
+        [Tooltip("关掉后积木本身表示墙和塔，投影不再在顶面铺一层角色色。")]
+        [SerializeField] private bool renderRoleHighlights;
 
         private readonly List<GameObject> pool = new List<GameObject>();
         // Unity objects cannot be constructed in field initializers; created in Awake instead.
@@ -40,6 +42,7 @@ namespace Brick2Life.Feedback
         private Material runtimeMaterial;
         private Material ringMaterial, coreMaterial, towerMaterial, wallMaterial;
         private bool[] isChangeMark = Array.Empty<bool>();
+        private bool[] isRoleMark = Array.Empty<bool>();
         private bool[] isCoreMark = Array.Empty<bool>();
         private float[] baseAlpha = Array.Empty<float>();
         private float fadeStart = -1f;
@@ -101,17 +104,17 @@ namespace Brick2Life.Feedback
             if (LastPlan == null || pool.Count == 0) return;
             float now = Time.unscaledTime;
             float fade = fadeStart < 0f ? 1f : Mathf.Clamp01((now - fadeStart) / fadeDuration);
-            float breath = 0.85f + 0.15f * Mathf.Sin(now * 2.2f);
             for (int i = 0; i < pool.Count; i++)
             {
                 GameObject quad = pool[i];
                 if (quad == null) continue;
+                bool role = i < isRoleMark.Length && isRoleMark[i];
+                if (role && !renderRoleHighlights) { quad.SetActive(false); continue; }
                 bool change = i < isChangeMark.Length && isChangeMark[i];
                 if (change && fade >= 1f) { quad.SetActive(false); continue; }
                 if (!visible) continue;
                 float alpha = i < baseAlpha.Length ? baseAlpha[i] : 1f;
                 if (change) alpha *= 1f - fade;
-                else if (i < isCoreMark.Length && isCoreMark[i]) alpha *= breath;
                 ApplyAlpha(quad, alpha);
             }
         }
@@ -154,7 +157,8 @@ namespace Brick2Life.Feedback
             {
                 GameObject quad = Obtain(used);
                 isChangeMark[used] = mark.Kind == ProjectionMarkKind.ChangeHighlight;
-                isCoreMark[used] = mark.Kind == ProjectionMarkKind.RoleHighlight && mark.Role == GameRole.Core;
+                isRoleMark[used] = mark.Kind == ProjectionMarkKind.RoleHighlight;
+                isCoreMark[used] = isRoleMark[used] && mark.Role == GameRole.Core;
                 baseAlpha[used] = mark.Color.Alpha;
                 Place(quad, mark, material);
                 used++;
@@ -226,8 +230,9 @@ namespace Brick2Life.Feedback
 
         private void EnsureArrays(int count)
         {
-            if (isChangeMark.Length >= count) return;
+            if (isChangeMark.Length >= count && isRoleMark.Length >= count) return;
             isChangeMark = new bool[count];
+            isRoleMark = new bool[count];
             isCoreMark = new bool[count];
             baseAlpha = new float[count];
         }
@@ -391,7 +396,8 @@ namespace Brick2Life.Feedback
         private void ShowAll()
         {
             int limit = Mathf.Min(VisibleMarkCount, pool.Count);
-            for (int i = 0; i < limit; i++) if (pool[i] != null) pool[i].SetActive(true);
+            for (int i = 0; i < limit; i++)
+                if (pool[i] != null) pool[i].SetActive(renderRoleHighlights || i >= isRoleMark.Length || !isRoleMark[i]);
         }
 
         private void HideAll()

@@ -4,6 +4,7 @@ BoardSyncChecks.Run();
 DatasetPlanChecks.Run();
 LevelSemanticsChecks.Run();
 ProjectionPlanChecks.Run();
+AudienceProjectionChecks.Run();
 LevelFeedbackChecks.Run();
 VisionChecks.Run();
 BattleChecks.Run();

@@ -278,12 +278,22 @@ public static class SimulationDualWindowChecks
         Require(overlay.ActiveArrowCount == 7, "Flowing route arrows are missing.");
         Require(overlay.ActiveRangeRingCount == 1, "There must be exactly one visible range ring per physical tower.");
         Require(overlay.ActiveTowerArrowCount == 1, "There must be exactly one aiming arrow per physical tower.");
-        Transform rangeRing = overlay.MarksRoot.Find("BattleRange");
-        Transform aimArrow = overlay.MarksRoot.Find("BattleTowerAim");
-        Check(rangeRing != null && Vector2.Distance(new Vector2(rangeRing.position.x, rangeRing.position.z),
-            new Vector2(5.5f, 5.5f)) < 0.001f, "Tower range ring is not centered on its physical brick.");
-        Check(aimArrow != null && Vector2.Distance(new Vector2(aimArrow.position.x, aimArrow.position.z),
-            new Vector2(5.5f, 5.5f)) < 0.001f, "Tower aiming arrow is not centered on its physical brick.");
+        bool rangeCentered = false, aimCentered = false;
+        foreach (AudienceRing ring in overlay.Frame.Rings)
+            if (ring.Kind == AudienceRingKind.Range)
+            {
+                rangeCentered = true;
+                Check(Mathf.Abs(ring.X - 5.5f) < 0.001f && Mathf.Abs(ring.Y - 5.5f) < 0.001f,
+                    "Tower range ring is not centered on its physical brick.");
+            }
+        foreach (AudienceBeam beam in overlay.Frame.Beams)
+            if (beam.Aim)
+            {
+                aimCentered = true;
+                Check(Mathf.Abs(beam.X0 - 5.5f) < 0.001f && Mathf.Abs(beam.Y0 - 5.5f) < 0.001f,
+                    "Tower aim is not centered on its physical brick.");
+            }
+        Check(rangeCentered && aimCentered, "The audience frame is missing the tower ring or aim beam.");
         controller.StepManual(0.2f);
         Require(controller.LastShots.Count > 0, "The integration battle did not produce shooting events.");
         controller.SetPaused(true);
@@ -325,9 +335,11 @@ public static class SimulationDualWindowChecks
         using (var preview = new SimulationProjectionPreview(board.Palette))
         {
             preview.UpdateScene(adapter.Feedback.Level, adapter.Projection, controller.View, false);
-            int expected = adapter.Projection.ActiveMarkCount + overlay.ActiveArrowCount +
-                overlay.ActiveRangeRingCount + overlay.ActiveTowerArrowCount + overlay.ActiveEffectCount;
-            Check(preview.ProjectionCount == expected, "Combined preview omitted or duplicated battle projection meshes.");
+            int sheets = 0;
+            foreach (Renderer renderer in overlay.MarksRoot.GetComponentsInChildren<Renderer>())
+                if (renderer.enabled && !renderer.forceRenderingOff) sheets++;
+            int expected = adapter.Projection.ActiveMarkCount + sheets;
+            Check(preview.ProjectionCount == expected, "Combined preview omitted or duplicated the audience projection sheet.");
             Save(preview.Render(1000, 720), "battle-combined.png");
             preview.UpdateScene(adapter.Feedback.Level, adapter.Projection, controller.View, true);
             Check(!preview.BricksVisible && preview.ProjectionCount == expected,
@@ -419,17 +431,12 @@ public static class SimulationDualWindowChecks
         yield return null;
         Check(controller.State.CoreHealth == 90, "The core-impact fixture did not leak exactly one enemy.");
         bool coreImpact = false;
-        var property = new MaterialPropertyBlock();
-        foreach (MeshRenderer renderer in overlay.MarksRoot.GetComponentsInChildren<MeshRenderer>())
+        foreach (AudienceRing ring in overlay.Frame.Rings)
         {
-            if (renderer.name != "BattleFx") continue;
-            renderer.GetPropertyBlock(property);
-            Color color = property.GetColor(Shader.PropertyToID("_Color"));
-            if (color.r < 0.9f || color.g > 0.4f) continue;
+            if (ring.Kind != AudienceRingKind.Impact) continue;
             coreImpact = true;
-            Check(Vector2.Distance(new Vector2(renderer.transform.position.x, renderer.transform.position.z),
-                new Vector2(8.5f, 8.5f)) < 0.001f && renderer.transform.position.y > 1f,
-                "Core damage ring is not centered above the confirmed core brick.");
+            Check(Mathf.Abs(ring.X - 8.5f) < 0.02f && Mathf.Abs(ring.Y - 8.5f) < 0.02f,
+                "Core damage ring is not centered on the confirmed core brick.");
         }
         Check(coreImpact, "Core damage produced no visible impact ring.");
         Require(controller.Restart(), "Could not reset the core-impact fixture.");

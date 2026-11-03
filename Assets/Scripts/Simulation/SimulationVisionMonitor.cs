@@ -162,7 +162,7 @@ namespace Brick2Life.Simulation
             if (Input.GetKeyDown(KeyCode.F8) && capture != null)
             {
                 capture.CaptureWithoutProjection = !capture.CaptureWithoutProjection;
-                Debug.Log("识别取样" + (capture.CaptureWithoutProjection ? "关闭" : "保留") + "虚拟投影（F8 切换）。", this);
+                Debug.Log("识别取样" + (capture.CaptureWithoutProjection ? "排除" : "包含") + "投影层，观众画面保持显示（F8 切换）。", this);
             }
             if (!Automatic || board == null) return;
             elapsed += Time.unscaledDeltaTime;
@@ -318,7 +318,8 @@ namespace Brick2Life.Simulation
             applyingScroll = false;
         }
 
-        // Wheel and middle-drag scroll the log without a raycast target, so left clicks still reach the board.
+        // Wheel and middle-drag scroll the log body. That body stays click-through so left clicks reach the board.
+        // The scrollbar itself accepts a left-button drag.
         private void ScrollEventLogFromPointer()
         {
             if (eventScroll == null || panel == null || !panel.activeInHierarchy) return;
@@ -641,10 +642,10 @@ namespace Brick2Life.Simulation
             var trackRect = track.GetComponent<RectTransform>();
             trackRect.anchorMin = Vector2.right;
             trackRect.anchorMax = Vector2.one;
-            trackRect.offsetMin = new Vector2(-10, 0);
+            trackRect.offsetMin = new Vector2(-14, 0);
             trackRect.offsetMax = Vector2.zero;
             track.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.08f);
-            track.GetComponent<Image>().raycastTarget = false;
+            track.GetComponent<Image>().raycastTarget = true;
             var handle = new GameObject("Handle", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             handle.transform.SetParent(track.transform, false);
             var handleRect = handle.GetComponent<RectTransform>();
@@ -653,8 +654,8 @@ namespace Brick2Life.Simulation
             handleRect.offsetMin = Vector2.zero;
             handleRect.offsetMax = Vector2.zero;
             Image handleImage = handle.GetComponent<Image>();
-            handleImage.color = new Color(0.75f, 0.86f, 0.92f, 0.45f);
-            handleImage.raycastTarget = false;
+            handleImage.color = new Color(0.75f, 0.86f, 0.92f, 0.85f);
+            handleImage.raycastTarget = true;
             Scrollbar bar = track.GetComponent<Scrollbar>();
             bar.handleRect = handleRect;
             bar.targetGraphic = handleImage;

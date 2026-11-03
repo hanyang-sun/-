@@ -18,11 +18,11 @@ namespace Brick2Life.Simulation
         [SerializeField] private Camera sourceCamera;
         private SimulationBoardSession board;
         [SerializeField] private Text statusLabel;
-        [Tooltip("识别取样前先关闭虚拟投影，避免投影光污染识别输入。")]
+        [Tooltip("识别取样时从相机掩码排除投影层。观众窗口和投影仪画面保持投影，不再整幅关掉。")]
         [SerializeField] private bool captureWithoutProjection = true;
-        [Tooltip("自动采样消隐至少跨越的实际帧数；同步单次采集使用同等次数的额外渲染。")]
+        [Tooltip("旧的消隐等待帧数。采样已改为只改相机掩码，不再使用。")]
         [SerializeField, Min(0)] private int projectionSettleFrames = 2;
-        [Tooltip("自动采样消隐最短持续时间（秒），让两个窗口有机会显示相同的消隐状态；非硬件同步参数。")]
+        [Tooltip("旧的消隐最短秒数。采样已改为只改相机掩码，不再使用。")]
         [SerializeField, Min(0f)] private float projectionBlankSeconds = 0.05f;
         private IDisposable observationSuppression;
         private bool observationPending, pendingIncludesProjection;
@@ -42,28 +42,25 @@ namespace Brick2Life.Simulation
         }
         public bool ObservationCapturePending => observationPending;
 
-        // Automatic capture holds the shared gate across real frames so both windows can render it.
+        // Automatic capture excludes the projection layer for this render only. The audience view stays on.
         public void BeginObservationCapture()
         {
             if (observationPending) throw new InvalidOperationException("已有识别采样正在进行。");
             pendingIncludesProjection = !captureWithoutProjection;
             observationStartedFrame = Time.frameCount;
             observationStartedTime = Time.realtimeSinceStartupAsDouble;
-            try
-            {
-                if (!pendingIncludesProjection) observationSuppression = ProjectionCaptureGate.Suppress();
-                observationPending = true;
-            }
-            catch { CancelObservationCapture(); throw; }
+            // Retired blanking timings stay serialized so older scenes load. Sampling does not wait on them.
+            _ = projectionSettleFrames;
+            _ = projectionBlankSeconds;
+            _ = observationStartedFrame;
+            _ = observationStartedTime;
+            observationPending = true;
         }
 
         public bool TryCompleteObservationCapture(out SimulationObservationImage image)
         {
             image = null;
             if (!observationPending) return false;
-            if (!pendingIncludesProjection &&
-                (Time.frameCount - observationStartedFrame < Mathf.Max(1, projectionSettleFrames) ||
-                 Time.realtimeSinceStartupAsDouble - observationStartedTime < projectionBlankSeconds)) return false;
             try { image = CaptureObservationImageInternal(pendingIncludesProjection); }
             finally { CancelObservationCapture(); }
             return true;
@@ -291,21 +288,11 @@ namespace Brick2Life.Simulation
         // RGB and the public camera matrices only. Ground truth cells are not read.
         public SimulationObservationImage CaptureObservationImage() => CaptureObservationImage(!captureWithoutProjection);
 
-        // Recognition samples hide the virtual projection first: clear → settle → capture → restore.
+        // Recognition samples drop the projection layer for this render. They do not hide the audience sheet.
         public SimulationObservationImage CaptureObservationImage(bool includeProjection)
         {
             CancelObservationCapture();
-            IDisposable suppression = includeProjection ? null : ProjectionCaptureGate.Suppress();
-            try
-            {
-                if (!includeProjection && sourceCamera != null)
-                    for (int i = 0; i < projectionSettleFrames; i++) sourceCamera.Render();
-                return CaptureObservationImageInternal(includeProjection);
-            }
-            finally
-            {
-                suppression?.Dispose();
-            }
+            return CaptureObservationImageInternal(includeProjection);
         }
 
         private SimulationObservationImage CaptureObservationImageInternal(bool includeProjection)
@@ -315,7 +302,7 @@ namespace Brick2Life.Simulation
             RenderTexture target = sourceCamera.targetTexture;
             double[] view = Matrix(sourceCamera.worldToCameraMatrix);
             double[] projection = Matrix(sourceCamera.projectionMatrix);
-            byte[] rgb = ReadTopDown(target);
+            byte[] rgb = ReadTopDown(target, includeProjection);
             if (sourceCamera.targetTexture != target)
                 throw new InvalidOperationException("拍摄期间相机目标纹理发生变化。");
             return new SimulationObservationImage(target.width, target.height, rgb, DateTimeOffset.UtcNow, view, projection, includeProjection);
@@ -348,12 +335,14 @@ namespace Brick2Life.Simulation
             return values;
         }
 
-        private byte[] ReadTopDown(RenderTexture target)
+        private byte[] ReadTopDown(RenderTexture target, bool includeProjection)
         {
             RenderTexture previous = RenderTexture.active;
             Texture2D image = null;
+            int previousMask = sourceCamera.cullingMask;
             try
             {
+                if (!includeProjection) sourceCamera.cullingMask = previousMask & ~ProjectionLayerBit();
                 sourceCamera.Render();
                 RenderTexture.active = target;
                 image = new Texture2D(target.width, target.height, TextureFormat.RGB24, false);
@@ -378,9 +367,17 @@ namespace Brick2Life.Simulation
             }
             finally
             {
+                sourceCamera.cullingMask = previousMask;
                 RenderTexture.active = previous;
                 if (image != null) Destroy(image);
             }
+        }
+
+        private static int ProjectionLayerBit()
+        {
+            int layer = LayerMask.NameToLayer("Brick2LifeProjection");
+            if (layer < 0) layer = 31;
+            return 1 << layer;
         }
 
         private byte[] ReadCurrentRgb()
@@ -388,9 +385,11 @@ namespace Brick2Life.Simulation
             RenderTexture target = sourceCamera.targetTexture;
             RenderTexture previous = RenderTexture.active;
             Texture2D image = null;
+            int previousMask = sourceCamera.cullingMask;
             try
             {
-                // Render now so edits made this frame are included in the saved image.
+                // Saved datasets stay free of projected light. The live view is unchanged.
+                sourceCamera.cullingMask = previousMask & ~ProjectionLayerBit();
                 sourceCamera.Render();
                 RenderTexture.active = target;
                 image = new Texture2D(target.width, target.height, TextureFormat.RGB24, false);
@@ -400,6 +399,7 @@ namespace Brick2Life.Simulation
             }
             finally
             {
+                sourceCamera.cullingMask = previousMask;
                 RenderTexture.active = previous;
                 if (image != null) Destroy(image);
             }
