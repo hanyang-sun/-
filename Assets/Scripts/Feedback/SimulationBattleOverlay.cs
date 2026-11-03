@@ -147,6 +147,7 @@ namespace Brick2Life.Feedback
             SyncRoutes();
             SyncRangeRings(controller.State);
             SyncTowerArrows(controller.State);
+            SyncEnemies(controller.State);
         }
 
         private void Update()
@@ -160,6 +161,7 @@ namespace Brick2Life.Feedback
             SyncRoutes();
             SyncRangeRings(state);
             SyncTowerArrows(state);
+            SyncEnemies(state);
             HandleShots(state);
             HandleCore(state);
             if (!state.Paused && !state.Finished) HandleWallRipples(state);
@@ -180,6 +182,7 @@ namespace Brick2Life.Feedback
         {
             IReadOnlyList<BattleRoute> activeRoutes = controller.DisplayRoutes;
             int routes = activeRoutes != null ? activeRoutes.Count : 0;
+            SyncPathBands(activeRoutes);
             int wanted = routes * arrowsPerRoute;
             while (arrows.Count < wanted) arrows.Add(CreateQuad("BattleArrow", arrowMaterial, arrowSize));
             for (int i = 0; i < arrows.Count; i++) arrows[i].SetActive(i < wanted);
@@ -559,6 +562,12 @@ namespace Brick2Life.Feedback
             if (shader == null) return;
             arrowMaterial = new Material(shader) { name = "BattleArrow", mainTexture = MakeArrowTexture(64) };
             ringMaterial = new Material(shader) { name = "BattleRing", mainTexture = MakeRingTexture(64) };
+            enemyMaterial = new Material(shader) { name = "BattleEnemyIcon", mainTexture = MakeEnemyTexture(64) };
+            barMaterial = new Material(shader) { name = "BattleBar", mainTexture = Texture2D.whiteTexture };
+            pathMaterial = new Material(shader) { name = "BattlePathBand", mainTexture = MakePathTexture(64) };
+            if (pathMaterial.mainTexture != null) pathMaterial.mainTexture.wrapMode = TextureWrapMode.Repeat;
+            rangeMaterial = new Material(shader) { name = "BattleRangeGlow", mainTexture = MakeRangeTexture(128) };
+            labelFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         }
 
         // Triangle pointing along +X so the quad rotation can aim it down the route.
