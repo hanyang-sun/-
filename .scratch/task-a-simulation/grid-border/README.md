@@ -1,5 +1,7 @@
 # 缩小预览底边修复验证
 
+> 归档说明（2026-11-04）：本页记录当时的验证范围，不能直接作为当前主线验收。截图、扫描中间数据和一次性调试代码已停止跟踪，本地文件保留；完整清单与固定历史提交见[验证资料索引](../../../docs/verification/README.md)。旧 `BrickDefense.Checks.csproj` 命令需在对应旧工程中使用。
+
 2026-10-16；当前主工程 Unity 6000.3.24f1，实际 Camera.Render、ReadPixels、GPU Graphics.Blit，非修改用户截图。
 
 ## 对照结果

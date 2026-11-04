@@ -11,9 +11,53 @@
 /*.sln
 /*.suo
 /unity-*.log
-/.scratch/**/*.log
 /Tests/bin/
 /Tests/obj/
+# Runtime exports from the simulation camera.
+/SimulationCaptures/
+
+# Unity crash-recovery scenes
+/_Recovery/
+Assets/_Recovery/
+
+Assets/_Recovery.meta
+
+# Scratch is local by default; Markdown requirements and records remain versioned.
+/.scratch/**/*
+!/.scratch/**/
+!/.scratch/**/*.md
+# Existing small historical evidence and tools (see docs/verification).
+!/.scratch/assets-module-audit/Build-Inventory.ps1
+!/.scratch/assets-module-audit/inventory.json
+!/.scratch/task-a-simulation/brick-edit/brick-1024x768-brick-checks.txt
+!/.scratch/task-a-simulation/brick-edit/brick-1280x720-brick-checks.txt
+!/.scratch/task-a-simulation/brick-edit/outline-fixed-brick-checks.txt
+!/.scratch/task-a-simulation/grid-border/after-checks.txt
+!/.scratch/task-a-simulation/grid-border/before-checks.txt
+!/.scratch/task-a-simulation/live-preview-verification.txt
+!/.scratch/task-a-simulation/pointer-hover/after-border-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/border-1024x768-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/border-1280x720-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/brick-1024x768-brick-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/brick-1280x720-brick-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/brick-current-brick-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/capture-regression-brick-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/clear-board-clear-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/corners-gt-regression-gt-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/corners-validation-corner-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/current-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/gt-paired-gt-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/outline-before-brick-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/outline-fixed-brick-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/palette-four-palette-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/palette-many-narrow-palette-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/palette-many-palette-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/palette-regression-brick-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/rgb-capture-capture-checks.txt
+!/.scratch/task-a-simulation/pointer-hover/rgb-capture-narrow-capture-checks.txt
+!/.scratch/windows-photo-picker/Verify-PhotoPicker.ps1
+!/.scratch/windows-release/Smoke-Windows.ps1
+# Isolated projects and caches stay ignored, including their Markdown files.
 /.scratch/color-recognition/unity-check/
 /.scratch/architecture-refactor/unity-check/
 /.scratch/markerless-photo/unity-check/
@@ -23,14 +67,8 @@
 /.scratch/layout-review/unity-check/
 /.scratch/layout-review/verification/ScanReports/
 /.scratch/windows-release/verification/ScanReports/
-/.scratch/windows-photo-picker/verification/积木 示例.*
 /.scratch/color-recognition/debug/bin/
 /.scratch/color-recognition/debug/obj/
-/.scratch/color-recognition/debug/*.rgb
-# Runtime exports from the simulation camera.
-/SimulationCaptures/
-
-# Generated isolated Unity validation projects (local evidence stays on disk).
 /.scratch/camera-metadata-validation/
 /.scratch/lighting-validation/
 /.scratch/vision-recognition/
@@ -39,9 +77,4 @@
 /.scratch/grid-render-probe/
 /.scratch/light-balance-validation/
 /.scratch/dataset-generation/
-
-# Unity crash-recovery scenes
-/_Recovery/
-Assets/_Recovery/
-
-Assets/_Recovery.meta
+/.scratch/repository-hygiene/

@@ -1,0 +1,47 @@
+name: Logic CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  logic-checks:
+    name: Logic checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Run logic checks
+        run: ./Tests/RunLogicChecks.ps1 -OutputDirectory (Join-Path $env:RUNNER_TEMP 'brick2life-ci')
+
+      - name: Upload check logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: logic-checks-logs
+          path: ${{ runner.temp }}/brick2life-ci/*.log
+          if-no-files-found: ignore
+          retention-days: 14

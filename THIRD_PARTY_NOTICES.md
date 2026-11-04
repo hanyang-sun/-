@@ -15,3 +15,9 @@
 - 使用范围：仿真场景的 Canvas、RawImage、比例布局、工作台文字与鼠标格位提示的四条 Image 边线，显示 TopCameraRGB；研究比较见 `docs/research/simulation-camera-preview-github.md`、`docs/research/simulation-workspace-view-github.md` 与 `docs/research/simulation-grid-pointer-github.md`。Cinemachine 和 Sunny Valley Studio 网格系统仅作机制比较，没有引入其源码或包。
 
 旧算法及完整授权随源码保存在 Archive/BrickDefense/THIRD_PARTY_NOTICES.md 和对应历史目录。
+
+## GitHub Actions（仅 CI 环境）
+
+- 工作流引用 [actions/checkout v5](https://github.com/actions/checkout/tree/v5)、[actions/setup-dotnet v5](https://github.com/actions/setup-dotnet/tree/v5)、[actions/upload-artifact v4](https://github.com/actions/upload-artifact/tree/v4)，分别用于签出、安装 SDK 和上传检查日志。
+- 三者均采用 MIT 许可证，完整声明保留在各上游仓库的 `LICENSE`。本项目没有复制、修改或分发其源码；它们由 GitHub Actions 在 CI 中执行，不进入 Unity 成品。
+- `game-ci/unity-test-runner` 仅作方案比较，本次未引入。比较与采用范围见 `docs/research/logic-ci-github.md`。

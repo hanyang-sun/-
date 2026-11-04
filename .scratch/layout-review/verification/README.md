@@ -1,5 +1,7 @@
 # 地图校对验证
 
+> 归档说明（2026-11-04）：本页记录当时的验证范围，不能直接作为当前主线验收。截图、扫描中间数据和一次性调试代码已停止跟踪，本地文件保留；完整清单与固定历史提交见[验证资料索引](../../../docs/verification/README.md)。旧 `BrickDefense.Checks.csproj` 命令需在对应旧工程中使用。
+
 日期：2026-10-12。Unity 6000.3.24f1 / Windows 编辑器。隔离副本为 `.scratch/layout-review/unity-check`，测试记录输出到本目录的忽略项 `ScanReports/`，未改写用户主工程场景或默认颜色标定。
 
 ## 结果
@@ -18,13 +20,13 @@
 
 ## 截图
 
-- [照片入口](photo-entry.png)
-- [实物校对 / 宽屏](review-physical-wide.png)
-- [确认后的统计与游戏设计](review-design-wide.png)
-- [三维预览](review-3d-preview.png) / [没有核心也可预览](review-3d-no-core.png)
-- [发布后的游戏地图](review-published-map.png)
-- [裁切照片的可修正草稿](review-partial-draft.png)
-- [竖屏顶部](review-narrow-top.png) / [竖屏工具与确认勾选](review-narrow-tools.png)
+- [照片入口](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/layout-review/verification/photo-entry.png)
+- [实物校对 / 宽屏](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/layout-review/verification/review-physical-wide.png)
+- [确认后的统计与游戏设计](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/layout-review/verification/review-design-wide.png)
+- [三维预览](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/layout-review/verification/review-3d-preview.png) / [没有核心也可预览](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/layout-review/verification/review-3d-no-core.png)
+- [发布后的游戏地图](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/layout-review/verification/review-published-map.png)
+- [裁切照片的可修正草稿](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/layout-review/verification/review-partial-draft.png)
+- [竖屏顶部](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/layout-review/verification/review-narrow-top.png) / [竖屏工具与确认勾选](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/layout-review/verification/review-narrow-tools.png)
 
 已目视检查最终截图；确认勾选改为可见方框，宽窄屏工具与底部按钮完整，三维预览沿用正交桌游视角。
 
