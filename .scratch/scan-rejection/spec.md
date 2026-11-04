@@ -41,6 +41,6 @@ Completion: complete (2026-10-09)
 
 界面截图来自隐藏启动的隔离编辑器：无 Game 视图的 batch 模式无法生成 ScreenCapture，首次检查超时，未计为通过；改为带实际 Game 视图的隔离编辑器后先复现失败、再验证修复。小窗口验证使用独立 Game 视图调到实际 862×678；首次因 Play 重载后窗口标题改变而未找到窗口，改为按窗口类型及非停靠属性重新获取后通过。上述验证辅助失败均保留日志。不改动或关闭用户原编辑器项目。
 
-证据：[修复前界面](debug/overlay-before.png)、[修复后界面](debug/overlay-after.png)、[862×678 界面](debug/overlay-after-small.png)、[完整原图生成的关卡](debug/full-photo-level.png)，以及 `unity-overlay-before-rendered.log`、`unity-overlay-after.log`、`unity-overlay-small-rendered.log`、`unity-scene-check.log`。
+证据：[修复前界面](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/scan-rejection/debug/overlay-before.png)、[修复后界面](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/scan-rejection/debug/overlay-after.png)、[862×678 界面](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/scan-rejection/debug/overlay-after-small.png)、[完整原图生成的关卡](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/scan-rejection/debug/full-photo-level.png)，以及 `unity-overlay-before-rendered.log`、`unity-overlay-after.log`、`unity-overlay-small-rendered.log`、`unity-scene-check.log`。
 
 这次验证覆盖所给实拍和必要反例，不代表任意背景、遮挡或角度的准确率验收；未做相机硬件或 Android 真机验证。

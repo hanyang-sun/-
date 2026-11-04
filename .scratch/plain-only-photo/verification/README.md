@@ -1,5 +1,7 @@
 # 无格纸唯一入口验证
 
+> 归档说明（2026-11-04）：本页记录当时的验证范围，不能直接作为当前主线验收。截图、扫描中间数据和一次性调试代码已停止跟踪，本地文件保留；完整清单与固定历史提交见[验证资料索引](../../../docs/verification/README.md)。旧 `BrickDefense.Checks.csproj` 命令需在对应旧工程中使用。
+
 日期：2026-10-11。Unity 6000.3.24f1 / Windows 编辑器，使用 `.scratch/soft-strategy-ui/unity-check` 隔离副本；保留用户正在打开的工作场景。
 
 ## 结果
@@ -19,10 +21,10 @@
 
 实际窗口为 1280×801、862×679、540×801。已目视检查无模式切换、中文文字和关键操作完整、窄屏可滚动到结果并返回。
 
-- [默认扫描入口](photo-empty.png)
-- [完整实拍识别成功](photo-success.png)
-- [裁切拒绝](photo-rejected.png) / [较小窗口](photo-small.png)
-- [竖屏顶部](photo-narrow-top.png) / [竖屏滚动到结果](photo-narrow-bottom.png)
-- [示例地图](map-reference.png) / [封闭示例](map-enclosed.png) / [竖屏生成地图](map-narrow.png) / [较小窗口地图](map-small.png)
+- [默认扫描入口](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/plain-only-photo/verification/photo-empty.png)
+- [完整实拍识别成功](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/plain-only-photo/verification/photo-success.png)
+- [裁切拒绝](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/plain-only-photo/verification/photo-rejected.png) / [较小窗口](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/plain-only-photo/verification/photo-small.png)
+- [竖屏顶部](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/plain-only-photo/verification/photo-narrow-top.png) / [竖屏滚动到结果](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/plain-only-photo/verification/photo-narrow-bottom.png)
+- [示例地图](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/plain-only-photo/verification/map-reference.png) / [封闭示例](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/plain-only-photo/verification/map-enclosed.png) / [竖屏生成地图](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/plain-only-photo/verification/map-narrow.png) / [较小窗口地图](https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/.scratch/plain-only-photo/verification/map-small.png)
 
 本次未测硬件相机或 Android 真机，也没有据单张样本宣称通用准确率提高。编辑器启动时仍有既有 `UnityEditor.Search.SearchDatabase` 索引异常，实际项目编译及操作检查完成，未发现项目脚本异常。

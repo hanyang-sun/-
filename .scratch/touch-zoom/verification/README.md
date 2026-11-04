@@ -1,5 +1,7 @@
 # 地图缩放：实际 Unity 画面
 
+> 归档说明（2026-11-04）：本页记录当时的验证范围，不能直接作为当前主线验收。截图、扫描中间数据和一次性调试代码已停止跟踪，本地文件保留；完整清单与固定历史提交见[验证资料索引](../../../docs/verification/README.md)。旧 `BrickDefense.Checks.csproj` 命令需在对应旧工程中使用。
+
 2026-10-11，Windows / Unity 6000.3.24f1，内置渲染管线。由隔离工程 OrbitCameraChecks.Verify 的 ScreenCapture 获取；每次截图后等待渲染再继续操作。这里的窄屏图来自 Windows 编辑器，不是 Android APK 截图。
 
 | 文件 | 内容 | 文件尺寸 |

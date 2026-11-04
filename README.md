@@ -7,7 +7,7 @@ Unity 中的积木交互与视觉反馈实验平台。当前实现 10×10 单层
 使用 **Unity 6000.3.24f1**，Built-in 渲染管线、官方 uGUI 2.0.0。
 
 ```powershell
-git clone --branch feat/task-a-unity-bricks-camera https://github.com/hanyang-sun/Brick2life.git Brick2Life
+git clone https://github.com/hanyang-sun/Brick2life.git Brick2Life
 ```
 
 在 Unity Hub 添加工程，打开默认场景 `Assets/Scenes/Brick2LifeSimulation.unity`，点击 Play。系统生成一个固定核心和 1–4 个出生点，玩家摆放绿色城墙、红色防御塔，暂不设数量配额。侧栏支持添加、删除、拖拽移动、清空玩家积木和保存 RGB + 标注。操作相机与实验相机彼此独立。
@@ -45,6 +45,8 @@ GT 仅用于导出和评价。B 接收图像与约定公开配置，C 消费视�
 dotnet run --project Tests/Brick2Life.Checks.csproj
 ```
 
+GitHub Actions 在推送和 PR 时自动执行同一组检查，也支持手动触发；检查名称为 `Logic checks`。本地可运行 `pwsh -File Tests/RunLogicChecks.ps1`，默认日志保存在 `Tests/obj/logic-checks/`。CI 日志以 `logic-checks-logs` 附件保留 14 天。自动检查范围为 Core、Application、Vision、Battle 的纯 C# 逻辑，不包含 Unity 场景、渲染或 Windows 构建。工作流见 [logic-checks.yml](.github/workflows/logic-checks.yml)，适用范围与门禁说明见 [CI 指南](docs/logic-ci-guide.md)。
+
 Unity 检查在独立临时工程运行，可通过 `-UnityPath` 指定编辑器：
 
 ```powershell
@@ -62,6 +64,8 @@ pwsh -File Tests/BuildWindows.ps1
 构建入口检查程序集和缺失脚本，输出 `Builds/Brick2Life/Brick2Life.exe`。本次验证结果见架构说明。
 
 ## 历史与授权
+
+验证结论、资料分类和历史证据入口见 [验证资料索引](docs/verification/README.md)。`.scratch/` 保留需求、任务和小型文字记录，完整截图、扫描中间数据与隔离工程默认仅保存在本地；必要测试输入放入 `Tests/Fixtures/`。旧资料的范围按原验证日期和版本判断，不代表当前主线能力。
 
 旧源码、场景、测试和专属算法已归档到 [Archive/BrickDefense](Archive/BrickDefense/INDEX.md)，退出 Unity 编译和默认检查。重构前基线 `b47a6ed` 已推送；恢复完整旧工程可使用该提交。旧算法按需求单独审查迁入。
 

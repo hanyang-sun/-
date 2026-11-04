@@ -1,0 +1,1378 @@
+{
+  "date": "2026-11-04",
+  "baselineCommit": "ab7df00acc5a633d5d33d4ce2702a381b4458085",
+  "historyBaseUrl": "https://github.com/hanyang-sun/Brick2life/blob/ab7df00acc5a633d5d33d4ce2702a381b4458085/",
+  "hashScope": "Local working-tree bytes before organization; Git checkout line endings may differ for text files.",
+  "trackedScratchFilesBefore": 195,
+  "stopTrackingFiles": 105,
+  "stopTrackingBytes": 27227600,
+  "files": [
+    {
+      "path": ".scratch/architecture-refactor/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 1105,
+      "sha256": "913ff4683b3e47e96c9d49af2cffa35a111dea581b714af465fea75414ee2888"
+    },
+    {
+      "path": ".scratch/architecture-refactor/debug/prepare_structure.py",
+      "category": "local-diagnostic-tool",
+      "action": "stop-tracking-keep-local",
+      "bytes": 3237,
+      "sha256": "fe10158b23a565aea9167aedb0e8f7e889a9c05656fc55c4a88026ebe7f31eb2"
+    },
+    {
+      "path": ".scratch/architecture-refactor/debug/refactor_photo_panel.py",
+      "category": "local-diagnostic-tool",
+      "action": "stop-tracking-keep-local",
+      "bytes": 6434,
+      "sha256": "971110f1a2af5ff1266200f2079c543a2b72d0542645e10873fe880527ccf459"
+    },
+    {
+      "path": ".scratch/architecture-refactor/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1695,
+      "sha256": "1eb90b8c9f465468e225207b3f769c7bdddb39902f9354a52aaf3ae23940ab88"
+    },
+    {
+      "path": ".scratch/assets-module-audit/Build-Inventory.ps1",
+      "category": "historical-verification-tool",
+      "action": "retain",
+      "bytes": 8663,
+      "sha256": "255cf7b9c28c34d7b0fce18b3b426f34ef64845d8f2804f0d73ef2877c77f3d2"
+    },
+    {
+      "path": ".scratch/assets-module-audit/inventory.json",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 47416,
+      "sha256": "91f66ecfa970639d890ed1819593869607d787008fae7a33060b28246dde4b32"
+    },
+    {
+      "path": ".scratch/assets-module-audit/issues/01-classify-assets.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 987,
+      "sha256": "dff99e337eb60602e4f65c6bf29e9aa859c55b2406d10d8502a39ae28a8b4fc0"
+    },
+    {
+      "path": ".scratch/assets-module-audit/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1469,
+      "sha256": "5f021a4ba2f13ef81d7b2fe3e8c63a4c50d4fee78b2345f547ffa9060fea177d"
+    },
+    {
+      "path": ".scratch/chinese-ui/issues/01-localize-and-position.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 597,
+      "sha256": "23d63146c56f8bd19f51263c06e612556ce80f50151fc6713c94141fc78325f2"
+    },
+    {
+      "path": ".scratch/chinese-ui/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1258,
+      "sha256": "76af75c508c2a53da2c96c8f6999cbaefbec5cb6285fd312a540f5094575903f"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 2589,
+      "sha256": "823e9c9792edd988619bda989549c251cebf484724551d1c5c5f0ce4a1acb653"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/battle-active-narrow.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 165353,
+      "sha256": "9556b5a15f7e9e2f587f92b816dd41e79e4692618000af89652395045d335777"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/battle-active-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 285980,
+      "sha256": "b72bda2e64e46630cc360bdb3de0da6a8a68eafface8760c53587d845da5443f"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/battle-defeat-narrow.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 131753,
+      "sha256": "e585251a56eae5c7a91d8fbb757b8aa1728ebb7261d4f3d8e8dd71c9b3ea426c"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/battle-next-wave-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 285791,
+      "sha256": "17e8ff8ea667f191feee3eddb65853e5473c2a9bf6d402032334eda0b9574844"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/battle-setup-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 171896,
+      "sha256": "7542d2f107903d0589df6a5bd2a554105d3a44b3ef3b96fe7fa19ce70ba04c83"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/battle-victory-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 236513,
+      "sha256": "62997bd0711916dabad80bda548e0d6b7654ff56b51680a8bcd3779660a81d68"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/multiple-starts-active-narrow.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 140733,
+      "sha256": "a32937a1ae49b105169256771146017bca8226acf7feb11d4d8f6164dc8078b7"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/multiple-starts-layout-narrow.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 140235,
+      "sha256": "b533fecb0e8442c535c9e664526dd7d50e97b726d8a9a1be663462cc2efad4ce"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/multiple-starts-layout-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 287340,
+      "sha256": "02538e7814a3a05a393b66b62d5d6608f91ed057ba76aec15b52cd054894274e"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/photo-entry-narrow.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 59746,
+      "sha256": "35f7b6d06218a8a2beb4b8baf63ea25318bbf52041f4b7ecfc4b0ac7db99bcbf"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/photo-narrow-bottom.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 76474,
+      "sha256": "0386a3dc0202fb63f12b031685f62972a95d65d6cae1458ef84e637cc4b3746e"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/photo-narrow-top.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 193155,
+      "sha256": "3c55b025b7a4ef248c67834272da411230f8c0d501524b8c2fc7f784beb96065"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/photo-rejected.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 429764,
+      "sha256": "a28d6ad48d28e4404e72665b9b9e8c32b522cade3eb9d1145f208833f460494c"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/photo-small.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 318957,
+      "sha256": "608719d0a90148c11d0c00236cad636e93ced2ccdbb79c83bcdf5edad16a192d"
+    },
+    {
+      "path": ".scratch/chinese-ui/verification/photo-success.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 289416,
+      "sha256": "f7378914e8e1ca75a83b25cd2e07b80781e2720984287766a7403b81dbef638b"
+    },
+    {
+      "path": ".scratch/color-recognition/debug/Program.cs",
+      "category": "local-diagnostic-tool",
+      "action": "stop-tracking-keep-local",
+      "bytes": 4284,
+      "sha256": "bd656ec41aecca3f2318e00911131624cccf86745bccc01b05264d53ec3701f5"
+    },
+    {
+      "path": ".scratch/color-recognition/debug/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 442,
+      "sha256": "3ddad33a7561e4ab9684d8b46e412a6cd26d5231c367d98eb8d2b879ab652124"
+    },
+    {
+      "path": ".scratch/color-recognition/debug/Repro.csproj",
+      "category": "local-diagnostic-tool",
+      "action": "stop-tracking-keep-local",
+      "bytes": 719,
+      "sha256": "06e13a2a4ae988881275d224cc2a894a4858651aab725733512f833b00cd6b85"
+    },
+    {
+      "path": ".scratch/combat-a/issues/01-battle-simulation.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 556,
+      "sha256": "0be84005bb0b2e379d026206c6fae1d8843c612f87f04c3927d6c58ea5c23a65"
+    },
+    {
+      "path": ".scratch/combat-a/issues/02-battle-ui-and-integration.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 591,
+      "sha256": "112878d7cf820e4d61bcb90049b84880a85ca6286b7bdf3430cbf9a64f91e643"
+    },
+    {
+      "path": ".scratch/combat-a/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 2911,
+      "sha256": "6516d6dd6282c9039fc8ff3122dcf6c86c0fb03d10bb43759703eb7691046c2c"
+    },
+    {
+      "path": ".scratch/combat-a/verification/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 2132,
+      "sha256": "e586b551dd46c7c2b4ff32d387109af37b94085dd05e4f69717cf88463007149"
+    },
+    {
+      "path": ".scratch/combat-a/verification/battle-active-narrow.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 158800,
+      "sha256": "11ad2f97e0bd4c606123d5e6c4226d841f6a31e048a9269365bed850a1cb6b1c"
+    },
+    {
+      "path": ".scratch/combat-a/verification/battle-active-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 287385,
+      "sha256": "37d028047cf8105949f94431b5a5fb2123309bc5773f09b3232f7cf8801ef7c1",
+      "representativeCopy": "docs/verification/images/legacy-battle-active.png"
+    },
+    {
+      "path": ".scratch/combat-a/verification/battle-defeat-narrow.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 132203,
+      "sha256": "a7c8b13d57ad62ff5fca2067be5c2751e55f2bff0ee16974131903f919712529"
+    },
+    {
+      "path": ".scratch/combat-a/verification/battle-next-wave-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 287560,
+      "sha256": "a9c874091f68919365aada944fba15e9fa55b35aceaf5d3fab1aeac63896b88a"
+    },
+    {
+      "path": ".scratch/combat-a/verification/battle-setup-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 173285,
+      "sha256": "f2f034d7edf34bd7c3bb5c4071f50845337912308a39c060d8744f145e1dc2e2"
+    },
+    {
+      "path": ".scratch/combat-a/verification/battle-victory-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 243497,
+      "sha256": "54975c684641ca87f48b135240fb4a9d0d232f61bebbf7dfbd198ca0f99b2861"
+    },
+    {
+      "path": ".scratch/demo-switching/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1311,
+      "sha256": "048806a3c7b033eb5e9ff73548ae69ffde2d2320780d39f9c9ca7a6ebc97558e"
+    },
+    {
+      "path": ".scratch/demo-switching/verification/blocked-core.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 40640,
+      "sha256": "221a6a0c06af471e2bd87dc39a8ed64f0e979737101e471a5d94571314b9c111"
+    },
+    {
+      "path": ".scratch/demo-switching/verification/reference-layout.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 43053,
+      "sha256": "703908b6002cca1ea379fc8e415593e959bb073afc3fd174c39ce95f96dc3e51"
+    },
+    {
+      "path": ".scratch/layout-review/issues/01-implement-review.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 721,
+      "sha256": "310af513deaf0b8236cce496be063cea9906e51b10461ca39adb5d00c13c8c2d"
+    },
+    {
+      "path": ".scratch/layout-review/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1538,
+      "sha256": "82aabf861dc9c8c173584fc16d92164e68cea67bc3c8a42691754a2e31772853"
+    },
+    {
+      "path": ".scratch/layout-review/verification/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 3397,
+      "sha256": "e0eb45218d54146be082514d5300f8e52fe47d2a4249e78c866ed76bfc298abb"
+    },
+    {
+      "path": ".scratch/layout-review/verification/photo-entry.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 306077,
+      "sha256": "5a0093c1798cb0aa7540608f8faf3b33f9cad595c0f1c8f8ccad5f9a4c3d6d27"
+    },
+    {
+      "path": ".scratch/layout-review/verification/review-3d-no-core.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 254585,
+      "sha256": "f85c594f61720419d3ba3d3477cc82100042e8f78fef7c7ed5147726d55d7606"
+    },
+    {
+      "path": ".scratch/layout-review/verification/review-3d-preview.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 255568,
+      "sha256": "35fa8f119727906db76117cbbbce49a89f6c4a2763201cfa958a58cb817eca21"
+    },
+    {
+      "path": ".scratch/layout-review/verification/review-design-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 310954,
+      "sha256": "dad41a2133e8257a61e830fb362c606a3a61330b4076e96962e2a25a053e7721"
+    },
+    {
+      "path": ".scratch/layout-review/verification/review-narrow-tools.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 69993,
+      "sha256": "55115fe0935a7d379b631153425a4ec8f710f826b7c62e06652e67cd1e0ea795"
+    },
+    {
+      "path": ".scratch/layout-review/verification/review-narrow-top.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 203220,
+      "sha256": "58aeb93c5f5271e6b003ca5fbd5e5a62abecfa74a80a4b4d006a3c4088ff584b"
+    },
+    {
+      "path": ".scratch/layout-review/verification/review-partial-draft.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 185585,
+      "sha256": "a74fcbc29230ccdc06fb7535c84a3bb9d6c8bce35ba79d3c008bdd222586fe87"
+    },
+    {
+      "path": ".scratch/layout-review/verification/review-physical-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 307674,
+      "sha256": "80062e4a01f46743c772375c131d35afd3b68e8b31738d080b303ba7aa3dcb13"
+    },
+    {
+      "path": ".scratch/layout-review/verification/review-published-map.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 421660,
+      "sha256": "81e1dbdaf0cf2b8cc2006785f432aa6e5dc13973e037bdb56977efeafa3553c0"
+    },
+    {
+      "path": ".scratch/markerless-photo/Artifacts/real-unmarked-photograph.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 43399,
+      "sha256": "574500ff0693fde04a61ababd5664d6d2906ee9e1c09e9a34926bf3fb08b1ae7",
+      "representativeCopy": "docs/verification/images/legacy-photo-derived-map.png"
+    },
+    {
+      "path": ".scratch/markerless-photo/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 684,
+      "sha256": "c0e6498d478ce2fc60f65b4091ca9fb8eccd55082bddac5e86287dd465ce849a"
+    },
+    {
+      "path": ".scratch/markerless-photo/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 2568,
+      "sha256": "d88f528e3b2ec149db30ad9559f0e8d9ad3c2b1090c678e54967ec546382ea95"
+    },
+    {
+      "path": ".scratch/multiple-spawns/issues/01-selection-and-battle.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 507,
+      "sha256": "35054077c3ebdfdf3f1400e375e4898e4fe495490b94f048e67e4699cb53d56b"
+    },
+    {
+      "path": ".scratch/multiple-spawns/issues/02-presentation-and-verification.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 599,
+      "sha256": "f7069f1d16e6019fc2072f66576ff7e02c654082ae83e391a3a878644fd5e2a9"
+    },
+    {
+      "path": ".scratch/multiple-spawns/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1491,
+      "sha256": "a091db0763de1ecba5bbaad0b2f7cd8451737a5596f0369f7fdc7eb42dec70ad"
+    },
+    {
+      "path": ".scratch/multiple-spawns/verification/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 2682,
+      "sha256": "969879c923d87c4ed74188b71c78dc460174fce34381cec5ae5ca5a4893d2dee"
+    },
+    {
+      "path": ".scratch/multiple-spawns/verification/battle-active-narrow.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 162360,
+      "sha256": "976b8dbeb7839cf1df2b8d3e3aab178e2169c2e8bb57f0de8f9df0482ae5a607"
+    },
+    {
+      "path": ".scratch/multiple-spawns/verification/battle-active-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 286282,
+      "sha256": "51af7969efd6b006f0eed4009e7221f4759860a0a6431b03ea1baeeac0d64743"
+    },
+    {
+      "path": ".scratch/multiple-spawns/verification/battle-defeat-narrow.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 131972,
+      "sha256": "fa314673e9f7ee706e4419d7c8512cc498011753e591df180365b4a632d0529f"
+    },
+    {
+      "path": ".scratch/multiple-spawns/verification/battle-next-wave-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 287641,
+      "sha256": "f268ae842ef5cdd7a71aad7e4d0673e2886535e4bee2c2826c4155ca13f9f0d9"
+    },
+    {
+      "path": ".scratch/multiple-spawns/verification/battle-setup-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 175098,
+      "sha256": "d6c997357c30dceb023436825f7ced48164330381da2675243079ac2c13a0a8e"
+    },
+    {
+      "path": ".scratch/multiple-spawns/verification/battle-victory-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 241758,
+      "sha256": "621f1d4089ee987836849015037f65825508b86758a9ca9113692b71f1751635"
+    },
+    {
+      "path": ".scratch/multiple-spawns/verification/multiple-starts-active-narrow.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 137868,
+      "sha256": "ae94c27a4f3cbe1c18540942d804adacafb405801ad2a8b40057097c49d26840"
+    },
+    {
+      "path": ".scratch/multiple-spawns/verification/multiple-starts-layout-narrow.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 143135,
+      "sha256": "d07214a115fdbd61c8a2b408940e31da444e8939ed957c2d916c0ac08448e568"
+    },
+    {
+      "path": ".scratch/multiple-spawns/verification/multiple-starts-layout-wide.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 294967,
+      "sha256": "a762981216bf1cbdafc75091febbcf2792e75e3b537337751aac6ea86e2644bf"
+    },
+    {
+      "path": ".scratch/orbit-camera/issues/01-orbit-board.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 592,
+      "sha256": "cc90a5cd494b24ee0789a66d92edd58375fb0743226aadf3fa94a2a92445fe4f"
+    },
+    {
+      "path": ".scratch/orbit-camera/issues/02-tabletop-projection.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 827,
+      "sha256": "4d1a97e63fee196bb3d4a6dd0c601a5a59f74286c11d1494c12bbd0daaad03a1"
+    },
+    {
+      "path": ".scratch/orbit-camera/verification/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 1918,
+      "sha256": "6216ee6139073682ddb0f11ff146462a5add7e499e81dadbed5af5786bf6721a"
+    },
+    {
+      "path": ".scratch/orbit-camera/verification/map-low-angle.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 261888,
+      "sha256": "520b35be18c07aab6bd487f3732511d5acc2e7b71cb3f0d676f178e1b52426cc"
+    },
+    {
+      "path": ".scratch/orbit-camera/verification/map-narrow-orbited.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 181822,
+      "sha256": "ef6d4185b33c1df1a0e99d175e570acd4f358b189ec5c82f039efd5ccba415d5"
+    },
+    {
+      "path": ".scratch/orbit-camera/verification/map-narrow-reset.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 152348,
+      "sha256": "14a5081c04b3eecd19c8b62f57890968e8c714a2ab4af960967f65bd33ab2f4f"
+    },
+    {
+      "path": ".scratch/orbit-camera/verification/map-orbited.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 260006,
+      "sha256": "22de485228f867ea01de33c62772225f9de44706b167035d96cd7c3521ef4ba4"
+    },
+    {
+      "path": ".scratch/orbit-camera/verification/map-overhead.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 237767,
+      "sha256": "724088e8c5007fff6c7c089c67104355b85f5e0acb576f2ba4ea3b355f49d688"
+    },
+    {
+      "path": ".scratch/orbit-camera/verification/map-tabletop.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 280369,
+      "sha256": "006aacc91abaef8155948e4382ffe5c523c594efd7a57766c96f57523cd19d17"
+    },
+    {
+      "path": ".scratch/plain-only-photo/issues/01-remove-marked-mode.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 532,
+      "sha256": "0e852f17e93f0389cb17f8f442785c213759e745c2ff0f2865019a5b447246b4"
+    },
+    {
+      "path": ".scratch/plain-only-photo/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1183,
+      "sha256": "f4c54d418fd562828fe0b525a5df0567ef5c23b311c573646c61dfd1a54871e5"
+    },
+    {
+      "path": ".scratch/plain-only-photo/verification/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 2593,
+      "sha256": "1f7c89a1987284432d9a615edae614593675d9184f6788a6b41ba9bf4a7bf062"
+    },
+    {
+      "path": ".scratch/plain-only-photo/verification/map-enclosed.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 273378,
+      "sha256": "cfb2987478e98a08fa119b09f0e31be48c2eb73930c38ddabf7780c9c4d9f059"
+    },
+    {
+      "path": ".scratch/plain-only-photo/verification/map-narrow.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 153015,
+      "sha256": "0e0208feda17727046e4fd04b1439410d80280f281bc5f790448d74dc1e937e0"
+    },
+    {
+      "path": ".scratch/plain-only-photo/verification/map-reference.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 280294,
+      "sha256": "045e0f2f0a0b413cd02d088e646acb304531ac6d0e4d9ce48de05ee84a554113"
+    },
+    {
+      "path": ".scratch/plain-only-photo/verification/map-small.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 196459,
+      "sha256": "4e010b5af29d8319fe436768b5ccf04b26fb3b60ad15692db2ffa1480de05f84"
+    },
+    {
+      "path": ".scratch/plain-only-photo/verification/photo-empty.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 106925,
+      "sha256": "e1ed3f3372a51a5960f2630490ed09a47d3ecd2d435508f00590e3211d09df18"
+    },
+    {
+      "path": ".scratch/plain-only-photo/verification/photo-narrow-bottom.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 76678,
+      "sha256": "d96ddd66969e2b48138a814f7e3767016d6df0933b9001af9b48c5a1207b1df8"
+    },
+    {
+      "path": ".scratch/plain-only-photo/verification/photo-narrow-top.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 193368,
+      "sha256": "4efc9314b9e4386d8061b700fb1b8e7b5e6bc87071245a0286fdfcf02be49212"
+    },
+    {
+      "path": ".scratch/plain-only-photo/verification/photo-rejected.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 427207,
+      "sha256": "079e7a49dadfe35cc1cb495d49e8e17d218e037e8a317e6dde7100099e1e4956"
+    },
+    {
+      "path": ".scratch/plain-only-photo/verification/photo-small.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 316426,
+      "sha256": "129bec3f6f0fecb0531e045a78cbb8c3b0f3bdf8f325f9de7c8fe271a3fbc448"
+    },
+    {
+      "path": ".scratch/plain-only-photo/verification/photo-success.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 286831,
+      "sha256": "9570f0438c830c148c037edb6900089b36120542546575ba531e5b8efab4f993"
+    },
+    {
+      "path": ".scratch/scan-rejection/debug/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 1412,
+      "sha256": "9869cf51b6882ee1cdcaec5343caaed552b664e27dd9a61b99a6a90d4ac18774"
+    },
+    {
+      "path": ".scratch/scan-rejection/debug/full-photo-level.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 43399,
+      "sha256": "574500ff0693fde04a61ababd5664d6d2906ee9e1c09e9a34926bf3fb08b1ae7"
+    },
+    {
+      "path": ".scratch/scan-rejection/debug/overlay-after-small.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 238115,
+      "sha256": "3ffffea5a8478199506e71326a4d8163556c2a76ba1a662841ef21f8be1a2285"
+    },
+    {
+      "path": ".scratch/scan-rejection/debug/overlay-after.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 282112,
+      "sha256": "12190566ad55f8067db957a4ef7d9c7cf4b9b8985c3797c2a4801639558f8cb6"
+    },
+    {
+      "path": ".scratch/scan-rejection/debug/overlay-before.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 305598,
+      "sha256": "119f0b98680c7e80924b44e1cb3bdc09f2f6fa7c4469697f840d953cf8907ef1"
+    },
+    {
+      "path": ".scratch/scan-rejection/debug/scan-444a6d9f33ed433db335a9bfa49ba752/result.json",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 2039,
+      "sha256": "e1c5c4ec487bb324d394b49d1b6cad582cfcb47bd1212c9dd9da3d920c7d1465"
+    },
+    {
+      "path": ".scratch/scan-rejection/debug/scan-444a6d9f33ed433db335a9bfa49ba752/source.jpg",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 1476060,
+      "sha256": "042c707dabae705cf305f72527680874bc141aff6e69d88a80a95c2792eb7696"
+    },
+    {
+      "path": ".scratch/scan-rejection/debug/scan-444a6d9f33ed433db335a9bfa49ba752/source.rgb.gz",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 3847767,
+      "sha256": "410954d1a70665b16a932519785f36b84bc2db87388725022818431ee88ab9b4"
+    },
+    {
+      "path": ".scratch/scan-rejection/debug/scan-d431df17628641cca0444cf315667db1/result.json",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 2556,
+      "sha256": "5f87e3ae9a086296c2669907a72642f7ca43bbcbe9980fd46adba3e2571e5d1e"
+    },
+    {
+      "path": ".scratch/scan-rejection/debug/scan-d431df17628641cca0444cf315667db1/source.jpg",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 131541,
+      "sha256": "7362f71ebdd650d8a1a260c7c82761ec6238b4c8a2fce83e77184c8d8f9feb1a"
+    },
+    {
+      "path": ".scratch/scan-rejection/debug/scan-d431df17628641cca0444cf315667db1/source.rgb.gz",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 1322538,
+      "sha256": "5ce51a65b0d367086737f446dc5633923dbd00c4796700bf209176b79a19e08d"
+    },
+    {
+      "path": ".scratch/scan-rejection/issues/01-fix-background-and-overlay.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 747,
+      "sha256": "2db5141a02b4043b109e18b8abc9dfd9312c62dd9814f7c43bcaa03eaae0e3cd"
+    },
+    {
+      "path": ".scratch/scan-rejection/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 4556,
+      "sha256": "a6536d3e635c2282f1b56397278cb38fea3331ee141934c4c514f95d676e9064"
+    },
+    {
+      "path": ".scratch/soft-strategy-ui/issues/01-present-soft-strategy.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 529,
+      "sha256": "d1173e9acf49ae7f835b6b4eb5b0a695235eecb70e5154e6c84100980559c87e"
+    },
+    {
+      "path": ".scratch/soft-strategy-ui/verification/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 1507,
+      "sha256": "a3b72c70f11a6c88d54225af8ca821fae1dc4408e3159838f70c65925a072ea1"
+    },
+    {
+      "path": ".scratch/soft-strategy-ui/verification/map-enclosed.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 221453,
+      "sha256": "7ea1165a63321fa37c8842d2a1b69b834a50696bfdc43ab56aa4e71949061f91"
+    },
+    {
+      "path": ".scratch/soft-strategy-ui/verification/map-narrow.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 152498,
+      "sha256": "6892cb390200e6f16494078b649c562135886a01615b99b8d9313f03f9d8719a"
+    },
+    {
+      "path": ".scratch/soft-strategy-ui/verification/map-reference.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 230243,
+      "sha256": "d467bd4af196363dc8391ea249cb720d636d7e92dca04fa6e4859c708b267a53"
+    },
+    {
+      "path": ".scratch/soft-strategy-ui/verification/map-small.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 193801,
+      "sha256": "807479e405ffabdf93be822701d0139c08e5014f058852fd7c52a53ca0fbf4cd"
+    },
+    {
+      "path": ".scratch/soft-strategy-ui/verification/photo-empty.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 116925,
+      "sha256": "9251704e38c963b74fba142e6e06266d27786a15210e787eb76c626197fbaf0f"
+    },
+    {
+      "path": ".scratch/soft-strategy-ui/verification/photo-narrow-bottom.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 86813,
+      "sha256": "ac220cf56f80c0efc06e0748848eb795919d24d8062e85bda19e836138b47a92"
+    },
+    {
+      "path": ".scratch/soft-strategy-ui/verification/photo-narrow-top.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 199527,
+      "sha256": "b2aafc3e3bbeed7b2d9cba6e61d426ea54df7676661100b4d637ec84deed302c"
+    },
+    {
+      "path": ".scratch/soft-strategy-ui/verification/photo-rejected.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 442403,
+      "sha256": "4226f056091f508867a58ee0ceee5017b2f5e74d729693b367b4560bb6463d38"
+    },
+    {
+      "path": ".scratch/soft-strategy-ui/verification/photo-small.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 329697,
+      "sha256": "b5b30cb0367cf7d724d1f464fea5346bc08c927c528f14ff1194aabde2e6cad8"
+    },
+    {
+      "path": ".scratch/soft-strategy-ui/verification/photo-success.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 295673,
+      "sha256": "41d21939f8f4afc12e4eb09985a34086e16c78fac69aab8827b017e2ad49c0d1"
+    },
+    {
+      "path": ".scratch/task-a-simulation/brick-edit/brick-1024x768-brick-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 832,
+      "sha256": "ad364b1ef28279fbb6d7f3f13054dab2c39e2da00d96612b1d2deee1ea4acede"
+    },
+    {
+      "path": ".scratch/task-a-simulation/brick-edit/brick-1280x720-brick-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 832,
+      "sha256": "e281bea18449b19a7cb0b8ca88e497055f4bfe9877306de1c7a1e854ea10fd28"
+    },
+    {
+      "path": ".scratch/task-a-simulation/brick-edit/outline-fixed-brick-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 831,
+      "sha256": "7c88c0061b1b2aa7a1dd1575af57440ef242146793b948c28b72a3087e4f92f4"
+    },
+    {
+      "path": ".scratch/task-a-simulation/grid-border/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 2600,
+      "sha256": "a44d013d37b85ff25c7394f985f7236b34de76036faf951aeccf6f6939ca2600"
+    },
+    {
+      "path": ".scratch/task-a-simulation/grid-border/after-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 3390,
+      "sha256": "42a8ac5c6f27f56b59dc74ed2351d1c82b4e7e2239a9c5ad9d1fb0f0ba67ab8d"
+    },
+    {
+      "path": ".scratch/task-a-simulation/grid-border/before-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 3390,
+      "sha256": "adadd6bcce11224bed2728cd6a8f916e6b864d940fb968a946eac061cd098864"
+    },
+    {
+      "path": ".scratch/task-a-simulation/issues/01-camera-preview.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1876,
+      "sha256": "50e5c588d932ee56b18b6fc0d3190ffe89fdaeca7feb62fac157ee95b9335e96"
+    },
+    {
+      "path": ".scratch/task-a-simulation/issues/02-mouse-editing.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1493,
+      "sha256": "575d3c8895d6a7b9d7e1b16511120e85c5543432e4d3b5e5d2eb7c54a0522e82"
+    },
+    {
+      "path": ".scratch/task-a-simulation/issues/03-workspace-view.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1879,
+      "sha256": "6ce31177560321b8ffb7ea1143d61ae0fb1aa5c7080a4cf419215233e81b8996"
+    },
+    {
+      "path": ".scratch/task-a-simulation/issues/04-grid-pointer.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 879,
+      "sha256": "eee1377c64f5369a1052dacc894faf1178a9b576b91b5ced74db4eb14f87fc2c"
+    },
+    {
+      "path": ".scratch/task-a-simulation/issues/05-grid-border.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1584,
+      "sha256": "b8ea3d83415947afa68c8f2382728155003eec9856ea3df0db95b6987302074d"
+    },
+    {
+      "path": ".scratch/task-a-simulation/live-preview-verification.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 53,
+      "sha256": "21b42fbe6710da49a863aeda8e26a9908e3820a2691e153b64217bb295c372d9"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/after-border-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 7190,
+      "sha256": "ed4b2735bb8b3376466ca9dccde384f062aa2473b96621a683915e096865e1ad"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/border-1024x768-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 7192,
+      "sha256": "5a9671117b740f66e955f4c2e3b77053128736a3a2a98eb77f0b89d5ec3995bd"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/border-1280x720-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 7190,
+      "sha256": "0c9828bb243c271ef4bd2e2892d66c54b6b2fa0dfa4f47df737840d4d1ae5437"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/brick-1024x768-brick-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 832,
+      "sha256": "ad364b1ef28279fbb6d7f3f13054dab2c39e2da00d96612b1d2deee1ea4acede"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/brick-1280x720-brick-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 832,
+      "sha256": "e281bea18449b19a7cb0b8ca88e497055f4bfe9877306de1c7a1e854ea10fd28"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/brick-current-brick-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 766,
+      "sha256": "725f1affeca09ad3c7126d22819a7e89168cab4aae29b50551de468b83a2eea3"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/capture-regression-brick-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 832,
+      "sha256": "ad364b1ef28279fbb6d7f3f13054dab2c39e2da00d96612b1d2deee1ea4acede"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/clear-board-clear-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 786,
+      "sha256": "ec88afcc31123cf9497398a482d4704a9b68bc70ad095594d0654e4050255455"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/corners-gt-regression-gt-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 1191,
+      "sha256": "1d0b29c41af410e7b0f5e1e459afa9d443399057d7ed19b58a668eb5db2733dd"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/corners-validation-corner-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 1375,
+      "sha256": "9b33b9c0618e2cb2a810062046521a6782c73369cb7fa29db5c8074cc615cbcc"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/current-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 7188,
+      "sha256": "6af86f657dedccc9dc0364c538611251b5a5b2cc5a4ec10952799e65373c33c9"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/gt-paired-gt-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 1191,
+      "sha256": "374bb455dd441eba0da44469df6da5d7d0773955df9722fa87dc6d109c2235ad"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/outline-before-brick-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 174,
+      "sha256": "32005f9c1dd6bff1b2a5ee52918e7dc31b1bf383c086dc2178fd8138fcf82b1c"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/outline-fixed-brick-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 831,
+      "sha256": "7c88c0061b1b2aa7a1dd1575af57440ef242146793b948c28b72a3087e4f92f4"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/palette-four-palette-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 588,
+      "sha256": "30b2dee0bd6df626ed6b924321fd7aff9ac9669d5fd1099c402005e1b9145b99"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/palette-many-narrow-palette-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 1848,
+      "sha256": "bbcc2523c19979154f76707afb1c5d3f32bf098ab7864d9a740fa59ac49dc664"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/palette-many-palette-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 1847,
+      "sha256": "6774b8deb097e5a619d22fdf2b5bca915fa312e38b46a823c508f694e22cfe12"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/palette-regression-brick-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 832,
+      "sha256": "ad364b1ef28279fbb6d7f3f13054dab2c39e2da00d96612b1d2deee1ea4acede"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/rgb-capture-capture-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 760,
+      "sha256": "c83ff02ea0d7ad3b86e07511d327adda2635523108155efbfb6f417f371f9e92"
+    },
+    {
+      "path": ".scratch/task-a-simulation/pointer-hover/rgb-capture-narrow-capture-checks.txt",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 759,
+      "sha256": "9a45ece37441ddb713e94194b1c22e7eea5abb52035d346b6501670d60e8f844"
+    },
+    {
+      "path": ".scratch/task-a-simulation/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 6158,
+      "sha256": "7bfca7565a5578e3dffdfd73ad8572dea194914193fdb773adf0f4705cc58e12"
+    },
+    {
+      "path": ".scratch/task-a-simulation/workspace-view/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 4835,
+      "sha256": "892e460fc02989ae1845013955a5f88b55475cc43740c1c78d27283d15509580"
+    },
+    {
+      "path": ".scratch/task-b-recognition/issues/01-single-frame.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 400,
+      "sha256": "312ebbe3c688a6206c4b69bb29a452b86f199b38f6599a667fa1c3b371b50527"
+    },
+    {
+      "path": ".scratch/task-b-recognition/issues/02-change-events.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 449,
+      "sha256": "d14606a2425e87849532052bd7c76cc48d0cdfad3a89b5a5ceb5742ced05984e"
+    },
+    {
+      "path": ".scratch/task-b-recognition/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 816,
+      "sha256": "ddc0a79a723a79d6b6e54569457241f1f29248d80e717204c54e107b0bcd30e2"
+    },
+    {
+      "path": ".scratch/task-c-feedback/issues/01-level-semantics.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1172,
+      "sha256": "709fff34eaf9fd17902af30dc923e72cf5fdcbdba2003e960fb1c90407dd4d34"
+    },
+    {
+      "path": ".scratch/task-c-feedback/issues/02-projection-plan.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1500,
+      "sha256": "06c759ddf5ac1a868a46643060ea0edcbb0d7e74f6a7496eb98ab25f02a79783"
+    },
+    {
+      "path": ".scratch/task-c-feedback/issues/03-feedback-session.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1214,
+      "sha256": "95cc81bfc5900003796537f638add6d24d57e9c16c462e47c73ff9752fd85b19"
+    },
+    {
+      "path": ".scratch/task-c-feedback/issues/04-unity-views-and-layering.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 2333,
+      "sha256": "2f2cec8e5a42affbb74deecb64b6e1fd436222ac9751beffec4481ea0e39a109"
+    },
+    {
+      "path": ".scratch/task-c-feedback/issues/05-docs-and-verification.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1155,
+      "sha256": "c40bcccade1aa8c3363c50eb68713d49823bed0c9924d1a88504cbeeac77ffdd"
+    },
+    {
+      "path": ".scratch/task-c-feedback/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 4178,
+      "sha256": "1a35282a2b97f404be69a3176eb55089352c405f7465a6b20975ceca24d81919"
+    },
+    {
+      "path": ".scratch/task-c-feedback/verification/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 20419,
+      "sha256": "10df9ae784135521180deeabdeedb86d4e12c123b049b82a005a60e09ecea0f9"
+    },
+    {
+      "path": ".scratch/touch-zoom/issues/01-touch-and-zoom.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 760,
+      "sha256": "e938c988d2a16dce9e6a72bbd0b1e26ad3dcd1986c9174870214248dcc1173c6"
+    },
+    {
+      "path": ".scratch/touch-zoom/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 2964,
+      "sha256": "5691bc8a0d4ac81e362b4e7689f85471d39c01f81608d4a998f27042d9e2eea1"
+    },
+    {
+      "path": ".scratch/touch-zoom/verification/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 1237,
+      "sha256": "2153ca01c83c8891ab2e06868ac24ceafdb36a95c84fe1c0570e352f848874ca"
+    },
+    {
+      "path": ".scratch/touch-zoom/verification/map-narrow-zoomed.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 116518,
+      "sha256": "61b9041f24794d7a4c8dc5aea5e80b370169431c669ea8bd93a971cad21c2f94"
+    },
+    {
+      "path": ".scratch/touch-zoom/verification/map-tabletop.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 285996,
+      "sha256": "d89babb310195c8870af6bf22a356b25c3fffe2c1b5a0581760a66a7c60c4b29"
+    },
+    {
+      "path": ".scratch/touch-zoom/verification/map-zoom-out.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 174775,
+      "sha256": "fe093f8bcb7d8b1513d3e235847bf7a3963a6f502e1eaa22362cf872ecfca275"
+    },
+    {
+      "path": ".scratch/touch-zoom/verification/map-zoomed.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 279448,
+      "sha256": "e63ff25588ce850e56edaad99a090227e937223f2fe7b642f7c7e74ae04c14c3"
+    },
+    {
+      "path": ".scratch/windows-photo-picker/Verify-PhotoPicker.ps1",
+      "category": "historical-verification-tool",
+      "action": "retain",
+      "bytes": 4587,
+      "sha256": "d5c37f0f7e8ac9edc57bbc2f68e1d69bc2ea33de0c2ec8d5e3b82e44733dac15"
+    },
+    {
+      "path": ".scratch/windows-photo-picker/issues/01-fix-import-dialog.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 827,
+      "sha256": "11d438146336aecf53258792e309ed4816f9186526b4610d2da68d58020565b4"
+    },
+    {
+      "path": ".scratch/windows-photo-picker/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1131,
+      "sha256": "605b1be354a0a5bb64e090f66f49084732becf60a9df00d5eb7c6a800fb81b13"
+    },
+    {
+      "path": ".scratch/windows-photo-picker/verification/02-cancel-empty.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 84152,
+      "sha256": "44f30e03c8233afe0ffe9de2d755710e0bea64546fe82ee6e00aef9c251ff9be"
+    },
+    {
+      "path": ".scratch/windows-photo-picker/verification/03-import-jpg.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 302394,
+      "sha256": "bd255cac46070751f0d21a3fe852cc45a3c81f214ed07c3260c2fefa47e77149"
+    },
+    {
+      "path": ".scratch/windows-photo-picker/verification/04-native-dialog.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 56783,
+      "sha256": "cef2fa792beae0de145e52143e584b77a89e358c03b7da2df84185962dd8d80b"
+    },
+    {
+      "path": ".scratch/windows-photo-picker/verification/05-cancel-preserves-photo.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 298404,
+      "sha256": "f01b16ce06fc1693b17bf359b5e843430a73743709feedd0551268165c6819ea"
+    },
+    {
+      "path": ".scratch/windows-photo-picker/verification/06-import-png.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 86662,
+      "sha256": "c295e64647b09792be2aac805abd16544e8aeecfb55298ba4919bf81045d3571"
+    },
+    {
+      "path": ".scratch/windows-photo-picker/verification/07-import-jpeg.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 302394,
+      "sha256": "bd255cac46070751f0d21a3fe852cc45a3c81f214ed07c3260c2fefa47e77149"
+    },
+    {
+      "path": ".scratch/windows-photo-picker/verification/08-map-preserved.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 208585,
+      "sha256": "1910ef212d81c971b2d4e2b3d06974e3d887802f33377b24f1580a8737bd4703"
+    },
+    {
+      "path": ".scratch/windows-photo-picker/verification/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 2609,
+      "sha256": "9590d8e8d217a0ea6b73556f85165b1437373775690d16e9cbd8eec654a271cc"
+    },
+    {
+      "path": ".scratch/windows-release/Smoke-Windows.ps1",
+      "category": "historical-verification-tool",
+      "action": "retain",
+      "bytes": 9149,
+      "sha256": "d819ad6e33f6534fd38cb80272e1da6c1074452efd23b0edee4c014f5c8e68a3"
+    },
+    {
+      "path": ".scratch/windows-release/issues/01-package-windows.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 969,
+      "sha256": "6a7fc1aa4c13451e545adea5bc0635c545304cec8e551901a7063d36bc72c0e0"
+    },
+    {
+      "path": ".scratch/windows-release/spec.md",
+      "category": "requirement-or-task",
+      "action": "retain",
+      "bytes": 1280,
+      "sha256": "5330eec44cae97f41b094a17e71805779c799d9ee14b69037649e80ac0951078"
+    },
+    {
+      "path": ".scratch/windows-release/verification/01-start.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 208603,
+      "sha256": "de17be484823877890d75f74624c6647c02620761209e2f78191f7f8c7b2e1ec"
+    },
+    {
+      "path": ".scratch/windows-release/verification/02-photo-page.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 81206,
+      "sha256": "97bbbbe7154bb72d12966c588c57fe2c983b7cb5818011f696763a251d1099fa"
+    },
+    {
+      "path": ".scratch/windows-release/verification/03-imported-photo.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 271981,
+      "sha256": "de01e732decc6f713921ffd6fd657a4482469ed3d01bb286c1622282083d25b9"
+    },
+    {
+      "path": ".scratch/windows-release/verification/04-analyzed-photo.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 267455,
+      "sha256": "65d5427bc8db5a0e8ee2c2c2956f840ee6179aefbd2d402da0d7da109b41fe59"
+    },
+    {
+      "path": ".scratch/windows-release/verification/05-physical-review.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 328261,
+      "sha256": "eba1a4d366e269fa543c8767cc4679da02f94f35fb02491f422cea57b79856af"
+    },
+    {
+      "path": ".scratch/windows-release/verification/06-design.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 331522,
+      "sha256": "a65cc9d73460ff986f1ea61c05c75ae5ed12db2dae1b3e761ce3ca66e7fe4777"
+    },
+    {
+      "path": ".scratch/windows-release/verification/07-3d-preview.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 197772,
+      "sha256": "571bcdbadda33269153b2ff5b5892cc666792e84778a7e5fd8983615bf8ab398"
+    },
+    {
+      "path": ".scratch/windows-release/verification/08-published-map.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 209667,
+      "sha256": "edb6100c5be92375fea0cd076b53a4aeac6ec367f2cc7459853f98c276921b07"
+    },
+    {
+      "path": ".scratch/windows-release/verification/09-battle-config.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 124490,
+      "sha256": "823929d5f3e3ee1a8f97f609c69cb3365e3ee18baeac05274b40246b52785ada"
+    },
+    {
+      "path": ".scratch/windows-release/verification/10-battle.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 209405,
+      "sha256": "9b6ac82c2523cd6490b4da926f1d4254ba9885ec16ba2cc1ba7f7c9804c7f7d3"
+    },
+    {
+      "path": ".scratch/windows-release/verification/11-result.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 172980,
+      "sha256": "efc41d5c7704f9f075addc7ade8a2101b845b58be6e974aec266bdad0cfca6d6"
+    },
+    {
+      "path": ".scratch/windows-release/verification/12-unpacked-start.png",
+      "category": "local-artifact",
+      "action": "stop-tracking-keep-local",
+      "bytes": 208609,
+      "sha256": "61f62775ea5116abb33b70ac408fb844898b803a75f440eb762e8211f7fd08ec"
+    },
+    {
+      "path": ".scratch/windows-release/verification/README.md",
+      "category": "verification-record",
+      "action": "retain",
+      "bytes": 3525,
+      "sha256": "6138eb637ffd85256970004b68edfa52ad2fef8890dead17b33c0188c0c3bd7b"
+    }
+  ]
+}
