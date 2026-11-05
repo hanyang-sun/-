@@ -5,6 +5,8 @@ DatasetPlanChecks.Run();
 LevelSemanticsChecks.Run();
 ProjectionPlanChecks.Run();
 AudienceProjectionChecks.Run();
+ProjectionUnblendChecks.Run();
+RealProjectorChecks.Run();
 LevelFeedbackChecks.Run();
 VisionChecks.Run();
 BattleChecks.Run();

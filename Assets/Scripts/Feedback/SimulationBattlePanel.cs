@@ -30,6 +30,8 @@ namespace Brick2Life.Feedback
         private bool synced;
         private GameObject body;
         private GameObject selectionBar;
+        private RectTransform battleToggle;
+        private RectTransform selectionBarRect;
         private bool bodyVisibleBeforeSelect = true;
 
         public bool IsVisible => visible;
@@ -47,6 +49,77 @@ namespace Brick2Life.Feedback
             SyncFromController();
             SetVisible(visible);
             if (controller != null) Refresh(controller);
+        }
+
+        private void LateUpdate() => PlaceBelowWorkspaceTitle();
+
+        // Match the recognition switch and keep both stacked when the game view is resized or closed.
+        private void PlaceBelowWorkspaceTitle()
+        {
+            var recognition = GameObject.Find("VisionToggle");
+            if (recognition == null || battleToggle == null || body == null) return;
+            var recognitionRect = recognition.GetComponent<RectTransform>();
+            if (recognitionRect.rect.height < 8f) return;
+            var canvas = recognitionRect.parent as RectTransform;
+            if (canvas == null) return;
+            if (battleToggle.parent != canvas) battleToggle.SetParent(canvas, false);
+            Vector2 bottomLeft = CanvasLocal(canvas, recognitionRect, 0);
+            Vector2 bottomRight = CanvasLocal(canvas, recognitionRect, 3);
+            Vector2 topLeft = CanvasLocal(canvas, recognitionRect, 1);
+            float width = Mathf.Abs(bottomRight.x - bottomLeft.x);
+            float height = Mathf.Abs(topLeft.y - bottomLeft.y);
+            if (width < 8f || height < 8f) return;
+            const float gap = 6f;
+            battleToggle.anchorMin = battleToggle.anchorMax = new Vector2(0.5f, 0.5f);
+            battleToggle.pivot = new Vector2(0f, 1f);
+            battleToggle.sizeDelta = new Vector2(width, height);
+            battleToggle.anchoredPosition = new Vector2(bottomLeft.x, bottomLeft.y - gap);
+            var battleImage = battleToggle.GetComponent<Image>();
+            if (battleImage != null) battleImage.color = new Color(0.16f, 0.34f, 0.46f, 0.92f);
+            FitHeaderLabel(battleToggle.GetComponent<Button>());
+
+            var battleCanvas = body.GetComponentInParent<Canvas>().GetComponent<RectTransform>();
+            var buttonCorners = new Vector3[4];
+            battleToggle.GetWorldCorners(buttonCorners);
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(battleCanvas,
+                RectTransformUtility.WorldToScreenPoint(null, buttonCorners[0]), null, out Vector2 buttonBottom))
+                return;
+            float topInset = battleCanvas.rect.yMax - buttonBottom.y + 8f;
+            var rect = (RectTransform)body.transform;
+            rect.offsetMin = new Vector2(12f, 0f);
+            rect.offsetMax = new Vector2(392f, -topInset);
+            if (selectionBarRect != null)
+            {
+                selectionBarRect.anchorMin = selectionBarRect.anchorMax = new Vector2(0f, 1f);
+                selectionBarRect.pivot = new Vector2(0f, 1f);
+                selectionBarRect.anchoredPosition = new Vector2(12f, -topInset);
+            }
+        }
+
+        private static Vector2 CanvasLocal(RectTransform canvas, RectTransform source, int corner)
+        {
+            var corners = new Vector3[4];
+            source.GetWorldCorners(corners);
+            return canvas.InverseTransformPoint(corners[corner]);
+        }
+
+        private static void FitHeaderLabel(Button button)
+        {
+            if (button == null) return;
+            var label = button.GetComponentInChildren<Text>();
+            if (label == null) return;
+            label.alignment = TextAnchor.MiddleCenter;
+            label.color = Color.white;
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
+            label.verticalOverflow = VerticalWrapMode.Overflow;
+            label.raycastTarget = false;
+            if (label.font != null) label.font.RequestCharactersInTexture(label.text, label.fontSize, label.fontStyle);
+            var rect = label.rectTransform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            rect.localScale = Vector3.one;
         }
 
         public void SetVisible(bool value)
@@ -202,21 +275,30 @@ namespace Brick2Life.Feedback
 
             // Always-on top-left switch so the panel can be collapsed to see the whole board.
             var toggle = AddButton(canvasObject.transform, "战斗面板 ▾", () => { if (body != null) body.SetActive(!body.activeSelf); });
-            var toggleRect = (RectTransform)toggle.transform;
-            toggleRect.anchorMin = new Vector2(0, 1); toggleRect.anchorMax = new Vector2(0, 1);
-            toggleRect.pivot = new Vector2(0, 1);
-            toggleRect.sizeDelta = new Vector2(130, 28);
-            toggleRect.anchoredPosition = new Vector2(12, -12);
+            battleToggle = (RectTransform)toggle.transform;
+            battleToggle.anchorMin = new Vector2(0, 1); battleToggle.anchorMax = new Vector2(0, 1);
+            battleToggle.pivot = new Vector2(0, 1);
+            battleToggle.sizeDelta = new Vector2(160, 32);
+            battleToggle.GetComponent<Image>().color = new Color(0.16f, 0.34f, 0.46f, 0.92f);
+            var label = battleToggle.GetComponentInChildren<Text>();
+            if (label != null)
+            {
+                label.fontSize = 16;
+                label.alignment = TextAnchor.MiddleCenter;
+                label.color = Color.white;
+                if (label.font != null) label.font.RequestCharactersInTexture(label.text, label.fontSize, label.fontStyle);
+            }
+            battleToggle.anchoredPosition = new Vector2(12, -72);
 
             var barObject = new GameObject("BattleSelectionBar");
             barObject.transform.SetParent(canvasObject.transform, false);
             var barImage = barObject.AddComponent<Image>();
             barImage.color = new Color(0.10f, 0.12f, 0.16f, 0.92f);
-            var barRect = barImage.rectTransform;
-            barRect.anchorMin = new Vector2(0, 1); barRect.anchorMax = new Vector2(0, 1);
-            barRect.pivot = new Vector2(0, 1);
-            barRect.sizeDelta = new Vector2(430, 34);
-            barRect.anchoredPosition = new Vector2(12, -48);
+            selectionBarRect = barImage.rectTransform;
+            selectionBarRect.anchorMin = new Vector2(0, 1); selectionBarRect.anchorMax = new Vector2(0, 1);
+            selectionBarRect.pivot = new Vector2(0, 1);
+            selectionBarRect.sizeDelta = new Vector2(430, 34);
+            selectionBarRect.anchoredPosition = new Vector2(12, -108);
             var barRow = barObject.AddComponent<HorizontalLayoutGroup>();
             barRow.padding = new RectOffset(10, 6, 4, 4);
             barRow.spacing = 8;

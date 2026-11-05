@@ -51,6 +51,9 @@ namespace Brick2Life.Simulation
         public bool HasConfirmed(long requestedSequence) => confirmedCaptureSequence >= requestedSequence;
 
         private bool automatic = true;
+        private bool subtractProjectedLight;
+        private BoardHomography realHomography;
+        private AdditiveLightModel realResponse;
         public bool Automatic
         {
             get => automatic;
@@ -155,14 +158,64 @@ namespace Brick2Life.Simulation
             Publish(null, null);
         }
 
+        private void LateUpdate() => PlaceRecognitionButton();
+
+        // Stay under the workspace title on its own canvas, including after the game view is closed and reopened.
+        private void PlaceRecognitionButton()
+        {
+            if (toggleButton == null) return;
+            var titleObject = GameObject.Find("WorkspaceTitle");
+            if (titleObject == null) return;
+            var title = titleObject.GetComponent<RectTransform>();
+            if (title.rect.height < 8f) return;
+            var canvas = title.parent as RectTransform;
+            if (canvas == null) return;
+            var toggleRect = (RectTransform)toggleButton.transform;
+            if (toggleRect.parent != canvas) toggleRect.SetParent(canvas, false);
+            Vector2 bottomLeft = CanvasLocal(canvas, title, 0);
+            toggleRect.anchorMin = toggleRect.anchorMax = new Vector2(0.5f, 0.5f);
+            toggleRect.pivot = new Vector2(0f, 1f);
+            toggleRect.sizeDelta = new Vector2(160f, 32f);
+            toggleRect.anchoredPosition = new Vector2(bottomLeft.x + 12f, bottomLeft.y - 8f);
+            FitHeaderLabel(toggleButton);
+        }
+
+        internal static Vector2 CanvasLocal(RectTransform canvas, RectTransform source, int corner)
+        {
+            var corners = new Vector3[4];
+            source.GetWorldCorners(corners);
+            return canvas.InverseTransformPoint(corners[corner]);
+        }
+
+        internal static void FitHeaderLabel(Button button)
+        {
+            var label = button.GetComponentInChildren<Text>();
+            if (label == null) return;
+            label.alignment = TextAnchor.MiddleCenter;
+            label.color = Color.white;
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
+            label.verticalOverflow = VerticalWrapMode.Overflow;
+            label.raycastTarget = false;
+            if (label.font != null) label.font.RequestCharactersInTexture(label.text, label.fontSize, label.fontStyle);
+            var rect = label.rectTransform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            rect.localScale = Vector3.one;
+        }
+
         private void Update()
         {
             ScrollEventLogFromPointer();
-            // F8 switches between interference-free sampling and sampling that includes task C's projection.
+            // F8 includes the projection in the recognition photo. Normal play leaves it out,
+            // so a brick edit can be confirmed and the audience projection can follow.
             if (Input.GetKeyDown(KeyCode.F8) && capture != null)
             {
                 capture.CaptureWithoutProjection = !capture.CaptureWithoutProjection;
-                Debug.Log("识别取样" + (capture.CaptureWithoutProjection ? "排除" : "包含") + "投影层，观众画面保持显示（F8 切换）。", this);
+                Debug.Log(capture.CaptureWithoutProjection
+                    ? "识别改回只拍积木，投影画面保持显示（F8 切换）。"
+                    : "识别改为拍摄带投影的画面（F8 切换）。", this);
             }
             if (!Automatic || board == null) return;
             elapsed += Time.unscaledDeltaTime;
@@ -173,7 +226,7 @@ namespace Brick2Life.Simulation
                     if (primed && elapsed < interval) return;
                     primed = true;
                     elapsed = 0;
-                    capture.BeginObservationCapture();
+                    capture.BeginObservationCapture(RecognitionSeesProjection());
                 }
                 if (!capture.TryCompleteObservationCapture(out SimulationObservationImage image)) return;
                 AnalyzeImage(image);
@@ -196,11 +249,90 @@ namespace Brick2Life.Simulation
             if (capture != null) capture.CancelObservationCapture();
         }
 
+        private bool RecognitionSeesProjection() => !capture.CaptureWithoutProjection;
+
+        // The photo includes the projected light. Remove it only where the pixel really is that light
+        // blended onto a surface; brick tops that hide the sheet fail the recovery and stay unchanged.
+        private void RemoveProjectedLight(RgbImage image, GridSample[][] samples)
+        {
+            IProjectedLightSample light = ProjectedLight.Current;
+            if (!subtractProjectedLight || light == null || samples == null) return;
+            foreach (GridSample[] cell in samples)
+            {
+                if (cell == null) continue;
+                foreach (GridSample sample in cell)
+                {
+                    if (!sample.InFront) continue;
+                    if (!capture.TryBoardPoint(sample.PixelX, sample.PixelY, light.PlaneY, out float boardX, out float boardY)) continue;
+                    if (!light.TrySample(boardX, boardY, out float lightRed, out float lightGreen, out float lightBlue, out float alpha)) continue;
+                    if (!image.TryRead(sample.PixelX, sample.PixelY, out byte red, out byte green, out byte blue)) continue;
+                    if (!ProjectionUnblend.TryRecover(red, green, blue, lightRed, lightGreen, lightBlue, alpha,
+                        out byte recoveredRed, out byte recoveredGreen, out byte recoveredBlue)) continue;
+                    image.SetPixel((int)Math.Floor(sample.PixelX + 0.5), (int)Math.Floor(sample.PixelY + 0.5),
+                        recoveredRed, recoveredGreen, recoveredBlue);
+                }
+            }
+        }
+
+        // Real camera: four board corners in the photo, plus patch photos that measure how bright each projector channel appears.
+        public void UseRealProjector(BoardHomography homography, AdditiveLightModel response)
+        {
+            if (homography == null) throw new ArgumentNullException(nameof(homography));
+            if (response == null) throw new ArgumentNullException(nameof(response));
+            realHomography = homography;
+            realResponse = response;
+        }
+
+        public void RecognizeDeviceFrame(byte[] rgb, int width, int height, DateTimeOffset capturedAtUtc)
+        {
+            if (realHomography == null || realResponse == null || calibration == null || board == null || sync == null)
+                throw new InvalidOperationException("先完成真实相机和投影仪的校准。");
+            IProjectedLightSample light = ProjectedLight.Current;
+            if (light == null) throw new InvalidOperationException("还没有可减去的投影画面。");
+            var image = new RgbImage(width, height, rgb);
+            GridSample[][] samples = CameraProjection.CreateSamples(board.Definition, calibration, MapRealBoard);
+            RemoveRealLight(image, light);
+            captureSequence++;
+            RecognizePrepared(image, samples, capturedAtUtc, board.Snapshot());
+        }
+
+        private bool MapRealBoard(double x, double y, double z, out double pixelX, out double pixelY)
+        {
+            pixelX = 0;
+            pixelY = 0;
+            if (realHomography == null || !realHomography.TryMap((float)x, (float)z, out float mappedX, out float mappedY))
+                return false;
+            pixelX = mappedX;
+            pixelY = mappedY;
+            return true;
+        }
+
+        private void RemoveRealLight(RgbImage image, IProjectedLightSample light)
+        {
+            int count = calibration.SamplesPerAxis;
+            for (int y = 0; y < board.Definition.Height; y++)
+                for (int x = 0; x < board.Definition.Width; x++)
+                    for (int row = 0; row < count; row++)
+                        for (int column = 0; column < count; column++)
+                        {
+                            CameraProjection.TopPoint(board.Definition, x, y, column, row, count, calibration.Inset, calibration.SurfaceY,
+                                out double worldX, out double worldY, out double worldZ);
+                            if (!realHomography.TryMap((float)worldX, (float)worldZ, out float pixelX, out float pixelY)) continue;
+                            if (!light.TrySample((float)worldX, (float)worldZ, out float lightRed, out float lightGreen, out float lightBlue, out float alpha))
+                                continue;
+                            if (!image.TryRead(pixelX, pixelY, out byte red, out byte green, out byte blue)) continue;
+                            if (!realResponse.TryRecover(red, green, blue, lightRed, lightGreen, lightBlue, alpha,
+                                out byte recoveredRed, out byte recoveredGreen, out byte recoveredBlue)) continue;
+                            image.SetPixel((int)Math.Floor(pixelX + 0.5), (int)Math.Floor(pixelY + 0.5),
+                                recoveredRed, recoveredGreen, recoveredBlue);
+                        }
+        }
+
         public void AnalyzeOnce()
         {
             if (board == null || !board.IsInitialized || capture == null || calibration == null)
                 throw new InvalidOperationException("识别面板尚未绑定棋盘和相机。");
-            SimulationObservationImage image = capture.CaptureObservationImage();
+            SimulationObservationImage image = capture.CaptureObservationImage(RecognitionSeesProjection());
             AnalyzeImage(image);
         }
 
@@ -211,15 +343,21 @@ namespace Brick2Life.Simulation
             BoardSnapshot truth = board.Snapshot();
             GridSample[][] samples = capture.BuildTopSamples(board.Definition, calibration, image.Width, image.Height);
             var rgb = new RgbImage(image.Width, image.Height, image.Rgb);
+            if (image.ProjectionVisible) RemoveProjectedLight(rgb, samples);
+            RecognizePrepared(rgb, samples, image.CapturedAtUtc, truth);
+        }
+
+        private void RecognizePrepared(RgbImage rgb, GridSample[][] samples, DateTimeOffset capturedAtUtc, BoardSnapshot truth)
+        {
             FrameObservation observation = FixedGridRecognizer.Recognize(board.Definition, rgb, samples, calibration,
-                "pending", "pending", 0, image.CapturedAtUtc);
+                "pending", "pending", 0, capturedAtUtc);
             LastRawScore = RecognitionScore.Compare(observation, truth);
             LayoutTrackStep step = tracker.Observe(observation);
             LastStableScore = step.StableCells == null ? null : RecognitionScore.CompareCells(board.Definition, step.StableCells, truth);
             if (step.Confirmable)
             {
-                string frameId = "vision_" + image.CapturedAtUtc.ToString("yyyyMMdd_HHmmssfff", CultureInfo.InvariantCulture) + "_" + Guid.NewGuid().ToString("N");
-                ObservationRequest request = sync.BeginFrame(frameId, image.CapturedAtUtc);
+                string frameId = "vision_" + capturedAtUtc.ToString("yyyyMMdd_HHmmssfff", CultureInfo.InvariantCulture) + "_" + Guid.NewGuid().ToString("N");
+                ObservationRequest request = sync.BeginFrame(frameId, capturedAtUtc);
                 var stamped = new FrameObservation(observation.Definition, request.FrameId, request.SessionId, request.Sequence,
                     request.CapturedAtUtc, request.CalibrationId, observation.Cells);
                 BoardUpdate update = sync.Confirm(request, stamped);
@@ -455,10 +593,11 @@ namespace Brick2Life.Simulation
             toggleRect.anchorMax = new Vector2(0.5f, 1f);
             toggleRect.pivot = new Vector2(0.5f, 1f);
             toggleRect.anchoredPosition = new Vector2(0, -12);
-            toggleRect.sizeDelta = new Vector2(168, 36);
+            toggleRect.sizeDelta = new Vector2(160, 32);
             toggleLabel = toggleButton.GetComponentInChildren<Text>();
             toggleLabel.text = "关闭识别";
             toggleButton.onClick.AddListener(() => SetPanelVisible(!IsPanelVisible));
+            PlaceRecognitionButton();
 
             panel = new GameObject("VisionRecognitionPanel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(VerticalLayoutGroup));
             panel.transform.SetParent(canvasObject.transform, false);
@@ -710,7 +849,11 @@ namespace Brick2Life.Simulation
             rect.offsetMax = Vector2.zero;
             Text label = labelObject.GetComponent<Text>();
             label.font = uiFont;
-            label.fontSize = 18;
+            label.fontSize = 16;
+            label.alignment = TextAnchor.MiddleCenter;
+            label.color = Color.white;
+            label.raycastTarget = false;
+            if (label.font != null) label.font.RequestCharactersInTexture("关闭识别识别结果", label.fontSize, label.fontStyle);
             label.alignment = TextAnchor.MiddleCenter;
             label.color = Color.white;
             label.raycastTarget = false;

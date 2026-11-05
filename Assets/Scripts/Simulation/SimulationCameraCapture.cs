@@ -43,10 +43,12 @@ namespace Brick2Life.Simulation
         public bool ObservationCapturePending => observationPending;
 
         // Automatic capture excludes the projection layer for this render only. The audience view stays on.
-        public void BeginObservationCapture()
+        public void BeginObservationCapture() => BeginObservationCapture(!captureWithoutProjection);
+
+        public void BeginObservationCapture(bool includeProjection)
         {
             if (observationPending) throw new InvalidOperationException("已有识别采样正在进行。");
-            pendingIncludesProjection = !captureWithoutProjection;
+            pendingIncludesProjection = includeProjection;
             observationStartedFrame = Time.frameCount;
             observationStartedTime = Time.realtimeSinceStartupAsDouble;
             // Retired blanking timings stay serialized so older scenes load. Sampling does not wait on them.
@@ -315,6 +317,25 @@ namespace Brick2Life.Simulation
             if (imageWidth != sourceCamera.targetTexture.width || imageHeight != sourceCamera.targetTexture.height)
                 throw new InvalidOperationException("采样尺寸与相机画面不一致。");
             return CameraProjection.CreateSamples(definition, calibration, ProjectTop);
+        }
+
+        // The recognition photo can include the projection. This finds where that same camera ray
+        // meets the sheet, so the known light can be subtracted from the pixel.
+        public bool TryBoardPoint(double pixelX, double pixelY, float planeY, out float boardX, out float boardY)
+        {
+            boardX = 0f;
+            boardY = 0f;
+            if (sourceCamera == null || sourceCamera.targetTexture == null) return false;
+            float viewportX = ((float)pixelX + 0.5f) / sourceCamera.targetTexture.width;
+            float viewportY = 1f - ((float)pixelY + 0.5f) / sourceCamera.targetTexture.height;
+            Ray ray = sourceCamera.ViewportPointToRay(new Vector3(viewportX, viewportY, 0f));
+            if (Mathf.Abs(ray.direction.y) < 1e-5f) return false;
+            float distance = (planeY - ray.origin.y) / ray.direction.y;
+            if (distance < 0f) return false;
+            Vector3 hit = ray.origin + ray.direction * distance;
+            boardX = hit.x;
+            boardY = hit.z;
+            return true;
         }
 
         private bool ProjectTop(double x, double y, double z, out double pixelX, out double pixelY)

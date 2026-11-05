@@ -14,7 +14,7 @@ namespace Brick2Life.Feedback
     /// is what a later hardware projector should display. Recognition no longer hides this sheet.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class SimulationBattleOverlay : MonoBehaviour, IProjectionGate
+    public sealed class SimulationBattleOverlay : MonoBehaviour, IProjectionGate, IProjectedLightSample
     {
         [SerializeField] private SimulationBattleController controller;
         [SerializeField] private ProjectionSimulator projector;
@@ -95,12 +95,63 @@ namespace Brick2Life.Feedback
             ApplyCaptureVisibility();
         }
 
-        private void OnEnable() => ProjectionCaptureGate.Register(this);
+        private void OnEnable()
+        {
+            ProjectionCaptureGate.Register(this);
+            ProjectedLight.Register(this);
+        }
         private void OnDisable()
         {
+            ProjectedLight.Unregister(this);
             ProjectionCaptureGate.Unregister(this);
             if (sheet != null) sheet.SetActive(false);
         }
+
+        float IProjectedLightSample.PlaneY => sheet != null ? sheet.transform.position.y : 0.03f;
+
+        bool IProjectedLightSample.TrySample(float boardX, float boardY, out float red, out float green, out float blue, out float alpha)
+        {
+            red = green = blue = alpha = 0f;
+            if (sheet == null || !sheet.activeInHierarchy || sheetRenderer == null || sheetRenderer.forceRenderingOff) return false;
+            if (sheetPixels == null || sheetTexture == null) return false;
+            float board = BoardSize();
+            if (board <= 0f || boardX < 0f || boardY < 0f || boardX > board || boardY > board) return false;
+            int resolution = sheetTexture.width;
+            float pixelX = boardX / board * resolution - 0.5f;
+            float pixelY = boardY / board * resolution - 0.5f;
+            SampleBilinear(sheetPixels, resolution, pixelX, pixelY, out red, out green, out blue, out alpha);
+            return alpha > 0.001f;
+        }
+
+        private static void SampleBilinear(byte[] pixels, int resolution, float pixelX, float pixelY,
+            out float red, out float green, out float blue, out float alpha)
+        {
+            int x0 = Mathf.Clamp(Mathf.FloorToInt(pixelX), 0, resolution - 1);
+            int y0 = Mathf.Clamp(Mathf.FloorToInt(pixelY), 0, resolution - 1);
+            int x1 = Mathf.Min(x0 + 1, resolution - 1);
+            int y1 = Mathf.Min(y0 + 1, resolution - 1);
+            float tx = Mathf.Clamp01(pixelX - x0);
+            float ty = Mathf.Clamp01(pixelY - y0);
+            ReadPixel(pixels, resolution, x0, y0, out float r00, out float g00, out float b00, out float a00);
+            ReadPixel(pixels, resolution, x1, y0, out float r10, out float g10, out float b10, out float a10);
+            ReadPixel(pixels, resolution, x0, y1, out float r01, out float g01, out float b01, out float a01);
+            ReadPixel(pixels, resolution, x1, y1, out float r11, out float g11, out float b11, out float a11);
+            red = Lerp(Lerp(r00, r10, tx), Lerp(r01, r11, tx), ty);
+            green = Lerp(Lerp(g00, g10, tx), Lerp(g01, g11, tx), ty);
+            blue = Lerp(Lerp(b00, b10, tx), Lerp(b01, b11, tx), ty);
+            alpha = Lerp(Lerp(a00, a10, tx), Lerp(a01, a11, tx), ty);
+        }
+
+        private static void ReadPixel(byte[] pixels, int resolution, int x, int y, out float red, out float green, out float blue, out float alpha)
+        {
+            int index = (y * resolution + x) * 4;
+            red = pixels[index] / 255f;
+            green = pixels[index + 1] / 255f;
+            blue = pixels[index + 2] / 255f;
+            alpha = pixels[index + 3] / 255f;
+        }
+
+        private static float Lerp(float a, float b, float t) => a + (b - a) * t;
 
         private void Awake()
         {
