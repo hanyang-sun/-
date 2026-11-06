@@ -19,6 +19,8 @@ namespace Brick2Life.Battle
             public double Progress, X, Y;
             public GridPoint[] Route;
             public int WaypointIndex;
+            public bool PendingReroute;
+            public int RetryCellX, RetryCellY;
         }
 
         private sealed class Tower
@@ -122,7 +124,7 @@ namespace Brick2Life.Battle
             towers.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
         }
 
-        /// <summary>Atomically reroutes live enemies without changing positions, health or wave clocks.</summary>
+        /// <summary>Updates entrance routes immediately; overlapped enemies keep their own path until they can reconnect.</summary>
         public bool TryUpdateLevel(BattleLevel candidate, out string reason)
         {
             if (State.Finished) { reason = "本局已结束。"; return false; }
@@ -157,8 +159,7 @@ namespace Brick2Life.Battle
                 if (remaining[i] == null)
                 {
                     string issue = "敌人 " + enemies[i].Id + " 无法从当前位置到达核心。";
-                    if (keepLastValidRoutes) return KeepPreviousRoutes(candidate, issue, out reason);
-                    return WaitForLayout(issue + "请移开障碍或恢复通路。", out reason);
+                    if (!keepLastValidRoutes) return WaitForLayout(issue + "请移开障碍或恢复通路。", out reason);
                 }
             }
             routes = CopyRoutes(candidate);
@@ -166,14 +167,24 @@ namespace Brick2Life.Battle
             currentLevel = candidate;
             for (int i = 0; i < enemies.Count; i++)
             {
-                enemies[i].Route = remaining[i];
-                enemies[i].WaypointIndex = 0;
+                Enemy enemy = enemies[i];
+                enemy.PendingReroute = remaining[i] == null;
+                if (enemy.PendingReroute)
+                {
+                    enemy.RetryCellX = (int)Math.Floor(enemy.X);
+                    enemy.RetryCellY = (int)Math.Floor(enemy.Y);
+                }
+                else
+                {
+                    enemy.Route = remaining[i];
+                    enemy.WaypointIndex = 0;
+                }
             }
             UpdateTowers(candidate);
             waitingForLayout = false; layoutIssue = "";
             usingPreviousRoutes = false; routeWarning = "";
-            reason = "";
             Publish();
+            reason = State.RouteWarning;
             return true;
         }
 
@@ -182,6 +193,7 @@ namespace Brick2Life.Battle
             // Only paths are retained: confirmed new walls and towers still become the current map.
             // Existing enemy paths/waypoint indices and the complete entrance array remain untouched.
             currentLevel = candidate;
+            foreach (Enemy enemy in enemies) enemy.PendingReroute = false;
             UpdateTowers(candidate);
             waitingForLayout = false; layoutIssue = "";
             usingPreviousRoutes = true;
@@ -211,13 +223,30 @@ namespace Brick2Life.Battle
                 {
                     double dx = Math.Abs(enemy.X - nx), dy = Math.Abs(enemy.Y - ny);
                     if (dx > 1e-8 && dy > 1e-8) continue;
-                    GridPoint[] path = candidate.FindRoute(new GridPoint(nx, ny));
+                    GridPoint[] path = candidate.FindRoute(new GridPoint(nx, ny), out int pathCost);
                     if (path == null) continue;
-                    double cost = dx + dy + path.Length - 1;
+                    double cost = (dx + dy) * RouteSearch.StepCost + pathCost;
                     if (cost >= bestCost - 1e-8) continue;
                     best = path; bestCost = cost;
                 }
             return best;
+        }
+
+        private void RetryPendingEnemyRoutes()
+        {
+            if (usingPreviousRoutes || !currentLevel.IsValid) return;
+            foreach (Enemy enemy in enemies)
+            {
+                if (!enemy.PendingReroute) continue;
+                int x = (int)Math.Floor(enemy.X), y = (int)Math.Floor(enemy.Y);
+                if (x == enemy.RetryCellX && y == enemy.RetryCellY) continue;
+                enemy.RetryCellX = x; enemy.RetryCellY = y;
+                GridPoint[] route = RemainingRoute(currentLevel, enemy);
+                if (route == null) continue;
+                enemy.Route = route;
+                enemy.WaypointIndex = 0;
+                enemy.PendingReroute = false;
+            }
         }
 
         public void SetPaused(bool value)
@@ -300,6 +329,7 @@ namespace Brick2Life.Battle
                     if (remaining <= 1e-10) break;
                 }
             }
+            RetryPendingEnemyRoutes();
             AdvanceBubbles(shots);
             foreach (Tower item in towers)
             {
@@ -413,13 +443,17 @@ namespace Brick2Life.Battle
         private void Publish()
         {
             var snapshots = new EnemyState[enemies.Count];
+            int pending = 0;
             for (int i = 0; i < enemies.Count; i++)
             {
                 Enemy enemy = enemies[i];
+                if (enemy.PendingReroute) pending++;
                 snapshots[i] = new EnemyState(enemy.Id, enemy.X, enemy.Y, enemy.Progress, enemy.Health, enemy.SpawnIndex);
             }
+            if (!usingPreviousRoutes && !waitingForLayout)
+                routeWarning = pending == 0 ? "" : "道路已更新，" + pending + " 个敌人正脱离新放置积木，脱离后重新寻路。";
             State = new BattleState(phase, coreHealth, wave, spawned, killed, leaked, elapsed, paused, snapshots,
-                waitingForLayout, layoutIssue, usingPreviousRoutes, routeWarning);
+                waitingForLayout, layoutIssue, usingPreviousRoutes, routeWarning, waitingForLayout ? 0 : pending);
         }
     }
 }

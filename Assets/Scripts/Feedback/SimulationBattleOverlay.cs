@@ -10,8 +10,8 @@ namespace Brick2Life.Feedback
 {
     /// <summary>
     /// Battle projection overlay: flowing route arrows, octopus towers, bubble attacks,
-    /// core shock rings and wall ripples. Everything sits on the projection layer, so the overhead camera
-    /// sees it exactly like the rest of the projector output and the top camera can keep sampling it.
+    /// core shock rings and wall ripples. These renderers generate the projector's output image;
+    /// observing cameras receive its light on the board and bricks instead of seeing source quads.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class SimulationBattleOverlay : MonoBehaviour, IProjectionGate
@@ -55,10 +55,8 @@ namespace Brick2Life.Feedback
         private readonly List<GameObject> enemyBars = new List<GameObject>();
         private readonly List<GameObject> enemyFills = new List<GameObject>();
         private readonly List<TextMesh> enemyIds = new List<TextMesh>();
-        private readonly List<Vector2> lastEnemyPositions = new List<Vector2>();
         private readonly List<GameObject> spawnMarkers = new List<GameObject>();
         private readonly List<GameObject> pathBands = new List<GameObject>();
-        private readonly List<GameObject> pathArrowsPool = new List<GameObject>();
         private Material arrowMaterial, ringMaterial, enemyMaterial, barMaterial, pathMaterial, rangeMaterial;
         private Font labelFont;
         public int ActiveEnemyCount { get { int c = 0; foreach (GameObject e in enemyIcons) if (e != null && e.activeSelf) c++; return c; } }
@@ -86,7 +84,7 @@ namespace Brick2Life.Feedback
             captureVisible = value;
             if (root != null)
                 foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
-                    renderer.forceRenderingOff = !value;
+                    renderer.forceRenderingOff = true; // Content is only drawn into the projector output image.
         }
 
         private void OnEnable() => ProjectionCaptureGate.Register(this);
@@ -130,7 +128,12 @@ namespace Brick2Life.Feedback
                 Destroy(face);
             }
             foreach (Material material in new[] { arrowMaterial, ringMaterial, enemyMaterial, barMaterial, pathMaterial, rangeMaterial, armMaterial, bubbleMaterial })
-                if (material != null) { if (material.mainTexture != null) Destroy(material.mainTexture); Destroy(material); }
+                if (material != null)
+                {
+                    if (material.mainTexture != null && material.mainTexture != Texture2D.whiteTexture && material.mainTexture != Texture2D.blackTexture)
+                        Destroy(material.mainTexture);
+                    Destroy(material);
+                }
         }
 
         private void SynchronizeLevel()
@@ -474,6 +477,7 @@ namespace Brick2Life.Feedback
                 labelObject.transform.SetParent(root, false);
                 labelObject.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
                 var label = labelObject.AddComponent<TextMesh>();
+                labelObject.GetComponent<Renderer>().forceRenderingOff = true;
                 label.font = labelFont != null ? labelFont : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 label.fontSize = 64;
                 label.characterSize = 0.06f;
@@ -481,7 +485,6 @@ namespace Brick2Life.Feedback
                 label.alignment = TextAlignment.Center;
                 label.color = Color.white;
                 enemyIds.Add(label);
-                lastEnemyPositions.Add(Vector2.zero);
             }
         }
 
@@ -640,7 +643,7 @@ namespace Brick2Life.Feedback
             renderer.sharedMaterial = material;
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = false;
-            renderer.forceRenderingOff = !captureVisible;
+            renderer.forceRenderingOff = true;
             var collider = quad.GetComponent<Collider>();
             if (collider != null) Destroy(collider);
             return quad;

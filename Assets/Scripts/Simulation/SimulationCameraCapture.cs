@@ -21,9 +21,9 @@ namespace Brick2Life.Simulation
         [Tooltip("识别取样前先关闭虚拟投影，避免投影光污染识别输入。")]
         [SerializeField] private bool captureWithoutProjection = true;
         [Tooltip("自动采样消隐至少跨越的实际帧数；同步单次采集使用同等次数的额外渲染。")]
-        [SerializeField, Min(0)] private int projectionSettleFrames = 2;
+        [SerializeField, Min(0)] private int projectionSettleFrames = 1;
         [Tooltip("自动采样消隐最短持续时间（秒），让两个窗口有机会显示相同的消隐状态；非硬件同步参数。")]
-        [SerializeField, Min(0f)] private float projectionBlankSeconds = 0.05f;
+        [SerializeField, Min(0f)] private float projectionBlankSeconds = 0.01f;
         private IDisposable observationSuppression;
         private bool observationPending, pendingIncludesProjection;
         private int observationStartedFrame;

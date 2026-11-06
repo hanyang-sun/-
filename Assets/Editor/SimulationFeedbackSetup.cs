@@ -67,10 +67,6 @@ namespace Brick2Life.Editor
             EnsureLayer(ProjectionLayerIndex, ProjectionLayerName);
             EnsureLayer(SimulationRoundMarkers.LayerIndex, "Brick2LifeObjectives");
 
-            // Role stand-ins are off by default; projection patterns carry the role identity now.
-            Material coreMaterial = null;
-            Material wallMaterial = null;
-            Material towerMaterial = null;
             Material projectionMaterial = EnsureMaterial("ProjectionMark.mat", UnityEngine.Shader.Find("Sprites/Default"), Color.white);
 
             GameObject root = GameObject.Find(RootName);
@@ -79,17 +75,14 @@ namespace Brick2Life.Editor
                 root = new GameObject(RootName);
                 Undo.RegisterCreatedObjectUndo(root, "Install feedback");
             }
-            Transform levelRoot = EnsureChild(root.transform, "Level");
             Transform projectionRoot = EnsureChild(root.transform, "Projection");
 
-            SimulationLevelView view = EnsureComponent<SimulationLevelView>(root);
-            ConfigureView(view, levelRoot, topCamera, coreMaterial, wallMaterial, towerMaterial);
-
             ProjectionSimulator projector = EnsureComponent<ProjectionSimulator>(root);
-            ConfigureProjection(projector, projectionRoot, topCamera, projectionMaterial);
+            EnsureComponent<SimulationProjectedLight>(root);
+            ConfigureProjection(projector, projectionRoot, projectionMaterial);
 
             SimulationLevelAdapter adapter = EnsureComponent<SimulationLevelAdapter>(root);
-            ConfigureAdapter(adapter, view, projector, paletteColors);
+            ConfigureAdapter(adapter, projector, paletteColors);
 
             SimulationFeedbackDemo demo = EnsureComponent<SimulationFeedbackDemo>(root);
 
@@ -104,7 +97,7 @@ namespace Brick2Life.Editor
             ApplyCameraMasks(topCamera, workspaceCamera);
             EnsureBattleRig(root, adapter);
             EditorSceneManager.MarkSceneDirty(scene);
-            Debug.Log("任务 C 反馈已安装：" + RootName + "（关卡视图、投影、适配器、人工目标演示）；" +
+            Debug.Log("任务 C 反馈已安装：" + RootName + "（投影内容、虚拟投影仪、适配器、人工目标演示）；" +
                 "顶置相机排除 " + GameLayerName + "、包含 " + ProjectionLayerName + "。", root);
         }
 
@@ -119,11 +112,9 @@ namespace Brick2Life.Editor
                 throw new InvalidOperationException("缺少层 " + GameLayerName + " / " + ProjectionLayerName + "，请先安装反馈。");
             if (topCamera == null) throw new InvalidOperationException("场景缺少 TopCamera。");
             bool topExcludesGame = (topCamera.cullingMask & (1 << game)) == 0;
-            bool topIncludesProjection = (topCamera.cullingMask & (1 << projection)) != 0;
-            bool workspaceIncludesBoth = workspaceCamera == null ||
-                ((workspaceCamera.cullingMask & (1 << game)) != 0 && (workspaceCamera.cullingMask & (1 << projection)) != 0);
-            Debug.Log("任务 C 分层检查：顶置相机排除游戏层=" + topExcludesGame + "，包含投影层=" + topIncludesProjection +
-                "，操作相机包含两层=" + workspaceIncludesBoth + "；顶置相机掩码=" + topCamera.cullingMask);
+            bool topExcludesGuides = (topCamera.cullingMask & (1 << SimulationRoundMarkers.LayerIndex)) == 0;
+            Debug.Log("任务 C 分层检查：顶置相机排除辅助游戏层=" + topExcludesGame + "，排除目标提示=" + topExcludesGuides +
+                "，搭建相机存在=" + (workspaceCamera != null) + "；31 层只生成输出内容，表面投影光由消隐门控制。", topCamera);
         }
 
         // Battle rig: controller and view on a child object, the parameter panel on its own canvas object.
@@ -131,13 +122,6 @@ namespace Brick2Life.Editor
         {
             Transform battleRoot = EnsureChild(root.transform, "Battle");
             SimulationBattleView view = EnsureComponent<SimulationBattleView>(battleRoot.gameObject);
-            Material enemyMaterial = EnsureMaterial("Battle_Enemy.mat", Shader.Find("Standard"), new Color(0.85f, 0.25f, 0.2f));
-            Material routeMaterial = EnsureMaterial("Battle_Route.mat", Shader.Find("Sprites/Default"), new Color(0.2f, 0.9f, 1f, 0.9f));
-            var viewObject = new SerializedObject(view);
-            viewObject.FindProperty("root").objectReferenceValue = battleRoot;
-            viewObject.FindProperty("enemyMaterial").objectReferenceValue = enemyMaterial;
-            viewObject.FindProperty("routeMaterial").objectReferenceValue = routeMaterial;
-            viewObject.ApplyModifiedProperties();
 
             SimulationBattleController controller = EnsureComponent<SimulationBattleController>(battleRoot.gameObject);
             SimulationBattleOverlay overlay = EnsureComponent<SimulationBattleOverlay>(battleRoot.gameObject);
@@ -167,39 +151,10 @@ namespace Brick2Life.Editor
             Debug.Log("战斗装置已安装：Battle（控制器 + 视图）与 BattlePanelRoot（参数面板）。", root);
         }
 
-        private static void ConfigureView(SimulationLevelView view, Transform levelRoot, Camera topCamera,            Material core, Material wall, Material tower)
-        {
-            var serialized = new SerializedObject(view);
-            serialized.FindProperty("levelRoot").objectReferenceValue = levelRoot;
-            serialized.FindProperty("gameLayerName").stringValue = GameLayerName;
-            serialized.FindProperty("fallbackGameLayer").intValue = GameLayerIndex;
-            serialized.FindProperty("overheadCamera").objectReferenceValue = topCamera;
-            serialized.FindProperty("renderGameObjects").boolValue = false;
-            SerializedProperty styles = serialized.FindProperty("styles");
-            styles.arraySize = 3;
-            SetStyle(styles.GetArrayElementAtIndex(0), GameRole.Core, core, PrimitiveType.Cube, 0.9f, 0.7f);
-            SetStyle(styles.GetArrayElementAtIndex(1), GameRole.Wall, wall, PrimitiveType.Cube, 0.45f, 1f);
-            SetStyle(styles.GetArrayElementAtIndex(2), GameRole.Tower, tower, PrimitiveType.Cylinder, 1.6f, 0.55f);
-            serialized.ApplyModifiedProperties();
-        }
-
-        private static void SetStyle(SerializedProperty entry, GameRole role, Material material, PrimitiveType shape,
-            float height, float footprint)
-        {
-            entry.FindPropertyRelative("role").enumValueIndex = (int)role;
-            entry.FindPropertyRelative("material").objectReferenceValue = material;
-            entry.FindPropertyRelative("shape").enumValueIndex = (int)shape;
-            entry.FindPropertyRelative("height").floatValue = height;
-            entry.FindPropertyRelative("footprint").floatValue = footprint;
-        }
-
-        private static void ConfigureProjection(ProjectionSimulator projector, Transform projectionRoot, Camera topCamera,
-            Material material)
+        private static void ConfigureProjection(ProjectionSimulator projector, Transform projectionRoot, Material material)
         {
             var serialized = new SerializedObject(projector);
             serialized.FindProperty("marksRoot").objectReferenceValue = projectionRoot;
-            serialized.FindProperty("overheadCamera").objectReferenceValue = topCamera;
-            serialized.FindProperty("renderGameObjects").boolValue = false;
             serialized.FindProperty("markMaterial").objectReferenceValue = material;
             serialized.FindProperty("projectionLayerName").stringValue = ProjectionLayerName;
             serialized.FindProperty("fallbackProjectionLayer").intValue = ProjectionLayerIndex;
@@ -211,11 +166,9 @@ namespace Brick2Life.Editor
             serialized.ApplyModifiedProperties();
         }
 
-        private static void ConfigureAdapter(SimulationLevelAdapter adapter, SimulationLevelView view,
-            ProjectionSimulator projector, string[] paletteColors)
+        private static void ConfigureAdapter(SimulationLevelAdapter adapter, ProjectionSimulator projector, string[] paletteColors)
         {
             var serialized = new SerializedObject(adapter);
-            serialized.FindProperty("levelView").objectReferenceValue = view;
             serialized.FindProperty("projection").objectReferenceValue = projector;
             SerializedProperty rules = serialized.FindProperty("rules");
             rules.arraySize = paletteColors.Length;
@@ -305,8 +258,8 @@ namespace Brick2Life.Editor
             if (workspaceCamera != null)
             {
                 int mask = workspaceCamera.cullingMask;
-                if (game >= 0) mask |= 1 << game;
-                if (projection >= 0) mask |= 1 << projection;
+                if (game >= 0) mask &= ~(1 << game);
+                if (projection >= 0) mask &= ~(1 << projection);
                 workspaceCamera.cullingMask = mask;
             }
         }

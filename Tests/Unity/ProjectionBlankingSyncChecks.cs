@@ -84,8 +84,7 @@ public static class ProjectionBlankingSyncChecks
         while (!predicate() && EditorApplication.timeSinceStartup < deadline) yield return null;
         Check(predicate(), message);
     }
-    private static bool PreviewProjectionVisible => ((Transform)typeof(SimulationProjectionPreview)
-        .GetField("projectionRoot", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(preview)).gameObject.activeSelf;
+    private static bool PreviewProjectionVisible => preview.ProjectionVisible;
     private static void RenderPreview(SimulationLevelAdapter adapter, SimulationBattleController battle)
     {
         preview.UpdateScene(adapter.Feedback.Level, projection, battle.View, false);

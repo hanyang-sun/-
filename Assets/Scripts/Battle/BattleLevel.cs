@@ -76,6 +76,7 @@ namespace Brick2Life.Battle
         }
 
         public GridPoint[] FindRoute(GridPoint start) => RouteSearch.Find(cells, Width, Height, CoreBrickIds, start);
+        internal GridPoint[] FindRoute(GridPoint start, out int cost) => RouteSearch.Find(cells, Width, Height, CoreBrickIds, start, out cost);
 
         // The intersection of the four navigation subcells is the physical cell center.
         public static GridPoint PhysicalCenter(GridPoint cell) => new GridPoint(

@@ -15,7 +15,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-// Automatic real-RGB updates during one uninterrupted battle; never calls AnalyzeOnce or Restart.
+// Automatic real-RGB updates, including a separate local-overlap fixture; never calls AnalyzeOnce or Restart.
 public static class LiveProjectionRefreshChecks
 {
     [Serializable] private sealed class Result
@@ -165,6 +165,45 @@ public static class LiveProjectionRefreshChecks
         Check(controller.State.Phase == BattlePhase.Victory && controller.State.CoreHealth == wonHealth,
             "Post-victory display refresh changed the completed result.");
         Check(result.immediateConfirmations >= 6, "Running, paused and between-wave changes did not exercise immediate confirmation callbacks.");
+        monitor.UpdateApplied -= confirmedObserver;
+        confirmedObserver = null;
+        yield return VerifyLocalOverlap();
+    }
+
+    private static IEnumerator VerifyLocalOverlap()
+    {
+        controller.SetAutoStep(false);
+        Check(controller.GenerateNewRound(2, 3), "Cannot prepare the local-overlap round.");
+        controller.WavePlan = new WavePlan(1, 50, 9999, 1.4, 1, 0.2);
+        yield return Wait(() => adapter.Feedback.Level != null && monitor.HasBaseline, "Local-overlap baseline did not confirm.");
+        controller.StartBattle();
+        yield return Wait(() => controller.Running, "Local-overlap battle did not start.");
+        controller.StepManual(3);
+        var target = controller.State.Enemies.First(enemy => !controller.Round.IsReserved(
+            (int)Math.Floor(enemy.X / 2), (int)Math.Floor(enemy.Y / 2)));
+        var wallCell = new GridPoint((int)Math.Floor(target.X / 2), (int)Math.Floor(target.Y / 2));
+        BattleSimulation sameBattle = controller.Battle;
+        var previousRoutes = controller.DisplayRoutes;
+        Check(board.TryAdd(wallCell.X, wallCell.Y, "green", out _), "Cannot place a wall under the fixture enemy.");
+        yield return Wait(() => Matches(wallCell, "green"), "Wall under enemy did not confirm from automatic RGB.");
+        Check(controller.Level.IsValid && controller.State.PendingEnemyReroutes > 0 && !controller.State.UsingPreviousRoutes,
+            "A locally overlapped enemy caused global route fallback in Unity.");
+        Check(!ReferenceEquals(previousRoutes, controller.DisplayRoutes) && controller.DisplayRoutes.Count == 3,
+            "New entrance routes were not immediately displayed.");
+        var status = (UnityEngine.UI.Text)typeof(SimulationBattlePanel)
+            .GetField("statusText", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(controller.Panel);
+        Check(status.text.Contains("脱离") && !status.text.Contains("布局堵路"), "UI mislabeled local escape as global blockage.");
+        yield return VerifyDisplay(sameBattle, wallCell, GameRole.Wall, 1, "local-overlap wall");
+        int oldSpawns = controller.State.SpawnedThisWave;
+        controller.StepManual(3);
+        yield return null;
+        Check(controller.State.Phase == BattlePhase.Spawning && controller.State.SpawnedThisWave > oldSpawns &&
+            controller.State.PendingEnemyReroutes == 0 && !controller.State.UsingPreviousRoutes,
+            "Old enemies did not reconnect while new enemies kept spawning.");
+        Check(!status.text.Contains("正脱离") && !status.text.Contains("布局堵路"), "UI kept an obsolete escape warning.");
+        Check(controller.State.Enemies.Where(enemy => enemy.Id > oldSpawns).All(enemy =>
+            !controller.Level.CellAt((int)Math.Floor(enemy.X), (int)Math.Floor(enemy.Y)).Blocked),
+            "New enemies in Unity continued into the wall on the old route.");
     }
     private static IEnumerator VerifyDisplay(BattleSimulation originalBattle, GridPoint cell, GameRole role, int count, string stage, bool running = true)
     {
@@ -177,7 +216,8 @@ public static class LiveProjectionRefreshChecks
         Check(plan != null && plan.LevelVersion == adapter.Feedback.Level.SourceVersion, stage + ": source projection version is stale.");
         bool hasMark = plan != null && plan.Marks.Any(mark => mark.Kind == ProjectionMarkKind.RoleHighlight &&
             mark.Role == role && Math.Abs(mark.CenterX - cell.X - 0.5f) < 0.001f && Math.Abs(mark.CenterY - cell.Y - 0.5f) < 0.001f);
-        Check(role == GameRole.None ? !plan.Marks.Any(mark => mark.Kind == ProjectionMarkKind.RoleHighlight &&
+        // Towers use octopus meshes; their optional role-highlight target is disabled by default.
+        Check(role == GameRole.None || role == GameRole.Tower ? !plan.Marks.Any(mark => mark.Kind == ProjectionMarkKind.RoleHighlight &&
             Math.Abs(mark.CenterX - cell.X - 0.5f) < 0.001f && Math.Abs(mark.CenterY - cell.Y - 0.5f) < 0.001f) : hasMark,
             stage + ": role projection remains at an old position.");
         var field = typeof(SimulationProjectionWindow).GetField("preview", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -193,7 +233,23 @@ public static class LiveProjectionRefreshChecks
         var expectedTowers = Enumerable.Range(0, 100).Where(i => adapter.Feedback.Level.At(i % 10, i / 10).Role == GameRole.Tower)
             .Select(i => new Vector2(i % 10 + 0.5f, i / 10 + 0.5f)).ToArray();
         var overlay = controller.GetComponent<SimulationBattleOverlay>();
-        foreach (string name in new[] { "BattleRange", "BattleTowerAim" })
+        var routeSegments = new List<Vector3>();
+        bool centeredRoutes = true;
+        foreach (BattleRoute route in controller.DisplayRoutes)
+            for (int i = 1; i < route.Route.Count; i++)
+            {
+                GridPoint a = route.Route[i - 1], b = route.Route[i];
+                centeredRoutes &= a.X != b.X ? a.Y % 2 == 1 && a.Y == b.Y : a.X % 2 == 1 && a.X == b.X;
+                routeSegments.Add(new Vector3((a.X + b.X) * 0.25f, 0.028f, (a.Y + b.Y) * 0.25f));
+            }
+        Check(centeredRoutes, stage + ": entrance routes run along physical-cell edges.");
+        yield return null;
+        var bands = (List<GameObject>)typeof(SimulationBattleOverlay)
+            .GetField("pathBands", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(overlay);
+        Check(bands.Count >= routeSegments.Count && routeSegments.Select((position, i) =>
+            Vector3.Distance(position, bands[i].transform.position) < 0.001f).All(value => value),
+            stage + ": actual projected path bands do not follow the centered enemy routes.");
+        foreach (string name in new[] { "BattleRange", "OctopusFace" })
         {
             MeshRenderer[] renderers = overlay.MarksRoot.GetComponentsInChildren<MeshRenderer>().Where(r => r.name == name).ToArray();
             Check(renderers.Length == expectedTowers.Length && expectedTowers.All(position => renderers.Any(r =>

@@ -38,7 +38,6 @@ namespace Brick2Life.Feedback
         private BattleLevel lastValidNavigation;
         private LevelState preparationObservation;
         private SimulationRoundMarkers roundMarkers;
-        private double nextRouteRetryAt;
         private SimulationLevelAdapter subscribedAdapter;
         public bool GeneratedObjectives => generateObjectives;
         public GeneratedRound Round { get; private set; }
@@ -144,11 +143,10 @@ namespace Brick2Life.Feedback
             adapter.SetGeneratedRound(next);
             spawns.Clear(); foreach (GridPoint spawn in next.Spawns) spawns.Add(spawn);
             Battle = null; lastState = null; observedBattleLayout = null; preparationObservation = null;
-            nextRouteRetryAt = 0;
             LastShots = Array.Empty<ShotEvent>(); ShotSequence++;
             lastValidNavigation = BattleLevel.Build(next.CreateReferenceLevel(adapter.Feedback.Rules), spawns);
             Level = lastValidNavigation;
-            if (view != null) { view.ClearEnemies(); view.Build(Level); view.ClearSpawns(); }
+            if (view != null) { view.RefreshLayout(); view.ClearSpawns(); }
             roundMarkers = GetComponent<SimulationRoundMarkers>();
             if (roundMarkers == null) roundMarkers = gameObject.AddComponent<SimulationRoundMarkers>();
             roundMarkers.Render(next);
@@ -179,7 +177,6 @@ namespace Brick2Life.Feedback
                 if (existing.Equals(cell)) { LastMessage = "该入口已存在。"; return false; }
             spawns.Add(cell);
             Level = null;
-            if (view != null) view.ClearRoutes();
             LastMessage = "已选 " + spawns.Count + " 个入口：" + DescribeSpawns();
             PublishSpawns();
             return true;
@@ -201,7 +198,6 @@ namespace Brick2Life.Feedback
             if (generateObjectives || Running || !SimulationEditAccess.CanEdit) return;
             spawns.Clear();
             Level = null;
-            if (view != null) view.ClearRoutes();
             LastMessage = "已清空入口。";
             PublishSpawns();
         }
@@ -209,7 +205,6 @@ namespace Brick2Life.Feedback
         public bool Build()
         {
             if (Running) { LastMessage = "战斗中不能重新生成地图，请先重试结束本局。"; return false; }
-            if (view != null) view.ClearRoutes();
             LevelState level = CurrentLevel();
             if (level == null) { Level = null; LastMessage = "还没有确认的关卡。"; return false; }
             BattleLevel candidate = BattleLevel.Build(level, spawns);
@@ -266,7 +261,7 @@ namespace Brick2Life.Feedback
             EndSpawnSelection();
             LastShots = Array.Empty<ShotEvent>();
             ShotSequence++;
-            if (view != null) { view.Build(Level, Battle.ActiveRoutes); view.ClearSpawns(); }
+            if (view != null) { view.RefreshLayout(); view.ClearSpawns(); }
             if (!Battle.StartWave()) { LastMessage = "无法开始第一波。"; return false; }
             LastMessage = "战斗开始：第 1 波";
             Publish();
@@ -307,17 +302,12 @@ namespace Brick2Life.Feedback
             Battle = null;
             observedBattleLayout = null;
             preparationObservation = null;
-            nextRouteRetryAt = 0;
             Level = null;
             lastState = null;
             LastShots = Array.Empty<ShotEvent>();
             ShotSequence++;
             if (generateObjectives) Level = lastValidNavigation;
-            if (view != null)
-            {
-                view.ClearEnemies();
-                if (generateObjectives) view.Build(Level); else view.ClearRoutes();
-            }
+            if (view != null && generateObjectives) view.RefreshLayout();
             LastMessage = "已重置：入口保留，可调整积木和参数后开始";
             PublishSpawns();
             Publish();
@@ -385,16 +375,26 @@ namespace Brick2Life.Feedback
 
         private void Publish()
         {
+            bool hadPendingEnemyRoutes = lastState != null && lastState.PendingEnemyReroutes > 0;
             lastState = Battle != null ? Battle.State : null;
-            if (view != null && Battle != null) view.Render(Battle.State, Level);
             var overlay = GetComponent<SimulationBattleOverlay>();
             if (overlay != null && overlay.isActiveAndEnabled && !ReferenceEquals(overlay.DisplayedLevel, Level))
                 overlay.RefreshLayout();
-            if (panel != null) panel.Refresh(this);
-            if (Battle == null) return;
+            if (Battle == null)
+            {
+                if (panel != null) panel.Refresh(this);
+                return;
+            }
             if (Battle.State.Phase == BattlePhase.Victory) LastMessage = "胜利：核心守住 " + Battle.State.CoreHealth;
             else if (Battle.State.Phase == BattlePhase.Defeat) LastMessage = "失败：核心被击破";
-            if (!Battle.State.Finished && Battle.State.UsingPreviousRoutes) LastMessage = Battle.State.RouteWarning;
+            if (!Battle.State.Finished)
+            {
+                if (Battle.State.UsingPreviousRoutes || Battle.State.PendingEnemyReroutes > 0)
+                    LastMessage = Battle.State.RouteWarning;
+                else if (hadPendingEnemyRoutes && !Battle.State.WaitingForLayout)
+                    LastMessage = "道路已更新，旧敌人的临时绕行已结束。";
+            }
+            if (panel != null) panel.Refresh(this);
         }
 
         private void SyncConfirmedLayout()
@@ -409,36 +409,27 @@ namespace Brick2Life.Feedback
                 if (Level != null && Level.IsValid) lastValidNavigation = Level;
                 LastShots = Array.Empty<ShotEvent>();
                 ShotSequence++;
-                if (view != null) view.Build(Level, DisplayRoutes);
+                if (view != null) view.RefreshLayout();
                 Publish();
                 return;
             }
             if (!Running) return;
-            bool unchanged = ReferenceEquals(observedBattleLayout, confirmed);
-            if (unchanged)
-            {
-                // A wall under an enemy can stop replanning while entrance routes remain valid.
-                // Retry as the enemy moves out, without requiring another visual layout change.
-                if (!Battle.State.UsingPreviousRoutes || !Battle.CurrentLevel.IsValid ||
-                    (Battle.State.Enemies.Count > 0 && Battle.State.Elapsed < nextRouteRetryAt)) return;
-            }
-            nextRouteRetryAt = Battle.State.Elapsed + 0.25;
+            // Individual enemies reconnect inside BattleSimulation as they leave their old navigation cell.
+            if (ReferenceEquals(observedBattleLayout, confirmed)) return;
             observedBattleLayout = confirmed;
-            BattleLevel candidate = unchanged ? Battle.CurrentLevel :
-                confirmed != null ? BattleLevel.Build(confirmed, spawns) : null;
+            BattleLevel candidate = confirmed != null ? BattleLevel.Build(confirmed, spawns) : null;
             LastShots = Array.Empty<ShotEvent>();
             ShotSequence++;
             if (Battle.TryUpdateLevel(candidate, out string reason))
             {
                 Level = Battle.CurrentLevel;
                 if (!Battle.State.UsingPreviousRoutes) lastValidNavigation = Level;
-                if (view != null) view.Build(Level, Battle.ActiveRoutes);
-                LastMessage = Battle.State.UsingPreviousRoutes ? Battle.State.RouteWarning :
+                if (view != null) view.RefreshLayout();
+                LastMessage = Battle.State.UsingPreviousRoutes || Battle.State.PendingEnemyReroutes > 0 ? Battle.State.RouteWarning :
                     "布局已确认并更新：敌人从当前位置重新寻路，本局进度保留。";
             }
             else
             {
-                if (view != null) view.ClearRoutes();
                 LastMessage = "战斗等待修正布局：" + reason + "（仍可增删、移动积木）";
             }
             Publish();
@@ -453,7 +444,7 @@ namespace Brick2Life.Feedback
             BattleLevel candidate = BattleLevel.Build(confirmed, spawns);
             if (candidate.IsValid) lastValidNavigation = candidate;
             Level = lastValidNavigation;
-            if (view != null) view.Build(Level);
+            if (view != null) view.RefreshLayout();
             LastMessage = candidate.IsValid ? "准备就绪：墙/塔不限，可开始战斗。" :
                 "布局堵路或冲突：" + candidate.Issues[0].Message + "；堵路时沿用上次有效路线。";
             if (panel != null) panel.Refresh(this);

@@ -1,6 +1,6 @@
 # Brick2Life 架构
 
-更新：2026-10-30。A/B/C 已接线，当前包含独立 RGB 预测与稳定确认、关卡投影、实时塔防及双窗口。默认玩法由系统生成一个固定核心与 1–4 个入口，玩家只编辑墙塔；堵路时警告并继续旧路线。操作和验收见 [系统目标玩法](generated-defense-round-guide.md)。
+更新：2026-11-06。A/B/C 已接线，当前包含独立 RGB 预测与稳定确认、固定虚拟投影仪、实时塔防及双窗口。默认玩法由系统生成一个固定核心与 1–4 个入口，玩家只编辑墙塔；堵路时警告并继续旧路线。操作和验收见 [系统目标玩法](generated-defense-round-guide.md)、[固定投影仪仿真](physical-projector-guide.md)。
 
 ## 模块与依赖
 
@@ -19,8 +19,9 @@ flowchart TD
     Fb[SimulationFeedbackBootstrap] --> Sync[BoardSyncSession]
     Fb --> Adapter[SimulationLevelAdapter]
     Adapter --> Level[LevelFeedbackSession]
-    Adapter --> View[SimulationLevelView]
-    Adapter --> Proj[ProjectionSimulator]
+    Adapter --> Proj[ProjectionSimulator / Overlay 内容源]
+    Proj --> Output[RenderTexture 投影画面]
+    Output --> Light[SimulationProjectedLight 表面光与遮挡]
     Level --> App
     Level --> Core
     Goals[GeneratedRound 系统目标] --> Level
@@ -37,13 +38,15 @@ flowchart TD
 - Simulation 引用 Core、Application、Vision 和 Unity UI，承担引擎具体实现。Bootstrap 组装棋盘、编辑界面、采集，并在运行时挂载识别面板 `SimulationVisionMonitor`。
 - `Brick2Life.Vision` 不引用 Unity：`VisionCalibration`（调色板色样）、`CameraProjection`（固定格位采样）、`FixedGridRecognizer`（逐格归一化 RGB 分类）、`LayoutChangeTracker`（连续帧稳定与变化事件）、`RecognitionScore`（与真值对照的准确率）。
 - 识别面板 `SimulationVisionMonitor` 拥有唯一的 `BoardSyncSession`：每帧采样 → 识别 → 连续三帧稳定后 `BeginFrame/Confirm`，再通过 `UpdateApplied` 事件把 `BoardUpdate` 交给任务 C；面板底部另有一行显示任务 C 的关卡与投影摘要。
-- Feedback 引用 Core、Application、Battle、Vision、Simulation 和 Unity UI，是任务 C 的引擎侧：`SimulationFeedbackBootstrap` 在存在识别面板时共享其 `BoardSyncSession`（否则自建会话供人工目标演示），`SimulationLevelAdapter` 把 `BoardUpdate` 变成关卡对象与投影标记，`SimulationLevelView` 生成游戏对象，`ProjectionSimulator` 生成贴在表面上的投影面片。
+- Feedback 引用 Core、Application、Battle、Vision、Simulation 和 Unity UI，是任务 C 的引擎侧：`SimulationFeedbackBootstrap` 在存在识别面板时共享其 `BoardSyncSession`（否则自建会话供人工目标演示），`SimulationLevelAdapter` 把 `BoardUpdate` 变成关卡对象与投影标记。`ProjectionSimulator` 与 `SimulationBattleOverlay` 生成图像内容，`SimulationProjectedLight` 汇成一张纹理并从固定透视位置投射到表面，按接收物颜色和法线叠加光照、按投影仪深度图遮挡。源面片默认不直接绘制。
 - `Brick2Life.Battle` 不引用 Unity：`BattleLevel` 把确认关卡（10×10）映射成 20×20 战斗格并校验入口通路，`RouteSearch` 做四方向 A*，`BattleSimulation` 以 1/60 固定步长跑波次、塔与核心；`SimulationBattleController/View/Panel` 只负责驱动、渲染和参数输入。
 - Editor 引用 Core、Application、Battle、Vision、Simulation、Feedback 和 Unity UI，仅 Editor 编译，承载灯光配置、任务 C 安装与分层检查、战斗装置安装、依赖检查与构建。
 
 Awake 顺序为棋盘会话 -200、接线 -100、任务 C 反馈入口 -50，随后战斗控制器生成目标，编辑界面 Start。自动视觉输入启用时，点击 `开始` 后等待 B 的新采集确认。战斗中允许编辑墙塔，新确认 LevelState 通过 `BattleSimulation.TryUpdateLevel` 更新地图、入口路线、存活敌人余程与塔，保留敌人位置与血量、波次、核心生命、时钟及用户暂停。不读取原始棋盘内容判断识别是否正确。
 
-默认控制器启用 `keepLastValidRoutes`：只有全部入口及存活敌人的路径都可行时才换整组路线；路径失败时采用新确认墙塔、保留 `ActiveRoutes` 与原敌人余程，设置 `UsingPreviousRoutes/RouteWarning`，继续战斗。结构错误仍以 `WaitingForLayout` 等待修复。`BattleLevel.Entrances` 保存完整入口，包含候选无路的入口，避免部分成功路线压缩后错配出生索引。旧手动核心 fixture 保持默认关闭回退，以验证兼容行为。
+默认控制器启用 `keepLastValidRoutes`：全部入口可行时立即更新入口路线及可连接旧敌人的余程；暂时无法连接的旧敌人各自保留旧路，`PendingEnemyReroutes` 记录待连接数量，进入其他导航格后自动尝试重寻路。入口确实无路时采用新确认墙塔、保留完整 `ActiveRoutes` 与原敌人余程，设置 `UsingPreviousRoutes/RouteWarning`，继续战斗。结构错误仍以 `WaitingForLayout` 等待修复。`BattleLevel.Entrances` 保存完整入口，包含候选无路的入口，避免部分成功路线压缩后错配出生索引。旧手动核心 fixture 保持默认关闭回退，以验证兼容行为。
+
+`RouteSearch` 保留半格四邻接节点，但只连接物理空格中心，混合奇偶节点用于垂直穿越格边，格角不用于正常选路。墙/塔四邻接的中心节点附加软代价，宽路优先，一格窄路仍可行。入口路径与存活敌人重寻路使用同一代价，敌人和 `SimulationBattleOverlay` 消费同一路径，绘制侧不单独偏移路线。
 
 ## 状态归属
 
@@ -84,9 +87,11 @@ SimulationBoardSession.ReplaceLayout 先校验定义并准备全部几何，再�
 
 Fail 用于采集/识别异常，Cancel 用于取消；ChangeCalibration 取消旧请求并保留旧确认状态供显示。第一阶段只有所有格位占用和颜色都确定才整体确认。应用无路等问题不属于视觉拒绝。
 
-投影与拍照的时序由 `IProjectionGate`（Simulation 程序集）连接：角色投影与战斗覆盖层在 `OnEnable` 注册到 `ProjectionCaptureGate`。`SimulationCameraCapture.CaptureObservationImage()` 通过 `Suppress()` 临时关闭全部已注册投影、按 `projectionSettleFrames` 追加渲染、取完在 finally 中恢复各自原状态；战斗渲染同步隐藏，不依赖下一次 Update。`CaptureObservationImage(true)` 保留投影，用于干扰对照。识别默认使用无投影取样，F8 可实时切换。
+投影与拍照的时序由 `IProjectionGate`（Simulation 程序集）连接：角色投影与战斗覆盖层在 `OnEnable` 注册到 `ProjectionCaptureGate`。自动采样由 `BeginObservationCapture/TryCompleteObservationCapture` 跨实际帧持有消隐门，满足至少一帧、0.01 秒后采集，在 finally 中恢复原显示状态；同步 `CaptureObservationImage()` 仍在调用内完成消隐、额外渲染与恢复。战斗覆盖层及只读窗口同步隐藏。`CaptureObservationImage(true)` 保留投影，用于干扰对照。识别默认使用无投影取样，F8 可实时切换。
 
-编辑器双窗口采用独立预览场景：确认布局重建积木，`ProjectionSimulator` 与 `SimulationBattleOverlay` 的可见面片共同镜像到投影组。两种展示模式都保留该组，只有组合模式显示数字游戏对象。原始窗口拥有编辑焦点，战斗不再锁定积木模型；展示切换不改变源相机、布局和采集条件。实时更新和失败恢复见 [交互指南](live-battle-editing-guide.md)。
+`RecognitionSamplingCadence`（Vision，纯逻辑）只决定下一次采样间隔；`SimulationVisionMonitor` 使用 `LayoutTrackStep` 与新证据请求驱动它。稳定或不可用图像低频检查（0.8 秒），可用待确认候选有限加速（0.12 秒，最长一秒），确认后立即降频。关闭识别及采样异常仍由相机取消接口恢复门状态。三帧确认不变；`RequestFreshConfirmation` 还要求请求之后的采样序号，不会用旧布局代替新 RGB。
+
+编辑器双窗口采用独立预览场景：确认布局重建积木，复用同一投影输出与镜头参数，对预览场景自身的表面重新计算遮挡与投影光；不复制源图案面片。组合模式显示确认积木，仅投影模式是平面诊断显示。原始窗口保持无投影并拥有编辑焦点，战斗不再锁定积木模型；展示切换不改变源相机、布局和采集条件。消隐由统一门控制表面投影贡献，排除内容层无法消除已经反射的光。实时更新和失败恢复见 [交互指南](live-battle-editing-guide.md)。
 
 ### C：关卡与投影（2026-10-25）
 
@@ -95,8 +100,8 @@ Fail 用于采集/识别异常，Cancel 用于取消；ChangeCalibration 取消�
 - `LevelSemantics`：`GameRole`（None/Core/Wall/Tower）与 `LevelRuleSet` 显式颜色规则；`LevelState` 保存逐格占用、颜色、角色与来源版本。生成模式合入系统核心并检查目标保留格冲突；旧模式仍检查缺核心、多核心。未映射颜色或其他错误记入 `Issues` 且 `IsPlayable=false`，保留感知结果，由上层推迟关卡提交。
 - `ProjectionPlan`：与引擎无关的标记列表。格点是 11×11 交点（落在有积木的相邻格时投到积木顶面，否则投桌面）；墙塔高亮覆盖占用格，系统核心与入口标记投桌面；变更提示来自 `BoardDelta`，区分 Added/Removed/Recolored。`MaxMarks` 截断，输出顺序固定，可复现。
 - `LevelFeedbackSession`：Baseline 建立基线且无变更提示；Changed 重建并带变更提示；Unchanged 不推进版本、不刷新视图；Rejected/Stale 保留上一版关卡与投影并给出原因。
-- `Brick2Life.Feedback` 程序集：`SimulationFeedbackBootstrap` 用 `board.Definition` 建立 `BoardSyncSession`（标定 `brick2life-simulation`），把它交给 `SimulationLevelAdapter`；Adapter 在 `frame.Changed` 时刷新 `SimulationLevelView`（游戏对象）与 `ProjectionSimulator`（投影面片）。
-- 场景分层：`Brick2LifeObjectives`（29）放原始窗口系统目标提示，`Brick2LifeGame`（30）放游戏对象，顶置相机排除这两层，避免提示和虚拟建筑进入 RGB；`Brick2LifeProjection`（31）放真正投影面片，顶置相机包含该层。双窗口原始视角只保留目标提示和玩家积木；带/不带投影取样由 `ProjectionCaptureGate` 控制。
+- `Brick2Life.Feedback` 程序集：`SimulationFeedbackBootstrap` 共享 B 的 `BoardSyncSession`，没有 B 时才用公开 `board.Definition` 建立人工测试会话；Adapter 在 `frame.Changed` 时刷新关卡语义与投影内容。额外三维角色组件及其材质已删除，战斗表现由 Overlay 统一生成。
+- 场景分层：`Brick2LifeObjectives`（29）放原始窗口系统目标提示，`Brick2LifeGame`（30）放游戏对象，顶置相机排除这两层；`Brick2LifeProjection`（31）只生成投影输出图像，观察相机不直接绘制源面片。表面投影光由 `SimulationProjectedLight` 的额外绘制贡献，带/不带投影取样由 `ProjectionCaptureGate` 控制。搭建视角不接收该贡献。
 - 独立测试：`SimulationFeedbackDemo` 保留脚本调用的人工目标接口，日志标注“人工目标（非识别结果）”，不作为识别已接通的证据。2026-11-02 已移除 F5/F6/F7 键盘监听与配置；接入 B 后仍自动停用该组件。
 - 限制：投影是贴在可见表面上的面片（alpha 混合），不是光学投影仿真，没有镜头畸变、亮度衰减与梯形校正；升级为官方 `Projector` 组件时只替换渲染层，不改 Application 层接口。
 

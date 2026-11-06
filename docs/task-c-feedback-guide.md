@@ -1,6 +1,6 @@
 # 任务 C 手册：关卡反馈与虚拟投影
 
-更新：2026-10-30。适用工程：Brick2Life（Unity 6000.3.24f1，Built-in 渲染管线，默认场景 `Assets/Scenes/Brick2LifeSimulation.unity`）。A/C 整合以 [整合说明](a-c-integration.md) 及 [双窗口指南](editor-dual-window-guide.md) 为当前入口；历史验证记录保持各自测试时的条件。
+更新：2026-11-06。适用工程：Brick2Life（Unity 6000.3.24f1，Built-in 渲染管线，默认场景 `Assets/Scenes/Brick2LifeSimulation.unity`）。当前采用 [固定投影仪仿真](physical-projector-guide.md)，额外三维角色替身、旧面片镜像与构造式对齐检查接口已移除；下方历史验证记录保持测试时的条件。
 
 ## 1. 任务 C 在系统里的位置
 
@@ -16,8 +16,9 @@
                                      └─ ProjectionPlan：格点 / 角色高亮 / 变更提示
                                                    │
                               SimulationLevelAdapter（引擎侧）
-                                 ├─ SimulationLevelView → 游戏对象（Brick2LifeGame 层）
-                                 └─ ProjectionSimulator → 投影面片（Brick2LifeProjection 层）
+                                 └─ ProjectionSimulator / Overlay → 输出图像
+                                                   │
+                                 SimulationProjectedLight → 表面反射光与遮挡
                                                    │
                                         顶置相机看到的图像（含投影、不含游戏对象）
 ```
@@ -33,8 +34,8 @@ C 不读 `SimulationBoardSession.Snapshot()`，不读 GT，也不创建观测。
 | `Assets/Scripts/Application/LevelFeedbackSession.cs` | 消费 `BoardUpdate` → `FeedbackFrame`（关卡 + 投影计划 + 是否变化 + 原因） |
 | `Assets/Scripts/Feedback/SimulationFeedbackBootstrap.cs` | 组合入口：建立 `BoardSyncSession`，交给适配器与演示组件（执行顺序 -50） |
 | `Assets/Scripts/Feedback/SimulationLevelAdapter.cs` | 任务 C 适配器：`Apply(BoardUpdate)`、颜色规则、状态文字、角色→颜色反查 |
-| `Assets/Scripts/Feedback/SimulationLevelView.cs` | 按 `LevelState` 生成/复用/销毁游戏对象，位置为格中心，统一放到 `Brick2LifeGame` 层 |
-| `Assets/Scripts/Feedback/ProjectionSimulator.cs` | 按 `ProjectionPlan` 生成表面贴合面片，提供开/关、强度、对齐误差测量 |
+| `Assets/Scripts/Feedback/ProjectionSimulator.cs` | 按 `ProjectionPlan` 生成投影画面内容，提供开/关与强度 |
+| `Assets/Scripts/Feedback/SimulationProjectedLight.cs` | 固定镜头投射输出画面，按表面颜色反射并计算投影方向遮挡 |
 | `Assets/Scripts/Feedback/SimulationFeedbackDemo.cs` | 脚本调用的人工目标测试接口，明确标注非识别结果；旧键盘监听已移除 |
 | `Assets/Editor/SimulationFeedbackSetup.cs` | 菜单安装：层、材质、对象层级、组件接线、相机掩码；另有分层复核菜单 |
 | `Tests/LevelSemanticsChecks.cs`、`Tests/ProjectionPlanChecks.cs`、`Tests/LevelFeedbackChecks.cs` | 纯 C# 断言（73 项） |
@@ -55,7 +56,7 @@ C 不读 `SimulationBoardSession.Snapshot()`，不读 GT，也不创建观测。
 | `RoleHighlight` | 所有占用且有角色的格（0.8 格见方） | 积木顶面 | 核心徽记 / 城墙砖纹 / 防御塔靶纹，alpha 0.32，核心有呼吸效果 |
 | `ChangeHighlight` | 本次 `BoardDelta` 涉及的格（0.96 格见方） | 变化后仍有积木时投顶面，否则投桌面 | 新增绿 / 移除红 / 改色黄的轮廓圈，alpha 0.75，默认 1.6 秒淡出 |
 
-- 位置：格 `(x, y)` 的中心是 `(x+0.5, y+0.5)`；表面高度由 `ProjectionSimulator` 决定（积木顶面 1.0、桌面 0.0，再加 0.006 偏移）。因此面片中心与格位中心的重合是构造保证；`ProjectionSimulator.MeasureAlignmentError(plan)` 可返回实际最大偏差（当前实现应为 0）。
+- 内容坐标：格 `(x, y)` 的中心是 `(x+0.5, y+0.5)`。内部源面片只用于生成二维画面，不代表实际投影足迹。物理投射后的偏移需要从 RGB 图像测量，原来只返回构造位置误差的接口已删除。
 - 面片是 `PrimitiveType.Quad`，绕 X 转 90° 落在水平面，材质为无光照 alpha 混合（安装菜单创建的 `ProjectionMark.mat` 用 `Sprites/Default`），`shadowCastingMode=Off`，且不生成 Collider，避免影响积木编辑的射线拾取。
 - 投影强度 `intensity` 乘到 alpha 上；`SetVisible(false)` 关闭全部面片，用于“投影开/关”对照采集。
 - 上限 `ProjectionOptions.MaxMarks`（默认 400）防止密集布局下标记爆炸；截断时 `ProjectionPlan.Truncated=true`。

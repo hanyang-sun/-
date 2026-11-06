@@ -16,7 +16,12 @@ namespace Brick2Life.Simulation
     public sealed class SimulationVisionMonitor : MonoBehaviour
     {
         private const int CellSize = 36;
-        [SerializeField] private float interval = 0.15f;
+        [Tooltip("布局稳定或图像不可用时的低频检查间隔（秒）。")]
+        [SerializeField] private float interval = 0.8f;
+        [Tooltip("RGB 出现待确认布局、首次识别或开战要求新图像时的采样间隔（秒）。")]
+        [SerializeField] private float confirmationInterval = 0.12f;
+        [Tooltip("候选布局持续不稳定时，快速采样最多持续的秒数。")]
+        [SerializeField] private float maximumFastSamplingSeconds = 1f;
         [SerializeField] private int requiredFrames = 3;
         private SimulationBoardSession board;
         private SimulationCameraCapture capture;
@@ -45,9 +50,16 @@ namespace Brick2Life.Simulation
         private string loggedError;
         private long captureSequence;
         private long confirmedCaptureSequence = -1;
+        private long requestedCaptureSequence = -1;
+        private RecognitionSamplingCadence samplingCadence;
 
         // Require fresh RGB evidence without consulting source layout or evaluation scores.
-        public long RequestFreshConfirmation() => captureSequence + requiredFrames;
+        public long RequestFreshConfirmation()
+        {
+            requestedCaptureSequence = captureSequence + requiredFrames;
+            samplingCadence?.RequestFast(Time.realtimeSinceStartupAsDouble);
+            return requestedCaptureSequence;
+        }
         public bool HasConfirmed(long requestedSequence) => confirmedCaptureSequence >= requestedSequence;
 
         private bool automatic = true;
@@ -56,15 +68,17 @@ namespace Brick2Life.Simulation
             get => automatic;
             set
             {
+                bool wasAutomatic = automatic;
                 automatic = value;
                 if (!automatic && capture != null) capture.CancelObservationCapture();
+                if (automatic && !wasAutomatic) samplingCadence?.RequestFast(Time.realtimeSinceStartupAsDouble);
             }
         }
 
         public void ResetTracking()
         {
             if (board == null) throw new InvalidOperationException("识别尚未绑定棋盘。");
-            Rebuild(); primed = false; elapsed = 0;
+            Rebuild();
         }
 
         // Task C integration surface: one shared BoardSyncSession, confirmed updates, and the status line.
@@ -143,6 +157,12 @@ namespace Brick2Life.Simulation
             LastStableScore = null;
             LastError = null;
             confirmedCaptureSequence = -1;
+            requestedCaptureSequence = -1;
+            float stableInterval = Mathf.Max(0.05f, interval);
+            samplingCadence = new RecognitionSamplingCadence(stableInterval,
+                Mathf.Clamp(confirmationInterval, 0.05f, stableInterval), Mathf.Max(0.05f, maximumFastSamplingSeconds));
+            samplingCadence.RequestFast(Time.realtimeSinceStartupAsDouble);
+            primed = false; elapsed = 0;
             // Task C binds to this session so recognition and feedback share one confirmed state.
             Action<BoardSyncSession> rebuilt = SessionRebuilt;
             if (rebuilt != null) rebuilt(sync);
@@ -170,7 +190,7 @@ namespace Brick2Life.Simulation
             {
                 if (!capture.ObservationCapturePending)
                 {
-                    if (primed && elapsed < interval) return;
+                    if (primed && elapsed < samplingCadence.IntervalAt(Time.realtimeSinceStartupAsDouble)) return;
                     primed = true;
                     elapsed = 0;
                     capture.BeginObservationCapture();
@@ -182,6 +202,7 @@ namespace Brick2Life.Simulation
             catch (Exception error)
             {
                 capture.CancelObservationCapture();
+                samplingCadence.Observe(Time.realtimeSinceStartupAsDouble, false, false);
                 LastError = error.Message;
                 report = "识别失败：" + error.Message;
                 if (titleText != null) titleText.text = report;
@@ -231,6 +252,9 @@ namespace Brick2Life.Simulation
                 if (applied != null) applied(update);
             }
             LastError = null;
+            samplingCadence.Observe(Time.realtimeSinceStartupAsDouble,
+                step.Confirmable && confirmedCaptureSequence >= requestedCaptureSequence,
+                observation.Accepted && step.Streak > 0);
             Publish(observation, step);
         }
 

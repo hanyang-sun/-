@@ -1,5 +1,5 @@
 param([string]$UnityPath = 'D:\Unity\Editor\6000.3.24f1\Editor\Unity.exe', [string]$ValidationProject,
-    [ValidateSet('SimulationDualWindowChecks','GeneratedDefenseRoundChecks','LiveProjectionRefreshChecks','ProjectionBlankingSyncChecks')]
+    [ValidateSet('SimulationDualWindowChecks','GeneratedDefenseRoundChecks','LiveProjectionRefreshChecks','ProjectionBlankingSyncChecks','ProjectionCadenceChecks','PhysicalProjectorChecks')]
     [string]$CheckClass = 'SimulationDualWindowChecks')
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -30,6 +30,14 @@ if (Test-Path -LiteralPath $liveChecks) {
 $blankingChecks = Join-Path $PSScriptRoot 'Unity\ProjectionBlankingSyncChecks.cs'
 if (Test-Path -LiteralPath $blankingChecks) {
     Copy-Item -LiteralPath $blankingChecks -Destination (Join-Path $runPath 'Assets\Editor\ProjectionBlankingSyncChecks.cs') -Force
+}
+$cadenceChecks = Join-Path $PSScriptRoot 'Unity\ProjectionCadenceChecks.cs'
+if (Test-Path -LiteralPath $cadenceChecks) {
+    Copy-Item -LiteralPath $cadenceChecks -Destination (Join-Path $runPath 'Assets\Editor\ProjectionCadenceChecks.cs') -Force
+}
+$physicalChecks = Join-Path $PSScriptRoot 'Unity\PhysicalProjectorChecks.cs'
+if (Test-Path -LiteralPath $physicalChecks) {
+    Copy-Item -LiteralPath $physicalChecks -Destination (Join-Path $runPath 'Assets\Editor\PhysicalProjectorChecks.cs') -Force
 }
 foreach ($file in @('ProjectVersion.txt','ProjectSettings.asset','QualitySettings.asset','GraphicsSettings.asset','TagManager.asset','InputManager.asset')) {
     Copy-Item -LiteralPath (Join-Path $repoRoot ('ProjectSettings\' + $file)) -Destination (Join-Path $runPath ('ProjectSettings\' + $file)) -Force

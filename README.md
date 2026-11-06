@@ -27,6 +27,14 @@ git clone https://github.com/hanyang-sun/Brick2life.git Brick2Life
 
 任务 B 与任务 C 已接线：识别面板持有唯一的 `BoardSyncSession`，确认后的 `BoardUpdate` 驱动关卡对象与投影，人工目标演示在识别接入后自动停用。自动识别启用时，点击开始后等待新 RGB 稳定确认；准备阶段、战斗、暂停和波次间隔均可编辑墙塔，确认后保留本局进度并从敌人当前位置重新寻路。堵路时提示并沿用完整旧路线，继续移动、出怪和更新塔；旧路线可能穿过新障碍。核心与出生点固定且不可编辑。编辑器 Play 模式打开原始布局与只读投影两个窗口，展示窗口可旋转缩放，并切换“积木＋投影／仅投影”。角色纹样与战斗动态效果均纳入投影采集开关。使用见 [新玩法指南](docs/generated-defense-round-guide.md)、[实时交互指南](docs/live-battle-editing-guide.md) 和 [双窗口指南](docs/editor-dual-window-guide.md)。Core 的 `Contracts/` 是公共合同唯一来源。接入方式见 [架构说明](docs/architecture.md)。
 
+全局通路有效、只是新积木压住个别旧敌人时，新敌人立即使用新路线；受影响旧敌人各自沿原路线脱离后自动重寻路，提示随脱离完成清除。完整旧入口路线回退仅用于入口确实无路的情况。
+
+正常路线经过空格中心，优先选择远离城墙和塔的通道；一格宽的空通道仍可通行。敌人与投影道路共用路线，动态更新时保留敌人的连续位置。
+
+自动识别使用自适应采样：布局稳定时每 0.8 秒检查一次，出现可用的待确认 RGB 布局后按 0.12 秒补足稳定确认，完成后回到低频。投影单次消隐仍至少一帧、0.01 秒；对照与延迟测量见 [采样优化记录](docs/research/adaptive-projection-sampling-github.md)。
+
+投影现在通过固定虚拟投影仪照到表面，复用原图案与动画，加入物体本色反射、投影方向的遮挡和高度偏移；搭建视图仍无投影，展示与顶置 RGB 看到表面投影光。参数、调用链与当前近似边界见 [固定投影仪仿真](docs/physical-projector-guide.md)。
+
 ## 采集数据
 
 编辑器输出到根目录 `SimulationCaptures/`；Player 输出到 `Application.persistentDataPath/SimulationCaptures/`。每次写入同名 PNG/JSON，JSON 最后发布，包含全部 100 格、帧 ID、布局版本、棋盘四角、相机与光照配置。JSON 顶层 schema 3、相机 schema 1、光照 schema 2 保持兼容。
@@ -39,7 +47,7 @@ GT 仅用于导出和评价。B 接收图像与约定公开配置，C 消费视�
 
 ## 检查与构建
 
-纯 C# 检查需要 .NET 10 SDK，包含布局、快照、确认会话、数据集计划、视觉、关卡投影及战斗规则（共 1076 项断言）：
+纯 C# 检查需要 .NET 10 SDK，包含布局、快照、确认会话、数据集计划、视觉、关卡投影及战斗规则（共 1195 项断言）：
 
 ```powershell
 dotnet run --project Tests/Brick2Life.Checks.csproj
