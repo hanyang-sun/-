@@ -62,13 +62,13 @@ C 不读 `SimulationBoardSession.Snapshot()`，不读 GT，也不创建观测。
 
 ### 4.1 投影与拍照时序
 
-当前默认关闭投影取样作为无干扰对照；研究“投影干扰”时使用保留投影的采集条件。实现方式：
+播放中的识别保持投影常亮。投影接通后，识别用光度模型把无投影反射率图合成实拍照片再还原颜色，不为拍照插入黑帧。数据集仍可消隐取干净 RGB。详见 [连续投影识别](flicker-free-projection-recognition.md)。实现方式：
 
 - `IProjectionGate`（`Assets/Scripts/Simulation/ProjectionCaptureGate.cs`）由角色投影与战斗覆盖层共同实现并注册；Simulation 程序集不依赖 Feedback。
 - `SimulationCameraCapture.CaptureObservationImage()` 的默认行为：若 `captureWithoutProjection=true`（默认），通过 `ProjectionCaptureGate.Suppress()` 临时隐藏全部已注册投影 → 按 `projectionSettleFrames`（默认 2）追加 `sourceCamera.Render()` → 取像素 → `finally` 恢复各投影原有状态。采集失败也恢复，战斗覆盖层同步隐藏，不依赖下一帧 Update。
 - `CaptureObservationImage(true)` 保留投影，用于干扰对照；返回的 `SimulationObservationImage.ProjectionVisible` 记录本次取样是否带投影。
-- 运行时按 **F8** 实时切换“取样是否关闭投影”，日志会打印当前模式。
-- 注意：这是仿真层面的时序（关掉面片后手动渲染即可稳定）；真实投影仪需要按设备响应时间等待，届时把 `projectionSettleFrames` 换成实际延时即可。
+- 进入播放后默认就是连续投影：画面上的投影不熄灭，识别用的照片按光度模型带上投影光。按一次 **F8** 会改到消隐取样，投影会按识别节拍熄灭再亮起；再按一次回到连续投影。识别面板标题会写明当前是哪一种。
+- 真实相机不把 `projectionSettleFrames` 当成同步手段。锁定曝光后用 `PhotometricProfile.Fit` 标定，对局中投影保持当前画面。
 
 ## 5. 场景分层
 

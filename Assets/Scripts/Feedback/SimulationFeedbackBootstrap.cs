@@ -64,6 +64,8 @@ namespace Brick2Life.Feedback
             adapter.SetStatusText(disableDemoWhenVisionActive
                 ? "关卡：等待识别确认（任务 B 已接入，人工目标演示已停用）"
                 : "关卡：等待识别确认（任务 B 已接入）");
+            ProjectionSimulator projector = FindFirstObjectByType<ProjectionSimulator>();
+            if (projector != null) monitor.UseProjectedLight(projector);
             Debug.Log("任务 C 已接入任务 B：共享 BoardSyncSession（calibration=" + Session.CalibrationId +
                 "），识别确认后自动更新关卡与投影；人工目标演示=" +
                 (disableDemoWhenVisionActive ? "已停用" : "仍启用"), this);

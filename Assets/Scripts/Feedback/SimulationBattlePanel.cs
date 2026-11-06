@@ -1,5 +1,6 @@
 using System;
 using Brick2Life.Battle;
+using Brick2Life.Simulation;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -140,12 +141,7 @@ namespace Brick2Life.Feedback
             var panel = panelObject.AddComponent<Image>();
             panel.color = new Color(0.07f, 0.08f, 0.10f, 0.93f);
             var rect = panel.rectTransform;
-            // Left side: the recognition panel and the level UI both live on the right.
-            rect.anchorMin = new Vector2(0, 0);
-            rect.anchorMax = new Vector2(0, 1);
-            rect.pivot = new Vector2(0, 0.5f);
             rect.sizeDelta = new Vector2(380, 0);
-            rect.anchoredPosition = new Vector2(12, 0);
             var layout = panelObject.AddComponent<VerticalLayoutGroup>();
             layout.padding = new RectOffset(10, 10, 10, 10);
             layout.spacing = 3;
@@ -202,11 +198,10 @@ namespace Brick2Life.Feedback
 
             // Always-on top-left switch so the panel can be collapsed to see the whole board.
             var toggle = AddButton(canvasObject.transform, "战斗面板 ▾", () => { if (body != null) body.SetActive(!body.activeSelf); });
-            var toggleRect = (RectTransform)toggle.transform;
-            toggleRect.anchorMin = new Vector2(0, 1); toggleRect.anchorMax = new Vector2(0, 1);
-            toggleRect.pivot = new Vector2(0, 1);
-            toggleRect.sizeDelta = new Vector2(130, 28);
-            toggleRect.anchoredPosition = new Vector2(12, -12);
+            var headerLabel = toggle.GetComponentInChildren<Text>();
+            if (headerLabel != null) headerLabel.fontSize = 18;
+            WorkspaceHeaderStack.Place((RectTransform)toggle.transform, 0);
+            WorkspaceHeaderStack.PlaceBelow(rect, 2, 380f);
 
             var barObject = new GameObject("BattleSelectionBar");
             barObject.transform.SetParent(canvasObject.transform, false);

@@ -286,10 +286,21 @@ namespace Brick2Life.Feedback
         public void SetPaused(bool paused)
         {
             if (Battle == null) return;
+            bool wasPaused = Battle.State != null && Battle.State.Paused;
             SyncConfirmedLayout();
             Battle.SetPaused(paused);
             LastMessage = paused ? "已暂停" : "继续";
             Publish();
+            if (paused && !wasPaused)
+            {
+                SimulationVisionMonitor vision = FindFirstObjectByType<SimulationVisionMonitor>();
+                if (vision != null) vision.RefreshOnceWithoutProjection();
+            }
+            else if (!paused && wasPaused)
+            {
+                SimulationVisionMonitor vision = FindFirstObjectByType<SimulationVisionMonitor>();
+                if (vision != null) vision.ShowPreparedProjection();
+            }
         }
 
         public bool Restart()

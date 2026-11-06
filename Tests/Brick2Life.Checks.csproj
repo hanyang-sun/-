@@ -16,6 +16,7 @@
     <Compile Include="ProjectionPlanChecks.cs" />
     <Compile Include="LevelFeedbackChecks.cs" />
     <Compile Include="VisionChecks.cs" />
+    <Compile Include="ProjectedLightChecks.cs" />
     <Compile Include="BattleChecks.cs" />
     <Compile Include="LiveBattleChecks.cs" />
     <Compile Include="GeneratedRoundChecks.cs" />

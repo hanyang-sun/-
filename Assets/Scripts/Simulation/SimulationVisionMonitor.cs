@@ -45,6 +45,9 @@ namespace Brick2Life.Simulation
         private string loggedError;
         private long captureSequence;
         private long confirmedCaptureSequence = -1;
+        private ICellProjectionSource projectedLight;
+        private PhotometricProfile photometric;
+        private bool measuredProfile;
 
         // Require fresh RGB evidence without consulting source layout or evaluation scores.
         public long RequestFreshConfirmation() => captureSequence + requiredFrames;
@@ -116,6 +119,23 @@ namespace Brick2Life.Simulation
             Rebuild();
         }
 
+        // Projector stays lit. The signature stays free of Vision types so Feedback can call it.
+        public void UseProjectedLight(ICellProjectionSource source)
+        {
+            projectedLight = source;
+            if (capture != null) capture.ContinuousProjection = source != null;
+            Debug.Log(source == null
+                ? "识别改回跨帧消隐取样。"
+                : "识别使用连续投影：投影保持点亮，按实拍光度模型还原积木颜色。", this);
+        }
+
+        // Replaces the synthetic exposure after a real camera has been calibrated.
+        public void UseMeasuredProfile(PhotometricProfile profile)
+        {
+            photometric = profile ?? throw new ArgumentNullException(nameof(profile));
+            measuredProfile = true;
+        }
+
         public void Configure(int consistentFrames, bool automatic)
         {
             if (board == null || calibration == null) throw new InvalidOperationException("识别面板尚未绑定。");
@@ -143,6 +163,7 @@ namespace Brick2Life.Simulation
             LastStableScore = null;
             LastError = null;
             confirmedCaptureSequence = -1;
+            if (!measuredProfile) photometric = PhotometricProfile.ForLockedCamera(calibration);
             // Task C binds to this session so recognition and feedback share one confirmed state.
             Action<BoardSyncSession> rebuilt = SessionRebuilt;
             if (rebuilt != null) rebuilt(sync);
@@ -158,18 +179,23 @@ namespace Brick2Life.Simulation
         private void Update()
         {
             ScrollEventLogFromPointer();
-            // F8 switches between interference-free sampling and sampling that includes task C's projection.
+            // Playback starts in continuous projection. Blanking mode waits for the pause button.
             if (Input.GetKeyDown(KeyCode.F8) && capture != null)
             {
-                capture.CaptureWithoutProjection = !capture.CaptureWithoutProjection;
-                Debug.Log("识别取样" + (capture.CaptureWithoutProjection ? "关闭" : "保留") + "虚拟投影（F8 切换）。", this);
+                capture.ContinuousProjection = !capture.ContinuousProjection;
+                ApplyModeTitle();
+                Debug.Log(capture.ContinuousProjection
+                    ? "F8：连续投影。画面上的投影不熄灭，识别使用含投影光的照片。"
+                    : "F8：消隐取样。按下暂停立即关闭投影并完成识别。按下继续后一次性显示新投影。", this);
             }
-            if (!Automatic || board == null) return;
+            if (!Automatic || board == null || capture == null) return;
             elapsed += Time.unscaledDeltaTime;
             try
             {
+                bool blanking = !capture.ContinuousProjection;
                 if (!capture.ObservationCapturePending)
                 {
+                    if (blanking) return;
                     if (primed && elapsed < interval) return;
                     primed = true;
                     elapsed = 0;
@@ -193,15 +219,65 @@ namespace Brick2Life.Simulation
 
         private void OnDisable()
         {
+            ShowPreparedProjection();
             if (capture != null) capture.CancelObservationCapture();
+        }
+
+        private IDisposable pausedProjection;
+
+        // Pause refresh: projection stays off until ShowPreparedProjection. The same clean frame is
+        // confirmed immediately, so the new projection is ready before the player presses continue.
+        public void RefreshOnceWithoutProjection()
+        {
+            if (capture == null || board == null || !board.IsInitialized || calibration == null || capture.ContinuousProjection)
+                return;
+            ShowPreparedProjection();
+            capture.CaptureWithoutProjection = true;
+            capture.CancelObservationCapture();
+            pausedProjection = ProjectionCaptureGate.Suppress();
+            try
+            {
+                SimulationObservationImage image = capture.CaptureObservationImage();
+                for (int i = 0; i < requiredFrames; i++) AnalyzeImage(image);
+            }
+            catch
+            {
+                ShowPreparedProjection();
+                throw;
+            }
+        }
+
+        public void ShowPreparedProjection()
+        {
+            IDisposable hold = pausedProjection;
+            pausedProjection = null;
+            if (hold != null) hold.Dispose();
+            if (capture != null) capture.RepaintDisplay();
         }
 
         public void AnalyzeOnce()
         {
             if (board == null || !board.IsInitialized || capture == null || calibration == null)
                 throw new InvalidOperationException("识别面板尚未绑定棋盘和相机。");
-            SimulationObservationImage image = capture.CaptureObservationImage();
+            SimulationObservationImage image = capture.ContinuousProjection
+                ? capture.CaptureAlbedoForMixing()
+                : capture.CaptureObservationImage();
             AnalyzeImage(image);
+        }
+
+        private FrameObservation RecognizeUnderProjection(RgbImage albedo, GridSample[][] samples, DateTimeOffset capturedAtUtc)
+        {
+            if (photometric == null) photometric = PhotometricProfile.ForLockedCamera(calibration);
+            int count = board.Definition.CellCount;
+            var red = new double[count];
+            var green = new double[count];
+            var blue = new double[count];
+            if (projectedLight != null && !projectedLight.TryCopyCellLight(board.Definition, red, green, blue))
+                throw new InvalidOperationException("投影指令与棋盘尺寸不一致。");
+            CellProjection command = CellProjection.Continuous(red, green, blue);
+            RgbImage photo = PhotometricComposer.Illuminate(albedo, samples, photometric, command);
+            return ProjectedLightRecognizer.Recognize(board.Definition, photo, samples, calibration, photometric, command,
+                "pending", "pending", 0, capturedAtUtc);
         }
 
         private void AnalyzeImage(SimulationObservationImage image)
@@ -211,8 +287,10 @@ namespace Brick2Life.Simulation
             BoardSnapshot truth = board.Snapshot();
             GridSample[][] samples = capture.BuildTopSamples(board.Definition, calibration, image.Width, image.Height);
             var rgb = new RgbImage(image.Width, image.Height, image.Rgb);
-            FrameObservation observation = FixedGridRecognizer.Recognize(board.Definition, rgb, samples, calibration,
-                "pending", "pending", 0, image.CapturedAtUtc);
+            FrameObservation observation = capture.ContinuousProjection
+                ? RecognizeUnderProjection(rgb, samples, image.CapturedAtUtc)
+                : FixedGridRecognizer.Recognize(board.Definition, rgb, samples, calibration,
+                    "pending", "pending", 0, image.CapturedAtUtc);
             LastRawScore = RecognitionScore.Compare(observation, truth);
             LayoutTrackStep step = tracker.Observe(observation);
             LastStableScore = step.StableCells == null ? null : RecognitionScore.CompareCells(board.Definition, step.StableCells, truth);
@@ -234,10 +312,22 @@ namespace Brick2Life.Simulation
             Publish(observation, step);
         }
 
+        private string ModeTitle()
+        {
+            return capture != null && capture.ContinuousProjection
+                ? "任务B  连续投影（不频闪）"
+                : "任务B  消隐取样（继续后更新投影）";
+        }
+
+        private void ApplyModeTitle()
+        {
+            if (titleText != null) titleText.text = ModeTitle();
+        }
+
         private void Publish(FrameObservation observation, LayoutTrackStep step)
         {
             var text = new StringBuilder();
-            string title = "任务B  积木识别";
+            string title = ModeTitle();
             text.AppendLine(title);
             if (observation == null || !observation.Accepted)
             {
@@ -449,15 +539,10 @@ namespace Brick2Life.Simulation
             canvasObject.AddComponent<GraphicRaycaster>();
 
             toggleButton = CreateButton(canvasObject.transform, "VisionToggle");
-            var toggleRect = toggleButton.GetComponent<RectTransform>();
-            toggleRect.anchorMin = new Vector2(0.5f, 1f);
-            toggleRect.anchorMax = new Vector2(0.5f, 1f);
-            toggleRect.pivot = new Vector2(0.5f, 1f);
-            toggleRect.anchoredPosition = new Vector2(0, -12);
-            toggleRect.sizeDelta = new Vector2(168, 36);
             toggleLabel = toggleButton.GetComponentInChildren<Text>();
             toggleLabel.text = "关闭识别";
             toggleButton.onClick.AddListener(() => SetPanelVisible(!IsPanelVisible));
+            WorkspaceHeaderStack.Place(toggleButton.GetComponent<RectTransform>(), 1);
 
             panel = new GameObject("VisionRecognitionPanel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(VerticalLayoutGroup));
             panel.transform.SetParent(canvasObject.transform, false);
@@ -698,7 +783,7 @@ namespace Brick2Life.Simulation
             var buttonObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
             buttonObject.transform.SetParent(parent, false);
             Image image = buttonObject.GetComponent<Image>();
-            image.color = new Color(0.16f, 0.34f, 0.46f, 0.92f);
+            image.color = WorkspaceHeaderStack.ButtonColor;
             image.raycastTarget = true;
             var labelObject = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
             labelObject.transform.SetParent(buttonObject.transform, false);

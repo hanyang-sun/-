@@ -16,6 +16,8 @@ namespace Brick2Life.Vision
             Width = width; Height = height; this.rgb = (byte[])rgb.Clone();
         }
 
+        public byte[] CopyPacked() => (byte[])rgb.Clone();
+
         public bool TryRead(double pixelX, double pixelY, out byte r, out byte g, out byte b)
         {
             int x = (int)Math.Floor(pixelX + 0.5), y = (int)Math.Floor(pixelY + 0.5);

@@ -6,6 +6,7 @@ LevelSemanticsChecks.Run();
 ProjectionPlanChecks.Run();
 LevelFeedbackChecks.Run();
 VisionChecks.Run();
+ProjectedLightChecks.Run();
 BattleChecks.Run();
 LiveBattleChecks.Run();
 GeneratedRoundChecks.Run();

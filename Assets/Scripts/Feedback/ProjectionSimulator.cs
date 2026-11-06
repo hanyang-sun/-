@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Brick2Life.Application;
+using Brick2Life.Core;
 using Brick2Life.Simulation;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -12,7 +13,7 @@ namespace Brick2Life.Feedback
     /// so the overhead camera captures the projected color instead of a UI overlay.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class ProjectionSimulator : MonoBehaviour, IProjectionGate
+    public sealed class ProjectionSimulator : MonoBehaviour, IProjectionGate, ICellProjectionSource
     {
         [Tooltip("投影面片的父节点。缺失时使用本组件所在对象。")]
         [SerializeField] private Transform marksRoot;
@@ -81,6 +82,22 @@ namespace Brick2Life.Feedback
         }
         public bool IsVisible => visible;
         public float Intensity => intensity;
+
+        public bool TryCopyCellLight(BoardDefinition definition, double[] red, double[] green, double[] blue)
+        {
+            if (definition == null || red == null || green == null || blue == null ||
+                red.Length != definition.CellCount || green.Length != red.Length || blue.Length != red.Length)
+                return false;
+            Array.Clear(red, 0, red.Length);
+            Array.Clear(green, 0, green.Length);
+            Array.Clear(blue, 0, blue.Length);
+            if (!visible || intensity <= 0f || LastPlan == null || LastPlan.Definition.CellCount != definition.CellCount)
+                return LastPlan == null || LastPlan.Definition.CellCount == definition.CellCount;
+            float fade = fadeStart < 0f ? 1f : Mathf.Clamp01((Time.unscaledTime - fadeStart) / Mathf.Max(0.1f, fadeDuration));
+            ProjectionIllumination.Accumulate(LastPlan, intensity, 1f - fade, red, green, blue);
+            return true;
+        }
+
         public int ProjectionLayer { get; private set; }
         public Transform MarksRoot => marksRoot;
 

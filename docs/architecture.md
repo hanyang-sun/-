@@ -84,7 +84,7 @@ SimulationBoardSession.ReplaceLayout 先校验定义并准备全部几何，再�
 
 Fail 用于采集/识别异常，Cancel 用于取消；ChangeCalibration 取消旧请求并保留旧确认状态供显示。第一阶段只有所有格位占用和颜色都确定才整体确认。应用无路等问题不属于视觉拒绝。
 
-投影与拍照的时序由 `IProjectionGate`（Simulation 程序集）连接：角色投影与战斗覆盖层在 `OnEnable` 注册到 `ProjectionCaptureGate`。`SimulationCameraCapture.CaptureObservationImage()` 通过 `Suppress()` 临时关闭全部已注册投影、按 `projectionSettleFrames` 追加渲染、取完在 finally 中恢复各自原状态；战斗渲染同步隐藏，不依赖下一次 Update。`CaptureObservationImage(true)` 保留投影，用于干扰对照。识别默认使用无投影取样，F8 可实时切换。
+投影与拍照的时序由 `IProjectionGate`（Simulation 程序集）连接。数据集和消隐对照仍可用 `ProjectionCaptureGate.Suppress()` 暂时隐藏投影。播放中的识别在投影接通后走连续投影：`CaptureAlbedoForMixing()` 只在一次调用内读取无投影反射率，返回前把投影画回预览，再用 `PhotometricComposer` 按实拍乘性模型合成照片，交给 `ProjectedLightRecognizer`。投影不为识别而跨帧熄灭。F8 可临时改回消隐取样。详见 [连续投影识别](flicker-free-projection-recognition.md)。
 
 编辑器双窗口采用独立预览场景：确认布局重建积木，`ProjectionSimulator` 与 `SimulationBattleOverlay` 的可见面片共同镜像到投影组。两种展示模式都保留该组，只有组合模式显示数字游戏对象。原始窗口拥有编辑焦点，战斗不再锁定积木模型；展示切换不改变源相机、布局和采集条件。实时更新和失败恢复见 [交互指南](live-battle-editing-guide.md)。
 
