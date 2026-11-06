@@ -7,6 +7,7 @@ using Brick2Life.Core;
 using Brick2Life.Vision;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Rendering;
 using UnityApplication = UnityEngine.Application;
 
 namespace Brick2Life.Simulation
@@ -18,67 +19,52 @@ namespace Brick2Life.Simulation
         [SerializeField] private Camera sourceCamera;
         private SimulationBoardSession board;
         [SerializeField] private Text statusLabel;
-        [Tooltip("识别取样前先关闭虚拟投影，避免投影光污染识别输入。")]
-        [SerializeField] private bool captureWithoutProjection = true;
-        [Tooltip("自动采样消隐至少跨越的实际帧数；同步单次采集使用同等次数的额外渲染。")]
-        [SerializeField, Min(0)] private int projectionSettleFrames = 1;
-        [Tooltip("自动采样消隐最短持续时间（秒），让两个窗口有机会显示相同的消隐状态；非硬件同步参数。")]
-        [SerializeField, Min(0f)] private float projectionBlankSeconds = 0.01f;
-        private IDisposable observationSuppression;
-        private bool observationPending, pendingIncludesProjection;
-        private int observationStartedFrame;
-        private double observationStartedTime;
-
+        [Tooltip("选择暂停识别；暂停期间关闭投影，继续后恢复，不再周期性消隐。")]
+        [SerializeField] private bool captureWithoutProjection;
+        [Tooltip("识别相机固定曝光，展示投影亮度不变；HDR 中间缓冲避免投影先被 8 位裁剪。")]
+        [SerializeField, Range(0.05f, 1f)] private float captureExposure = 0.3f;
+        private CommandBuffer exposureCommands;
+        private Material exposureMaterial;
+        private RenderTexture exposedTarget;
+        private RenderTextureFormat originalFormat;
+        private bool originalHdr;
+        private float lockedExposure = 1;
         public string LastSavedPath { get; private set; }
-        public bool CaptureWithoutProjection
+        // True selects pause recognition. The monitor owns the pause-wide suppression scope.
+        public bool CaptureWithoutProjection { get => captureWithoutProjection; set => captureWithoutProjection = value; }
+
+        public void Bind(SimulationBoardSession session)
         {
-            get => captureWithoutProjection;
-            set
+            board = session ?? throw new ArgumentNullException(nameof(session));
+            if (exposureCommands != null || sourceCamera == null || sourceCamera.targetTexture == null) return;
+            Shader shader = Resources.Load<Shader>("ProjectedLight/CameraExposure");
+            if (shader == null || !shader.isSupported) throw new InvalidOperationException("识别相机曝光 Shader 不可用。");
+            exposedTarget = sourceCamera.targetTexture; originalFormat = exposedTarget.format; originalHdr = sourceCamera.allowHDR;
+            exposedTarget.Release(); exposedTarget.format = RenderTextureFormat.ARGBHalf; exposedTarget.Create(); sourceCamera.allowHDR = true;
+            exposureMaterial = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+            lockedExposure = captureExposure;
+            exposureMaterial.SetFloat("_CaptureExposure", lockedExposure);
+            exposureCommands = new CommandBuffer { name = "Brick2Life locked camera exposure" };
+            int temporary = Shader.PropertyToID("_Brick2LifeExposureTemporary");
+            exposureCommands.GetTemporaryRT(temporary, exposedTarget.width, exposedTarget.height, 0, FilterMode.Bilinear, RenderTextureFormat.ARGBHalf);
+            exposureCommands.Blit(BuiltinRenderTextureType.CameraTarget, temporary, exposureMaterial);
+            exposureCommands.Blit(temporary, BuiltinRenderTextureType.CameraTarget);
+            exposureCommands.ReleaseTemporaryRT(temporary);
+            sourceCamera.AddCommandBuffer(CameraEvent.AfterEverything, exposureCommands);
+        }
+        private void OnDestroy()
+        {
+            if (exposureCommands == null) return;
+            if (exposureCommands != null)
             {
-                if (captureWithoutProjection == value) return;
-                CancelObservationCapture();
-                captureWithoutProjection = value;
+                if (sourceCamera != null) sourceCamera.RemoveCommandBuffer(CameraEvent.AfterEverything, exposureCommands);
+                exposureCommands.Release();
             }
+            if (exposedTarget != null) { exposedTarget.Release(); exposedTarget.format = originalFormat; exposedTarget.Create(); }
+            if (sourceCamera != null) sourceCamera.allowHDR = originalHdr;
+            if (exposureMaterial != null)
+            { if (UnityApplication.isPlaying) Destroy(exposureMaterial); else DestroyImmediate(exposureMaterial); }
         }
-        public bool ObservationCapturePending => observationPending;
-
-        // Automatic capture holds the shared gate across real frames so both windows can render it.
-        public void BeginObservationCapture()
-        {
-            if (observationPending) throw new InvalidOperationException("已有识别采样正在进行。");
-            pendingIncludesProjection = !captureWithoutProjection;
-            observationStartedFrame = Time.frameCount;
-            observationStartedTime = Time.realtimeSinceStartupAsDouble;
-            try
-            {
-                if (!pendingIncludesProjection) observationSuppression = ProjectionCaptureGate.Suppress();
-                observationPending = true;
-            }
-            catch { CancelObservationCapture(); throw; }
-        }
-
-        public bool TryCompleteObservationCapture(out SimulationObservationImage image)
-        {
-            image = null;
-            if (!observationPending) return false;
-            if (!pendingIncludesProjection &&
-                (Time.frameCount - observationStartedFrame < Mathf.Max(1, projectionSettleFrames) ||
-                 Time.realtimeSinceStartupAsDouble - observationStartedTime < projectionBlankSeconds)) return false;
-            try { image = CaptureObservationImageInternal(pendingIncludesProjection); }
-            finally { CancelObservationCapture(); }
-            return true;
-        }
-
-        public void CancelObservationCapture()
-        {
-            observationPending = false;
-            IDisposable suppression = observationSuppression;
-            observationSuppression = null;
-            suppression?.Dispose();
-        }
-
-        private void OnDisable() => CancelObservationCapture();
-        public void Bind(SimulationBoardSession session) => board = session ?? throw new ArgumentNullException(nameof(session));
 
         public void SaveImage()
         {
@@ -159,6 +145,7 @@ namespace Brick2Life.Simulation
             return new CameraConfiguration
             {
                 unityVersion = UnityApplication.unityVersion,
+                exposureScale = lockedExposure,
                 projectionType = sourceCamera.orthographic ? "orthographic" : "perspective",
                 imageWidth = target.width, imageHeight = target.height,
                 worldPosition = new Vector3(Finite(position.x), Finite(position.y), Finite(position.z)),
@@ -253,6 +240,7 @@ namespace Brick2Life.Simulation
 
         [Serializable] private sealed class CameraConfiguration
         {
+            public float exposureScale;
             public int schemaVersion = 1;
             public string unityVersion, projectionType;
             public int imageWidth, imageHeight;
@@ -291,15 +279,12 @@ namespace Brick2Life.Simulation
         // RGB and the public camera matrices only. Ground truth cells are not read.
         public SimulationObservationImage CaptureObservationImage() => CaptureObservationImage(!captureWithoutProjection);
 
-        // Recognition samples hide the virtual projection first: clear → settle → capture → restore.
+        // A synchronous clean image nests inside the monitor's pause scope; only its owner restores display projection.
         public SimulationObservationImage CaptureObservationImage(bool includeProjection)
         {
-            CancelObservationCapture();
             IDisposable suppression = includeProjection ? null : ProjectionCaptureGate.Suppress();
             try
             {
-                if (!includeProjection && sourceCamera != null)
-                    for (int i = 0; i < projectionSettleFrames; i++) sourceCamera.Render();
                 return CaptureObservationImageInternal(includeProjection);
             }
             finally
@@ -318,7 +303,8 @@ namespace Brick2Life.Simulation
             byte[] rgb = ReadTopDown(target);
             if (sourceCamera.targetTexture != target)
                 throw new InvalidOperationException("拍摄期间相机目标纹理发生变化。");
-            return new SimulationObservationImage(target.width, target.height, rgb, DateTimeOffset.UtcNow, view, projection, includeProjection);
+            return new SimulationObservationImage(target.width, target.height, rgb, DateTimeOffset.UtcNow, view, projection, includeProjection,
+                Time.frameCount, lockedExposure);
         }
 
         public GridSample[][] BuildTopSamples(BoardDefinition definition, VisionCalibration calibration, int imageWidth, int imageHeight)

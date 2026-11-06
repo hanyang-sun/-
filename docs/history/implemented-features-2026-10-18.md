@@ -1,6 +1,8 @@
 # 项目已实现功能汇总
 
-> 历史核对记录。2026-10-20 已实施旧系统退役与 Core/Application 重构；当前目录和状态以 [架构说明](architecture.md) 为准。
+> 历史归档：本文保留原日期的计划、实现或验收条件，不作为当前操作手册。现行入口见 [文档导航](../README.md)。其中旧快捷键、采样参数、未接线状态及待办不代表当前版本。
+
+> 历史核对记录。2026-10-20 已实施旧系统退役与 Core/Application 重构；当前目录和状态以 [架构说明](../architecture.md) 为准。
 
 核对日期：2026-10-18（Asia/Shanghai）。依据当前磁盘代码、场景配置、采集文件和已有验证记录整理。
 
@@ -14,8 +16,8 @@
 | --- | --- |
 | 主 Unity 工程 | `BrickDefenseMVP/`，Unity 6000.3.24f1，Built-in 渲染管线 |
 | 本次核对分支 | `feat/task-a-unity-bricks-camera`，HEAD：`597c47b` |
-| 新仿真场景 | [Brick2LifeSimulation.unity](../Assets/Scenes/Brick2LifeSimulation.unity)，在 Unity 中打开后运行 |
-| 旧塔防场景 | [BrickDefenseDemo.unity](../Archive/BrickDefense/Assets/Scenes/BrickDefenseDemo.unity)，仍是 Build Settings 中启用的构建场景 |
+| 新仿真场景 | [Brick2LifeSimulation.unity](../../Assets/Scenes/Brick2LifeSimulation.unity)，在 Unity 中打开后运行 |
+| 旧塔防场景 | [BrickDefenseDemo.unity](../../Archive/BrickDefense/Assets/Scenes/BrickDefenseDemo.unity)，仍是 Build Settings 中启用的构建场景 |
 | 历史 Windows 包 | `Builds/BrickDefense-v1.3.1-Windows-x64.zip`，对应旧塔防原型，未包含新仿真工作台 |
 
 ## 2. Brick2Life 仿真平台已实现功能
@@ -39,16 +41,16 @@
 
 真值 JSON 包含全部 100 格，包括空格；占用格保存 `brickId`、`colorId` 和层号。另有图像尺寸、棋盘尺寸、格边长、坐标约定和四角对应关系。它是评价算法的参考答案，当前尚无新识别模块输出的预测布局。
 
-编辑器采集文件保存在工程的 [SimulationCaptures](../SimulationCaptures/)；Player 代码使用 `Application.persistentDataPath/SimulationCaptures/`。本次核对已有 13 对 PNG/JSON，其中 12 份较新 JSON 含四角数据，另 1 份为增加角点字段前的历史样本；全部包含 100 格且能找到对应 PNG。目录中也保留了 640×384 的旋转相机验证样本。
+编辑器采集文件保存在工程的 SimulationCaptures（原本地路径：`SimulationCaptures`）；Player 代码使用 `Application.persistentDataPath/SimulationCaptures/`。本次核对已有 13 对 PNG/JSON，其中 12 份较新 JSON 含四角数据，另 1 份为增加角点字段前的历史样本；全部包含 100 格且能找到对应 PNG。目录中也保留了 640×384 的旋转相机验证样本。
 
 主要代码：
 
-- [SimulationLayout.cs](../Archive/BrickDefense/Assets/Scripts/Simulation/SimulationLayout.cs)：真实布局、合法格位、占用、稳定 ID 与版本。
-- [SimulationBrickEditor.cs](../Assets/Scripts/Simulation/SimulationBrickEditor.cs)：增删、拖拽、颜色按钮与清空。
-- [SimulationGridPointer.cs](../Assets/Scripts/Simulation/SimulationGridPointer.cs)：拾取、格号和轮廓提示。
-- [SimulationWorkspaceCamera.cs](../Assets/Scripts/Simulation/SimulationWorkspaceCamera.cs)：三维主视图自动取景。
-- [SimulationGridView.cs](../Assets/Scripts/Simulation/SimulationGridView.cs)：网格线与外边框。
-- [SimulationCameraCapture.cs](../Assets/Scripts/Simulation/SimulationCameraCapture.cs)：图像、真值、角点配对导出与失败处理。
+- [SimulationLayout.cs](../../Archive/BrickDefense/Assets/Scripts/Simulation/SimulationLayout.cs)：真实布局、合法格位、占用、稳定 ID 与版本。
+- [SimulationBrickEditor.cs](../../Assets/Scripts/Simulation/SimulationBrickEditor.cs)：增删、拖拽、颜色按钮与清空。
+- [SimulationGridPointer.cs](../../Assets/Scripts/Simulation/SimulationGridPointer.cs)：拾取、格号和轮廓提示。
+- [SimulationWorkspaceCamera.cs](../../Assets/Scripts/Simulation/SimulationWorkspaceCamera.cs)：三维主视图自动取景。
+- [SimulationGridView.cs](../../Assets/Scripts/Simulation/SimulationGridView.cs)：网格线与外边框。
+- [SimulationCameraCapture.cs](../../Assets/Scripts/Simulation/SimulationCameraCapture.cs)：图像、真值、角点配对导出与失败处理。
 
 ## 3. 旧 BrickDefenseMVP 已实现功能
 
@@ -68,7 +70,7 @@
 
 适用范围：旧识别流程针对简单背景、尺寸一致、单层、尽量正上方完整入镜的积木照片；输出是相对布局，未恢复固定物理原点、真实毫米尺度或堆叠高度。已有实拍样本回归不能代表通用实拍准确率验收，Android 构建、触摸和相机尚需真机验收。
 
-详细操作与模块边界见 [README](../README.md) 和 [架构说明](architecture.md)。
+详细操作与模块边界见 [README](../../README.md) 和 [架构说明](../architecture.md)。
 
 ## 4. 独立工作区中的实验记录功能
 
@@ -97,11 +99,11 @@ dotnet run --no-build --project Tests/BrickDefense.Checks.csproj -- --simulation
 
 本次读取了已有 Unity 实际运行验证记录，未重新进入 Unity Play，也未操作用户当前编辑器状态：
 
-- [三维工作台与固定相机隔离验证](../.scratch/task-a-simulation/workspace-view/verification.json)：不同窗口尺寸、独立预览与旋转操作相机后 RGB 保持一致。
-- [编辑与拖拽验证](../.scratch/task-a-simulation/brick-edit/verification.json)：1024×768、1280×720 的实际编辑检查，拖拽轮廓对齐。
-- [RGB/真值配对验证](../.scratch/task-a-simulation/pointer-hover/gt-paired-gt-checks.txt)：20 项检查，覆盖编辑同步、空布局、拒绝与文件清理。
-- [四角坐标验证](../.scratch/task-a-simulation/pointer-hover/corners-validation-corner-checks.txt)：512×512、旋转后的 640×384、100 格颜色采样对应及相机变化拒绝。
-- [清空棋盘验证](../.scratch/task-a-simulation/pointer-hover/clear-board-clear-checks.txt)：14 项检查，含同帧空布局导出和继续编辑。
-- [扩展颜色与滚动验证](../.scratch/task-a-simulation/pointer-hover/palette-many-narrow-palette-checks.txt)：20 色配置和窄屏滚轮访问。
+- 三维工作台与固定相机隔离验证（原本地路径：`.scratch/task-a-simulation/workspace-view/verification.json`）：不同窗口尺寸、独立预览与旋转操作相机后 RGB 保持一致。
+- 编辑与拖拽验证（原本地路径：`.scratch/task-a-simulation/brick-edit/verification.json`）：1024×768、1280×720 的实际编辑检查，拖拽轮廓对齐。
+- [RGB/真值配对验证](../../.scratch/task-a-simulation/pointer-hover/gt-paired-gt-checks.txt)：20 项检查，覆盖编辑同步、空布局、拒绝与文件清理。
+- [四角坐标验证](../../.scratch/task-a-simulation/pointer-hover/corners-validation-corner-checks.txt)：512×512、旋转后的 640×384、100 格颜色采样对应及相机变化拒绝。
+- [清空棋盘验证](../../.scratch/task-a-simulation/pointer-hover/clear-board-clear-checks.txt)：14 项检查，含同帧空布局导出和继续编辑。
+- [扩展颜色与滚动验证](../../.scratch/task-a-simulation/pointer-hover/palette-many-narrow-palette-checks.txt)：20 色配置和窄屏滚轮访问。
 
 早期交接摘要中“尚无编辑、工作台和配对导出”的描述已落后于当前代码；判断当前完成情况时优先使用本汇总及对应实现、验证证据。

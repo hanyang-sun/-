@@ -24,7 +24,6 @@ namespace Brick2Life.Feedback
         [SerializeField, Min(1)] private int arrowsPerRoute = 7;
         [SerializeField, Min(0.05f)] private float arrowSize = 0.34f;
         [SerializeField, Min(0.1f)] private float arrowSpeed = 1.6f;
-        [SerializeField, Min(0.05f)] private float ringHeight = 0.02f;
         [SerializeField, Min(0.1f)] private float rippleSeconds = 0.5f;
 
         private sealed class Fx
@@ -237,7 +236,7 @@ namespace Brick2Life.Feedback
             direction = to - from;
         }
 
-        private static Vector3 World(GridPoint cell) => World(cell, 0.035f);
+        private static Vector3 World(GridPoint cell) => World(cell, 0f);
 
         // ---- range rings --------------------------------------------------------------------
         private void SyncRangeRings(BattleState state)
@@ -258,7 +257,7 @@ namespace Brick2Life.Feedback
                 if (cell.Role != Application.GameRole.Tower || !seenTowers.Add(cell.SourceBrickId)) continue;
                 GameObject ring = rangeRings[used++];
                 ring.SetActive(true);
-                Vector3 center = BrickCenter(cell, ringHeight);
+                Vector3 center = BrickCenter(cell, 0f);
                 ring.transform.position = center;
                 ring.transform.localScale = new Vector3(range * 2f, range * 2f, 1f);
                 bool invaded = false;
@@ -284,7 +283,7 @@ namespace Brick2Life.Feedback
                 foreach (BattleRoute route in routes)
                     for (int i = 0; i < route.Route.Count - 1; i++)
                     {
-                        Vector3 from = World(route.Route[i], 0.028f), to = World(route.Route[i + 1], 0.028f);
+                        Vector3 from = World(route.Route[i]), to = World(route.Route[i + 1]);
                         Vector3 direction = to - from;
                         float length = direction.magnitude;
                         if (length < 0.01f) continue;
@@ -312,7 +311,7 @@ namespace Brick2Life.Feedback
                     GameObject quad = bubbles[used++];
                     quad.SetActive(true);
                     Vector3 position = WorldAt(bubble.X, bubble.Y);
-                    position.y = SurfaceHeight(position.x, position.z) + 0.055f;
+                    position.y = SurfaceHeight(position.x, position.z);
                     quad.transform.position = position;
                 }
             for (int i = used; i < bubbles.Count; i++) bubbles[i].SetActive(false);
@@ -329,7 +328,7 @@ namespace Brick2Life.Feedback
                 {
                     if (cell.Role != Application.GameRole.Tower || towerIds.Contains(cell.SourceBrickId)) continue;
                     towerIds.Add(cell.SourceBrickId);
-                    Vector3 center = BrickCenter(cell, 0.034f);
+                    Vector3 center = BrickCenter(cell, 0f);
                     towerPositions.Add(new Vector2(center.x, center.z));
                 }
                 while (faces.Count < towerIds.Count)
@@ -380,13 +379,13 @@ namespace Brick2Life.Feedback
                     float radians = angle * Mathf.Deg2Rad;
                     float radius = 0.88f + stretch * 0.08f;
                     Transform quad = towerArrows[i * 4 + arm].transform;
-                    quad.position = new Vector3(center.x + Mathf.Cos(radians) * radius, 0.034f,
+                    quad.position = new Vector3(center.x + Mathf.Cos(radians) * radius, 0f,
                         center.y + Mathf.Sin(radians) * radius);
                     quad.rotation = Quaternion.Euler(90f, -angle, 0f);
                     quad.localScale = new Vector3(0.94f + stretch * 0.15f, 0.84f, 1f);
                 }
                 Transform face = faces[i].transform;
-                face.position = new Vector3(center.x, SurfaceHeight(center.x, center.y) + 0.04f, center.y);
+                face.position = new Vector3(center.x, SurfaceHeight(center.x, center.y), center.y);
                 float blinkPhase = Mathf.Clamp01(((animationTime + i * 0.4f) % 3.8f - 2.7f) / 0.21f);
                 float blink = Mathf.Pow(Mathf.Sin(Mathf.PI * blinkPhase), 2f);
                 float delight = 0f;
@@ -430,20 +429,20 @@ namespace Brick2Life.Feedback
                     if (age >= 1f) hitTimes.Remove(enemy.Id);
                     else hop = Mathf.Sin(age * Mathf.PI);
                 }
-                enemyIcons[i].transform.position = new Vector3(x, surface + 0.045f, z + hop * 0.10f);
+                enemyIcons[i].transform.position = new Vector3(x, surface, z + hop * 0.10f);
                 enemyIcons[i].transform.localScale = new Vector3(0.34f + hop * 0.05f, 0.34f + hop * 0.10f, 1f);
                 SetColor(enemyIcons[i], new Color(1f, 0.35f, 0.3f, 0.95f));
                 float ratio = Mathf.Clamp01(enemy.Health / (float)Mathf.Max(1, maxHealth));
-                enemyBars[i].transform.position = new Vector3(x, surface + 0.05f, z - 0.24f);
+                enemyBars[i].transform.position = new Vector3(x, surface, z - 0.24f);
                 enemyBars[i].transform.localScale = new Vector3(0.62f, 0.08f, 1f);
                 SetColor(enemyBars[i], new Color(0.05f, 0.05f, 0.07f, 0.85f));
                 float width = 0.58f * ratio;
-                enemyFills[i].transform.position = new Vector3(x - 0.29f + width * 0.5f, surface + 0.052f, z - 0.24f);
+                enemyFills[i].transform.position = new Vector3(x - 0.29f + width * 0.5f, surface, z - 0.24f);
                 enemyFills[i].transform.localScale = new Vector3(Mathf.Max(0.001f, width), 0.05f, 1f);
                 SetColor(enemyFills[i], Color.Lerp(new Color(1f, 0.25f, 0.2f, 0.95f), new Color(0.4f, 1f, 0.5f, 0.95f), ratio));
                 TextMesh id = enemyIds[i];
                 id.text = enemy.Id.ToString();
-                id.transform.position = new Vector3(x + 0.22f, surface + 0.046f, z + 0.2f);
+                id.transform.position = new Vector3(x + 0.22f, surface, z + 0.2f);
                 id.color = new Color(1f, 0.9f, 0.75f, 0.95f);
             }
         }
@@ -451,7 +450,7 @@ namespace Brick2Life.Feedback
         private float SurfaceHeight(float x, float z)
         {
             BattleLevel level = controller != null ? controller.Level : null;
-            if (level == null) return 0.04f;
+            if (level == null) return 0f;
             int cx = Mathf.FloorToInt(x), cz = Mathf.FloorToInt(z);
             for (int i = 0; i < level.Cells.Count; i++)
             {
@@ -459,10 +458,10 @@ namespace Brick2Life.Feedback
                 if (cell.Position.X / 2 != cx || cell.Position.Y / 2 != cz) continue;
                 if (cell.Role == Application.GameRole.None) continue;
                 // A generated core is a reserved floor cell, with no physical brick.
-                if (cell.IsCore && controller.Round != null) return 0.04f;
+                if (cell.IsCore && controller.Round != null) return 0f;
                 return 1.0f;
             }
-            return 0.04f;
+            return 0f;
         }
 
         private void EnsureEnemyPool(int count)
@@ -478,6 +477,7 @@ namespace Brick2Life.Feedback
                 labelObject.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
                 var label = labelObject.AddComponent<TextMesh>();
                 labelObject.GetComponent<Renderer>().forceRenderingOff = true;
+                labelObject.GetComponent<Renderer>().sortingOrder = 9;
                 label.font = labelFont != null ? labelFont : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 label.fontSize = 64;
                 label.characterSize = 0.06f;
@@ -500,7 +500,7 @@ namespace Brick2Life.Feedback
                 spawnMarkers[i].SetActive(active);
                 if (!active) continue;
                 GridPoint cell = cells[i];
-                spawnMarkers[i].transform.position = World(BattleLevel.PhysicalCenter(cell), 0.03f);
+                spawnMarkers[i].transform.position = World(BattleLevel.PhysicalCenter(cell));
                 SetColor(spawnMarkers[i], new Color(0.2f, 0.95f, 1f, 0.9f));
             }
         }
@@ -523,8 +523,8 @@ namespace Brick2Life.Feedback
                 celebrations[shot.TowerId] = animationTime + 0.4f;
                 if (!shot.Killed) hitTimes[shot.EnemyId] = animationTime;
                 else hitTimes.Remove(shot.EnemyId);
-                Vector3 position = WorldAt(shot.TargetX, shot.TargetY, 0.042f);
-                position.y = SurfaceHeight(position.x, position.z) + 0.06f;
+                Vector3 position = WorldAt(shot.TargetX, shot.TargetY);
+                position.y = SurfaceHeight(position.x, position.z);
                 for (int i = 0; i < 4; i++)
                 {
                     float angle = (i + 0.5f) * Mathf.PI * 0.5f;
@@ -549,9 +549,9 @@ namespace Brick2Life.Feedback
             for (int i = 0; i < level.Cells.Count; i++)
             {
                 if (!level.Cells[i].IsCoreCenter) continue;
-                float height = controller.Round != null ? 0.025f : 1.03f;
+                float height = controller.Round != null ? 0f : 1f;
                 SpawnEffect(World(level.Cells[i].Position, height),
-                    height, 0.6f, 3.2f, new Color(1f, 0.3f, 0.35f, 0.95f), rippleSeconds * 1.4f);
+                    0.6f, 3.2f, new Color(1f, 0.3f, 0.35f, 0.95f), rippleSeconds * 1.4f);
                 break;
             }
         }
@@ -574,17 +574,17 @@ namespace Brick2Life.Feedback
                     if (Mathf.Abs(cx - wx) > 0.8f || Mathf.Abs(cz - wz) > 0.8f) continue;
                     if (wallCooldown[i] > 0f) continue;
                     wallCooldown[i] = 0.7f;
-                    SpawnEffect(new Vector3(cx, 1.01f, cz), 1.02f, 0.4f, 1.4f, new Color(0.75f, 0.9f, 1f, 0.7f), rippleSeconds);
+                    SpawnEffect(new Vector3(cx, 1f, cz), 0.4f, 1.4f, new Color(0.75f, 0.9f, 1f, 0.7f), rippleSeconds);
                     break;
                 }
             }
         }
 
-        private void SpawnEffect(Vector3 position, float height, float startScale, float endScale, Color color, float life)
+        private void SpawnEffect(Vector3 position, float startScale, float endScale, Color color, float life)
         {
             GameObject quad = CreateQuad("BattleFx", ringMaterial, 1f);
             quad.SetActive(true);
-            quad.transform.position = new Vector3(position.x, height + 0.01f, position.z);
+            quad.transform.position = position;
             var fx = new Fx { Quad = quad, Age = 0f, Life = life, StartScale = startScale, EndScale = endScale, Color = color };
             ApplyFx(fx, 0f);
             effects.Add(fx);
@@ -616,7 +616,7 @@ namespace Brick2Life.Feedback
         }
 
         // ---- helpers ------------------------------------------------------------------------
-        private static Vector3 WorldAt(double x, double y, float height = 0.03f) =>
+        private static Vector3 WorldAt(double x, double y, float height = 0f) =>
             new Vector3((float)x / BattleLevel.NavigationPerPhysical, height,
                 (float)y / BattleLevel.NavigationPerPhysical);
         private static Vector3 BrickCenter(BattleCell cell, float height) =>
@@ -641,6 +641,20 @@ namespace Brick2Life.Feedback
             quad.transform.localScale = new Vector3(size, size, 1f);
             var renderer = quad.GetComponent<Renderer>();
             renderer.sharedMaterial = material;
+            // All content lies on its intended receiving plane. Order transparent layers without lifting geometry.
+            switch (name)
+            {
+                case "BattleRange": renderer.sortingOrder = 1; break;
+                case "BattleEntranceMarker": renderer.sortingOrder = 2; break;
+                case "OctopusArm": renderer.sortingOrder = 3; break;
+                case "OctopusFace": renderer.sortingOrder = 4; break;
+                case "BattleArrow": renderer.sortingOrder = 5; break;
+                case "BattleEnemy": renderer.sortingOrder = 6; break;
+                case "BattleEnemyBar": renderer.sortingOrder = 7; break;
+                case "BattleEnemyFill": renderer.sortingOrder = 8; break;
+                case "BattleBubble": renderer.sortingOrder = 10; break;
+                case "BattleFx": case "BubbleSplash": renderer.sortingOrder = 11; break;
+            }
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = false;
             renderer.forceRenderingOff = true;

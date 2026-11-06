@@ -1,5 +1,5 @@
 param([string]$UnityPath = 'D:\Unity\Editor\6000.3.24f1\Editor\Unity.exe', [string]$ValidationProject,
-    [ValidateSet('SimulationDualWindowChecks','GeneratedDefenseRoundChecks','LiveProjectionRefreshChecks','ProjectionBlankingSyncChecks','ProjectionCadenceChecks','PhysicalProjectorChecks')]
+    [ValidateSet('SimulationDualWindowChecks','GeneratedDefenseRoundChecks','LiveProjectionRefreshChecks','PauseRecognitionChecks','PhysicalProjectorChecks')]
     [string]$CheckClass = 'SimulationDualWindowChecks')
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -27,14 +27,8 @@ $liveChecks = Join-Path $PSScriptRoot 'Unity\LiveProjectionRefreshChecks.cs'
 if (Test-Path -LiteralPath $liveChecks) {
     Copy-Item -LiteralPath $liveChecks -Destination (Join-Path $runPath 'Assets\Editor\LiveProjectionRefreshChecks.cs') -Force
 }
-$blankingChecks = Join-Path $PSScriptRoot 'Unity\ProjectionBlankingSyncChecks.cs'
-if (Test-Path -LiteralPath $blankingChecks) {
-    Copy-Item -LiteralPath $blankingChecks -Destination (Join-Path $runPath 'Assets\Editor\ProjectionBlankingSyncChecks.cs') -Force
-}
-$cadenceChecks = Join-Path $PSScriptRoot 'Unity\ProjectionCadenceChecks.cs'
-if (Test-Path -LiteralPath $cadenceChecks) {
-    Copy-Item -LiteralPath $cadenceChecks -Destination (Join-Path $runPath 'Assets\Editor\ProjectionCadenceChecks.cs') -Force
-}
+$pauseChecks = Join-Path $PSScriptRoot 'Unity\PauseRecognitionChecks.cs'
+Copy-Item -LiteralPath $pauseChecks -Destination (Join-Path $runPath 'Assets\Editor\PauseRecognitionChecks.cs') -Force
 $physicalChecks = Join-Path $PSScriptRoot 'Unity\PhysicalProjectorChecks.cs'
 if (Test-Path -LiteralPath $physicalChecks) {
     Copy-Item -LiteralPath $physicalChecks -Destination (Join-Path $runPath 'Assets\Editor\PhysicalProjectorChecks.cs') -Force

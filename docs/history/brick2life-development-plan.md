@@ -1,5 +1,7 @@
 # Brick2Life 开发安排
 
+> 历史归档：本文保留原日期的计划、实现或验收条件，不作为当前操作手册。现行入口见 [文档导航](../README.md)。其中旧快捷键、采样参数、未接线状态及待办不代表当前版本。
+
 更新：2026-10-20。用户确认 Brick2Life 为唯一活动主线。旧系统归档到 Assets 外，以下安排替代 2026-10-15 的旧模块复用计划；原计划保存在历史归档中。
 
 ## 当前范围
@@ -25,7 +27,7 @@ Core、Application 无 Unity 引用。公共合同放在 Core/Contracts，不单
 2. C 用明确标记的人工快照独立验证平面内容与输出映射，暂不作为识别闭环证据。
 3. 组合入口把采集图像和公开标定交给 B，通过 BoardSyncSession 确认，再把快照和差异交给 C。采集/识别异常调用 Fail，取消调用 Cancel。
 4. 接入反馈时统一执行清空反馈、等待稳定、采集、分析、确认、恢复显示；异常和取消也恢复上次有效反馈。
-5. 以少量固定布局/操作回放验收，再增加光照、遮挡和反馈干扰种类。已新增用户选择的 100 张日常识别集（20 布局 × 5 光照），见 [生成指南](task-a-dataset-generation-guide.md)；原大规模数据集方案仍处于撤回状态。
+5. 以少量固定布局/操作回放验收，再增加光照、遮挡和反馈干扰种类。已新增用户选择的 100 张日常识别集（20 布局 × 5 光照），见 [生成指南](../task-a-dataset-generation-guide.md)；原大规模数据集方案仍处于撤回状态。
 
 ## 验收
 
@@ -37,11 +39,10 @@ Core、Application 无 Unity 引用。公共合同放在 Core/Contracts，不单
 - 独立记录图像、标定、预测、确认版本、差异、阶段耗时和反馈误差。GT 只供评价。
 - 中心和边缘测试点独立于拟合点；仿真误差与真实设备实测分别报告，不将独立显示窗口作为实体投影对齐通过。
 
-实际目录、确认接口与当前验证结果以 [架构说明](architecture.md) 为准。
+实际目录、确认接口与当前验证结果以 [架构说明](../architecture.md) 为准。
 
 ## 进展（2026-10-25）
 
 - 任务 C 的独立投影仿真与关卡反馈已实现：Application 侧 `LevelSemantics` / `ProjectionPlan` / `LevelFeedbackSession`，引擎侧 `Brick2Life.Feedback`（Bootstrap、Adapter、LevelView、ProjectionSimulator）与 Editor 安装菜单；`Brick2LifeGame`(30) / `Brick2LifeProjection`(31) 分层，顶置相机排除游戏层、包含投影层。
 - 依据 `.scratch/task-a-simulation/spec.md` 第 2 阶段，C 现由“人工目标”驱动可独立演示；接入 B 后禁用演示组件，按“B 输出 FrameObservation → BoardSyncSession → Apply”联调。
-- 已通过：纯 C# 463 项断言、Unity 2022.3 程序集编译基线。未执行：Unity 6.3 中的运行验收、投影开关图像对照、构建。详见 [任务 C 手册](task-c-feedback-guide.md)。
-
+- 已通过：纯 C# 463 项断言、Unity 2022.3 程序集编译基线。未执行：Unity 6.3 中的运行验收、投影开关图像对照、构建。详见 [任务 C 手册](../task-c-feedback-guide.md)。

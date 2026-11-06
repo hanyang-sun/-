@@ -1,5 +1,7 @@
 # 战斗期间布局编辑锁：检索与适配
 
+> 阶段研究记录：以下选择、参数和结果保留原日期条件，部分实现已替代。当前运行行为以 [现行文档](../README.md) 为准；版本关系见 [研究索引](README.md)。
+
 日期：2026-10-29。范围：开始战斗后锁定原始积木与出生点；暂停、等待下一波保持锁定；胜负结束或重试后解锁。保留前一项“新局重新规划路线”的修复。
 
 依据：用户确认的第 2 项需求、`docs/architecture.md`、现有 `SimulationBattleController`、`SimulationBrickEditor` 与 `SimulationBoardSession`。本次不更换输入系统，不调整投影或界面布局。

@@ -13,4 +13,5 @@ GeneratedBattleFallbackChecks.Run();
 LocalOverlapRerouteChecks.Run();
 CenteredRouteChecks.Run();
 RecognitionSamplingCadenceChecks.Run();
+ProjectedLightChecks.Run();
 Console.WriteLine("BRICK2LIFE_CHECKS_PASSED");

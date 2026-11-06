@@ -1,8 +1,10 @@
 # A/C 整合说明
 
+> 历史归档：本文保留原日期的计划、实现或验收条件，不作为当前操作手册。现行入口见 [文档导航](../README.md)。其中旧快捷键、采样参数、未接线状态及待办不代表当前版本。
+
 日期：2026-10-30。整合基础为 A `823fe28` 与 C `56adb76`，保留双方历史，以 A 的双窗口作为使用入口。目标版本为 Unity 6000.3.24f1，编辑器 Play 模式。
 
-后续规则更新：用户已改为要求战斗中编辑积木，当前实现以 [实时交互指南](live-battle-editing-guide.md) 为准。下文验证数字保留整合当时记录。
+后续规则更新：用户已改为要求战斗中编辑积木，当前实现以 [实时交互指南](../live-battle-editing-guide.md) 为准。下文验证数字保留整合当时记录。
 
 ## 整合后的行为
 
@@ -34,7 +36,7 @@ C 的等待开战原先通过读取仿真棋盘占用和颜色核对识别结果
 | 角色投影＋战斗投影 → 独立只读预览 | `SimulationProjectionPreview.cs`，沿用 A 双窗口模块 |
 | RGB 取样 → 全部投影临时隐藏／恢复 | `ProjectionCaptureGate.cs`、`SimulationCameraCapture.cs` |
 
-GitHub 候选与复用决定见 [检索记录](research/a-c-integration-github.md)。本次整合自有分支代码，无新增第三方包。
+GitHub 候选与复用决定见 [检索记录](../research/a-c-integration-github.md)。本次整合自有分支代码，无新增第三方包。
 
 ## 验证结果
 

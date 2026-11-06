@@ -1,6 +1,8 @@
 # Brick2Life 方向调整后的 Assets 模块梳理
 
-> 历史核对记录。2026-10-20 已实施旧系统退役与 Core/Application 重构；当前目录和状态以 [架构说明](architecture.md) 为准。
+> 历史归档：本文保留原日期的计划、实现或验收条件，不作为当前操作手册。现行入口见 [文档导航](../README.md)。其中旧快捷键、采样参数、未接线状态及待办不代表当前版本。
+
+> 历史核对记录。2026-10-20 已实施旧系统退役与 Core/Application 重构；当前目录和状态以 [架构说明](../architecture.md) 为准。
 
 日期：2026-10-15。
 
@@ -181,7 +183,7 @@ BrickDefenseDemo.Start
 - `SoftStrategyTheme` 通过 `Resources.Load<Font>("Fonts/NotoSansSC-Regular")` 读取字体。
 - `PhotoProfileStore` 通过 `Resources.Load<TextAsset>("photo-scan-settings")` 读取参数。
 - `LevelView`、`CombatView` 动态 `Shader.Find("Standard")`，CombatView 还使用 `Sprites/Default`。
-- `Resources/BrickSurface.mat` 虽没有直接加载调用，但用于保留 Standard 构建依赖。此前 Windows Player 曾实际出现 shader 为空，添加该资源后修复，依据见 [运行时着色器修复记录](../Archive/BrickDefense/docs/research/windows-runtime-shaders-github.md)。
+- `Resources/BrickSurface.mat` 虽没有直接加载调用，但用于保留 Standard 构建依赖。此前 Windows Player 曾实际出现 shader 为空，添加该资源后修复，依据见 [运行时着色器修复记录](../../Archive/BrickDefense/docs/research/windows-runtime-shaders-github.md)。
 - `ThirdParty/AssemblyInfo.cs` 的 `InternalsVisibleTo` 是现有内部算法类型跨程序集访问的一部分。
 
 因此不建议按“没有 Inspector 引用”“没有 `Resources.Load` 调用”或“名称看起来旧”执行批量删除。
@@ -279,8 +281,8 @@ flowchart TD
 
 ## 9 清单与复查方法
 
-- 完整逐文件分类、长度、SHA-256、资源 GUID、Assets 内静态引用保存在 [inventory.json](../.scratch/assets-module-audit/inventory.json)。
-- [Build-Inventory.ps1](../.scratch/assets-module-audit/Build-Inventory.ps1) 可重新生成清单；它会检查文件分类无遗漏/重复、资源 `.meta` 存在，并检查三个候选没有 Assets 内静态依赖。
+- 完整逐文件分类、长度、SHA-256、资源 GUID、Assets 内静态引用保存在 [inventory.json](../../.scratch/assets-module-audit/inventory.json)。
+- [Build-Inventory.ps1](../../.scratch/assets-module-audit/Build-Inventory.ps1) 可重新生成清单；它会检查文件分类无遗漏/重复、资源 `.meta` 存在，并检查三个候选没有 Assets 内静态依赖。
 - 实际核对通过：63 个资源 `.meta`、15 个目录 `.meta` 均有对应目标，78 个 GUID 不重复；四类数量之和为 63。`git diff --exit-code -- Assets ProjectSettings Packages` 通过，确认检查没有改动工程运行内容。
 - 词法类型引用不是 Roslyn 语义分析，GUID 搜索也不能覆盖反射、运行时添加、Resources、外部执行命令与未来改动；动态依赖已经另列于第 4 节。
 - 本次仅新增报告与本地任务/清单文件，未修改 Assets、ProjectSettings、Packages 或其他工作区。

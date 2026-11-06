@@ -3177,9 +3177,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Brick2Life.Simulation::Brick2Life.Simulation.SimulationCameraCapture
   sourceCamera: {fileID: 1356387076}
   statusLabel: {fileID: 875255856}
-  captureWithoutProjection: 1
-  projectionSettleFrames: 1
-  projectionBlankSeconds: 0.01
+  captureWithoutProjection: 0
 --- !u!1 &1452470341
 GameObject:
   m_ObjectHideFlags: 0
@@ -3416,7 +3414,6 @@ MonoBehaviour:
   fallbackProjectionLayer: 31
   brickTopHeight: 1
   tableHeight: 0
-  surfaceOffset: 0.006
   intensity: 1
   visible: 1
 --- !u!4 &1480744937
@@ -4261,7 +4258,6 @@ MonoBehaviour:
   arrowsPerRoute: 7
   arrowSize: 0.34
   arrowSpeed: 1.6
-  ringHeight: 0.02
   flashSeconds: 0.18
   rippleSeconds: 0.5
 --- !u!1 &1835982914

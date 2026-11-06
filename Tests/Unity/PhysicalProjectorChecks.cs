@@ -23,6 +23,8 @@ public static class PhysicalProjectorChecks
         public int shiftedPixels, reflectedPixels;
         public Color redDelta, greenDelta;
         public float beforeShadow;
+        public float maxAlignmentError;
+        public List<string> alignmentSamples = new List<string>();
         public List<string> failures = new List<string>();
     }
     private static Result result;
@@ -56,7 +58,7 @@ public static class PhysicalProjectorChecks
     {
         try
         {
-            if (EditorApplication.timeSinceStartup - started > 45) throw new TimeoutException("Physical projector checks timed out.");
+            if (EditorApplication.timeSinceStartup - started > 90) throw new TimeoutException("Physical projector checks timed out.");
             if (lastFrame == Time.frameCount) return;
             lastFrame = Time.frameCount;
             while (steps.Count > 0)
@@ -100,9 +102,93 @@ public static class PhysicalProjectorChecks
             int i = (Mathf.Clamp(y + dy, 0, image.Height - 1) * image.Width + Mathf.Clamp(x + dx, 0, image.Width - 1)) * 3;
             sum += new Color(image.Rgb[i] / 255f, image.Rgb[i + 1] / 255f, image.Rgb[i + 2] / 255f);
         }
-        return sum / 9;
+        return sum / (9 * image.ExposureScale);
     }
-    private static int Difference(byte[] a, byte[] b) => a.Zip(b, (x, y) => Math.Abs(x - y) > 3 ? 1 : 0).Sum();
+    private static int Difference(byte[] a, byte[] b, int threshold = 3) => a.Zip(b, (x, y) => Math.Abs(x - y) > threshold ? 1 : 0).Sum();
+    // Measure the actual reflected footprint in RGB, not the source quad's constructed position.
+    private static float FootprintError(SimulationObservationImage clean, SimulationObservationImage lit, Vector3 target)
+    {
+        Vector3 center = top.WorldToViewportPoint(target);
+        int px = Mathf.RoundToInt(center.x * lit.Width), py = Mathf.RoundToInt((1 - center.y) * lit.Height);
+        double total = 0, sumX = 0, sumZ = 0;
+        for (int y = Mathf.Max(0, py - 24); y <= Mathf.Min(lit.Height - 1, py + 24); y++)
+            for (int x = Mathf.Max(0, px - 24); x <= Mathf.Min(lit.Width - 1, px + 24); x++)
+            {
+                int index = (y * lit.Width + x) * 3;
+                float weight = 0;
+                for (int channel = 0; channel < 3; channel++) weight += Mathf.Max(0, lit.Rgb[index + channel] - clean.Rgb[index + channel]);
+                if (weight < 12) continue;
+                Ray ray = top.ViewportPointToRay(new Vector3((x + 0.5f) / lit.Width, 1 - (y + 0.5f) / lit.Height, 0));
+                Vector3 point = ray.GetPoint((target.y - ray.origin.y) / ray.direction.y);
+                total += weight; sumX += point.x * weight; sumZ += point.z * weight;
+            }
+        if (total == 0) return 100;
+        return Vector2.Distance(new Vector2((float)(sumX / total), (float)(sumZ / total)), new Vector2(target.x, target.z));
+    }
+
+    private static IEnumerator VerifyBakedAlignment(ProjectionSimulator projection, SimulationBattleOverlay overlay)
+    {
+        var renderers = projection.MarksRoot.GetComponentsInChildren<Renderer>(true)
+            .Concat(overlay.MarksRoot.GetComponentsInChildren<Renderer>(true)).ToArray();
+        var enabled = renderers.Select(r => r.enabled).ToArray();
+        // Capture suppression restores source GameObjects; disable rendering instead to isolate the test pattern.
+        foreach (Renderer renderer in renderers) renderer.enabled = false;
+        var patch = GameObject.CreatePrimitive(PrimitiveType.Quad); owned.Add(patch);
+        patch.name = "AlignmentContent"; patch.layer = projection.ProjectionLayer;
+        patch.transform.SetParent(projection.MarksRoot, false);
+        patch.transform.rotation = Quaternion.Euler(90, 0, 0); patch.transform.localScale = Vector3.one * 0.32f;
+        var ink = new Material(Shader.Find("Sprites/Default")) { color = Color.white }; owned.Add(ink);
+        patch.GetComponent<Renderer>().sharedMaterial = ink; patch.GetComponent<Renderer>().forceRenderingOff = true;
+        var receiver = GameObject.CreatePrimitive(PrimitiveType.Cube); owned.Add(receiver);
+        var gray = new Material(Shader.Find("Standard")) { color = new Color(0.4f, 0.4f, 0.4f) }; owned.Add(gray);
+        receiver.GetComponent<Renderer>().sharedMaterial = gray;
+        Vector3 pose = light.ProjectorPosition, angles = light.ProjectorAngles;
+        var fovField = typeof(SimulationProjectedLight).GetField("fieldOfView", BindingFlags.Instance | BindingFlags.NonPublic);
+        float fov = (float)fovField.GetValue(light), strength = light.LightStrength, observerFov = top.fieldOfView;
+        try
+        {
+            light.CalibrationPattern = null; light.LightStrength = 0.35f;
+            // The production camera frames one layer; widen this optical fixture to observe elevated corner targets.
+            top.fieldOfView = 60;
+            for (int variant = 0; variant < 3; variant++)
+            {
+                light.ProjectorPosition = variant == 0 ? pose : new Vector3(5, 16, 4);
+                light.ProjectorAngles = variant == 0 ? angles : Quaternion.LookRotation(new Vector3(5, 0, 5) - light.ProjectorPosition).eulerAngles;
+                fovField.SetValue(light, variant == 2 ? 55f : fov);
+                foreach (float height in new[] { 0f, 1f, 2f })
+                    foreach (Vector2 point in new[] { new Vector2(5.5f, 5.5f), new Vector2(0.5f, 0.5f),
+                        new Vector2(0.5f, 9.5f), new Vector2(9.5f, 0.5f), new Vector2(9.5f, 9.5f) })
+                    {
+                        receiver.SetActive(height > 0);
+                        receiver.transform.localScale = new Vector3(0.8f, Mathf.Max(0.01f, height), 0.8f);
+                        receiver.transform.position = new Vector3(point.x, height / 2, point.y);
+                        Vector3 target = new Vector3(point.x, height, point.y);
+                        patch.transform.position = target;
+                        yield return null;
+                        var clean = capture.CaptureObservationImage(false);
+                        var lit = capture.CaptureObservationImage(true);
+                        float error = FootprintError(clean, lit, target);
+                        result.maxAlignmentError = Mathf.Max(result.maxAlignmentError, error);
+                        string label = $"pose={variant}, target={target}, error={error:F5}";
+                        result.alignmentSamples.Add(label);
+                        Check(error <= 0.02f, "Reflected footprint is misaligned: " + label);
+                        if (error > 0.02f)
+                        {
+                            Save(top.targetTexture, $"alignment-fail-{variant}-{height}-{point.x}-{point.y}.png");
+                            Save(light.OutputTexture, $"alignment-output-{variant}-{height}-{point.x}-{point.y}.png");
+                        }
+                    }
+            }
+            Save(top.targetTexture, "physical-projector-alignment.png");
+        }
+        finally
+        {
+            patch.SetActive(false); receiver.SetActive(false);
+            light.ProjectorPosition = pose; light.ProjectorAngles = angles; light.LightStrength = strength; fovField.SetValue(light, fov);
+            top.fieldOfView = observerFov;
+            for (int i = 0; i < renderers.Length; i++) renderers[i].enabled = enabled[i];
+        }
+    }
     private static byte[] ReadCamera(Camera camera)
     {
         var target = new RenderTexture(512, 512, 24); target.Create();
@@ -131,6 +217,7 @@ public static class PhysicalProjectorChecks
         while (Object.FindFirstObjectByType<SimulationVisionMonitor>()?.Session == null) yield return null;
         monitor = Object.FindFirstObjectByType<SimulationVisionMonitor>(); monitor.Automatic = false;
         capture = Object.FindFirstObjectByType<SimulationCameraCapture>();
+        capture.CaptureWithoutProjection = true;
         var adapter = Object.FindFirstObjectByType<SimulationLevelAdapter>();
         var battle = Object.FindFirstObjectByType<SimulationBattleController>();
         var board = Object.FindFirstObjectByType<SimulationBoardSession>();
@@ -150,7 +237,7 @@ public static class PhysicalProjectorChecks
         var dark = capture.CaptureObservationImage(true);
         Check(Difference(clean.Rgb, dark.Rgb) == 0, "A black projector image paints the scene black or exposes source quads.");
         light.BlackLevel = 0.03f;
-        Check(Difference(clean.Rgb, capture.CaptureObservationImage(true).Rgb) > 1000,
+        Check(Difference(clean.Rgb, capture.CaptureObservationImage(true).Rgb, 0) > 1000,
             "Configurable black-level leakage did not add residual light.");
         light.BlackLevel = 0;
         // Use a non-clipping calibration exposure to measure reflectance rather than sensor saturation.
@@ -209,8 +296,15 @@ public static class PhysicalProjectorChecks
         capture.CaptureObservationImage(true);
         Save(top.targetTexture, "physical-projector-shadow.png");
         receiver.SetActive(false);
+        var restored = capture.CaptureObservationImage(true);
+        var restoredClean = capture.CaptureObservationImage(false);
+        Check(Sample(restored, shadowPoint).b - Sample(restoredClean, shadowPoint).b > unblocked * 0.8f,
+            "An inactive root renderer still casts a ghost projector shadow.");
         light.ProjectorPosition = new Vector3(5, 14, 5); light.ProjectorAngles = new Vector3(90, 0, 0);
         light.CalibrationPattern = null;
+        yield return null;
+        var overlay = battle.GetComponent<SimulationBattleOverlay>();
+        yield return VerifyBakedAlignment(adapter.Projection, overlay);
         var natural = capture.CaptureObservationImage(true);
         Check(light.OutputTexture != null && Difference(clean.Rgb, natural.Rgb) > 20, "Existing role patterns were not baked into the projector output.");
         int originalMask = top.cullingMask;
@@ -246,6 +340,8 @@ public static class PhysicalProjectorChecks
         Check(battle.StartBattle(), "Cannot start battle with the physical projector.");
         battle.StepManual(2);
         yield return null;
+        var face = overlay.MarksRoot.GetComponentsInChildren<Renderer>().FirstOrDefault(r => r.name == "OctopusFace");
+        Check(face != null && Mathf.Abs(face.transform.position.y - 1f) < 0.0001f, "Octopus face is not on the confirmed brick top.");
         Check(battle.Running && battle.GetComponent<SimulationBattleOverlay>().ActiveEnemyCount > 0,
             "Live battle animation did not enter the projector output.");
         monitor.AnalyzeOnce();

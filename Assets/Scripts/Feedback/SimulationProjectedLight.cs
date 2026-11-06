@@ -4,12 +4,14 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using Brick2Life.Simulation;
+using Brick2Life.Core;
+using Brick2Life.Vision;
 
 namespace Brick2Life.Feedback
 {
     /// <summary>Projects one output image onto opaque scene surfaces, with surface reflectance and projector-view occlusion.</summary>
     [DisallowMultipleComponent]
-    public sealed class SimulationProjectedLight : MonoBehaviour
+    public sealed class SimulationProjectedLight : MonoBehaviour, IProjectionObservationSource
     {
         [SerializeField] private Vector3 projectorPosition = new Vector3(5, 14, 5);
         [SerializeField] private Vector3 projectorAngles = new Vector3(90, 0, 0);
@@ -29,6 +31,11 @@ namespace Brick2Life.Feedback
         private Material lightMaterial, depthMaterial;
         private CommandBuffer depthCommands;
         private bool renderingContent;
+        private Texture2D observationOutput;
+        private SimulationObservationImage lightingImage;
+        private ProjectionResponseCalibration responseCalibration;
+        private Camera observationCamera;
+        private int observedFrame = -1;
         private readonly Dictionary<Camera, bool> views = new Dictionary<Camera, bool>();
         private readonly Dictionary<Camera, ViewFrame> frames = new Dictionary<Camera, ViewFrame>();
         private readonly List<MeshRenderer> receivers = new List<MeshRenderer>();
@@ -74,6 +81,8 @@ namespace Brick2Life.Feedback
             if (contentCamera != null) DestroyOwned(contentCamera.gameObject);
             Release(output); depthCommands?.Release();
             DestroyOwned(lightMaterial); DestroyOwned(depthMaterial);
+            DestroyOwned(observationOutput);
+            responseCalibration?.Dispose();
         }
         private static void DestroyOwned(UnityEngine.Object value)
         {
@@ -109,13 +118,15 @@ namespace Brick2Life.Feedback
                 SceneManager.MoveGameObjectToScene(go, gameObject.scene);
                 contentCamera = go.GetComponent<Camera>();
                 contentCamera.enabled = false;
-                contentCamera.orthographic = true; contentCamera.orthographicSize = 6;
-                contentCamera.aspect = 1; contentCamera.nearClipPlane = 0.01f; contentCamera.farClipPlane = 50;
+                contentCamera.orthographic = false;
+                contentCamera.aspect = 1; contentCamera.nearClipPlane = 0.1f; contentCamera.farClipPlane = Far;
                 contentCamera.clearFlags = CameraClearFlags.SolidColor; contentCamera.backgroundColor = Color.clear;
                 contentCamera.cullingMask = 1 << SourceLayer;
                 contentCamera.allowHDR = false; contentCamera.allowMSAA = false;
-                contentCamera.transform.SetPositionAndRotation(new Vector3(5, 20, 5), Quaternion.Euler(90, 0, 0));
             }
+            // Bake and reproject with the same optics, including runtime pose/FOV changes.
+            contentCamera.fieldOfView = fieldOfView;
+            contentCamera.transform.SetPositionAndRotation(projectorPosition, Quaternion.Euler(projectorAngles));
         }
 
         private void BeforeCamera(Camera camera)
@@ -125,6 +136,8 @@ namespace Brick2Life.Feedback
             if (!registered && (camera.name != "TopCamera" || camera.gameObject.scene != gameObject.scene)) return;
             if (!frames.TryGetValue(camera, out ViewFrame frame)) { frame = new ViewFrame(camera); frames.Add(camera, frame); }
             frame.Commands.Clear();
+            if (camera.name == "TopCamera" && camera.gameObject.scene == gameObject.scene)
+            { observedFrame = Time.frameCount; observationCamera = camera; }
             try
             {
                 EnsureResources();
@@ -150,9 +163,8 @@ namespace Brick2Life.Feedback
                 }
                 Scene scene = camera.scene.IsValid() ? camera.scene : camera.gameObject.scene;
                 CollectReceivers(scene, camera.cullingMask);
-                Matrix4x4 view = Matrix4x4.Scale(new Vector3(1, 1, -1)) *
-                    Matrix4x4.TRS(projectorPosition, Quaternion.Euler(projectorAngles), Vector3.one).inverse;
-                Matrix4x4 vp = GL.GetGPUProjectionMatrix(Matrix4x4.Perspective(fieldOfView, 1, 0.1f, Far), true) * view;
+                Matrix4x4 view = contentCamera.worldToCameraMatrix;
+                Matrix4x4 vp = GL.GetGPUProjectionMatrix(contentCamera.projectionMatrix, true) * view;
                 RenderOcclusion(frame, vp, view);
                 CommandBuffer draw = frame.Commands;
                 draw.SetGlobalTexture("_VPImage", CalibrationPattern != null ? CalibrationPattern : output);
@@ -184,6 +196,83 @@ namespace Brick2Life.Feedback
             catch (Exception error) { frame.Commands.Clear(); Debug.LogException(error, this); }
         }
 
+        public void GetObservationLighting(BoardDefinition definition, VisionCalibration calibration, SimulationObservationImage image,
+            out PhotometricProfile profile, out CellProjection projection)
+        {
+            if (!isActiveAndEnabled || !image.ProjectionVisible || observedFrame != Time.frameCount || image.RenderFrame != observedFrame)
+                throw new InvalidOperationException("缺少本次 RGB 曝光对应的投影输出，不能使用旧指令补偿。");
+            Texture input = CalibrationPattern != null ? CalibrationPattern : source.LastPlan == null ? Texture2D.blackTexture : output;
+            if (input == null) throw new InvalidOperationException("尚未生成投影输出。");
+            if (observationOutput == null || observationOutput.width != input.width || observationOutput.height != input.height)
+            {
+                DestroyOwned(observationOutput);
+                observationOutput = new Texture2D(input.width, input.height, TextureFormat.RGBA32, false, true)
+                    { hideFlags = HideFlags.HideAndDontSave, wrapMode = TextureWrapMode.Clamp };
+            }
+            if (!ReferenceEquals(lightingImage, image))
+            {
+                RenderTexture previous = RenderTexture.active;
+                RenderTexture temporary = null;
+                try
+                {
+                    if (input is RenderTexture target) RenderTexture.active = target;
+                    else { temporary = RenderTexture.GetTemporary(input.width, input.height, 0); Graphics.Blit(input, temporary); RenderTexture.active = temporary; }
+                    observationOutput.ReadPixels(new Rect(0, 0, input.width, input.height), 0, 0); observationOutput.Apply(false, false);
+                    lightingImage = image;
+                }
+                finally { RenderTexture.active = previous; if (temporary != null) RenderTexture.ReleaseTemporary(temporary); }
+            }
+            int perAxis = calibration.SamplesPerAxis, count = perAxis * perAxis;
+            if (QualitySettings.activeColorSpace != ColorSpace.Gamma) throw new InvalidOperationException("当前连续识别适配需要 Gamma 渲染；Linear 管线须另行标定。");
+            if (responseCalibration == null) responseCalibration = new ProjectionResponseCalibration(gameObject.scene);
+            Texture2D ambientResponse = responseCalibration.Get(observationCamera, image, calibration.SurfaceY);
+            var red = new double[definition.CellCount][]; var green = new double[definition.CellCount][]; var blue = new double[definition.CellCount][];
+            var ar = new double[definition.CellCount][]; var ag = new double[definition.CellCount][]; var ab = new double[definition.CellCount][];
+            for (int cell = 0; cell < definition.CellCount; cell++)
+            {
+                red[cell] = new double[count]; green[cell] = new double[count]; blue[cell] = new double[count];
+                ar[cell] = new double[count]; ag[cell] = new double[count]; ab[cell] = new double[count];
+                for (int sample = 0; sample < count; sample++)
+                {
+                    CameraProjection.TopPoint(definition, cell % definition.Width, cell / definition.Width,
+                        sample % perAxis, sample / perAxis, perAxis, calibration.Inset, calibration.SurfaceY, out double x, out double y, out double z);
+                    Vector3 point = new Vector3((float)x, (float)y, (float)z);
+                    Vector3 cameraUV = observationCamera.WorldToViewportPoint(point);
+                    // Match the exact camera pixel read by RgbImage.TryRead, not the ideal subpixel grid point.
+                    cameraUV.x = (Mathf.Floor(cameraUV.x * image.Width) + 0.5f) / image.Width;
+                    cameraUV.y = 1 - (Mathf.Floor((1 - cameraUV.y) * image.Height) + 0.5f) / image.Height;
+                    Ray ray = observationCamera.ViewportPointToRay(cameraUV);
+                    point = ray.GetPoint(((float)calibration.SurfaceY - ray.origin.y) / ray.direction.y);
+                    Vector3 uv = contentCamera.WorldToViewportPoint(point);
+                    Color ambient = ambientResponse.GetPixelBilinear(cameraUV.x, cameraUV.y) * 2;
+                    red[cell][sample] = ambient.r * image.ExposureScale / 8;
+                    green[cell][sample] = ambient.g * image.ExposureScale / 8; blue[cell][sample] = ambient.b * image.ExposureScale / 8;
+                    ar[cell][sample] = red[cell][sample]; ag[cell][sample] = green[cell][sample]; ab[cell][sample] = blue[cell][sample];
+                    if (!source.IsVisible || uv.z < contentCamera.nearClipPlane || uv.z > contentCamera.farClipPlane || uv.x < 0 || uv.x > 1 || uv.y < 0 || uv.y > 1) continue;
+                    Vector2 step = new Vector2(blurPixels / input.width, blurPixels / input.height);
+                    Color color = observationOutput.GetPixelBilinear(uv.x, uv.y) * 0.5f;
+                    color += (observationOutput.GetPixelBilinear(uv.x + step.x, uv.y) + observationOutput.GetPixelBilinear(uv.x - step.x, uv.y)
+                        + observationOutput.GetPixelBilinear(uv.x, uv.y + step.y) + observationOutput.GetPixelBilinear(uv.x, uv.y - step.y)) * 0.125f;
+                    color = Color.Lerp(color, Color.white, blackLevel);
+                    Vector3 direction = projectorPosition - point;
+                    float response = Mathf.Clamp01(direction.normalized.y) * Mathf.Min(1.5f, 196f / Mathf.Max(1, direction.sqrMagnitude)) * lightStrength;
+                    red[cell][sample] = Mathf.Clamp01((ambient.r + color.r * response) * image.ExposureScale / 8);
+                    green[cell][sample] = Mathf.Clamp01((ambient.g + color.g * response) * image.ExposureScale / 8);
+                    blue[cell][sample] = Mathf.Clamp01((ambient.b + color.b * response) * image.ExposureScale / 8);
+                }
+            }
+            var reflectance = new LinearRgb[calibration.Colors.Count];
+            for (int i = 0; i < reflectance.Length; i++)
+            {
+                RgbColor c = calibration.Colors[i].Value;
+                reflectance[i] = new LinearRgb(c.R / 255.0, c.G / 255.0, c.B / 255.0);
+            }
+            profile = PhotometricProfile.Create(calibration.CalibrationId, true, new LinearRgb(0, 0, 0),
+                new LinearRgb(0, 0, 0), new LinearRgb(8, 8, 8),
+                new LinearRgb(1, 1, 1), reflectance, 1);
+            projection = CellProjection.FromSamples(red, green, blue, ar, ag, ab);
+        }
+
         private void CollectReceivers(Scene scene, int cameraMask)
         {
             receivers.Clear();
@@ -194,7 +283,7 @@ namespace Brick2Life.Feedback
                 foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>())
                 {
                     int mask = 1 << renderer.gameObject.layer;
-                    if (!renderer.enabled || renderer.forceRenderingOff || (mask & excluded) != 0 ||
+                    if (!renderer.gameObject.activeInHierarchy || !renderer.enabled || renderer.forceRenderingOff || (mask & excluded) != 0 ||
                         (mask & cameraMask) == 0 || !region.Intersects(renderer.bounds)) continue;
                     if (renderer.GetComponent<MeshFilter>() == null) continue;
                     receivers.Add(renderer);

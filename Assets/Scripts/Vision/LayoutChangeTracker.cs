@@ -87,6 +87,7 @@ namespace Brick2Life.Vision
         public int Streak => streak;
         public bool HasBaseline => stable != null;
         public IReadOnlyList<LayoutChangeEvent> Events => events;
+        public void DiscardCandidate() { pending = null; streak = 0; }
 
         public LayoutTrackStep Observe(FrameObservation observation)
         {

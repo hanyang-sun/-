@@ -160,7 +160,6 @@ namespace Brick2Life.Editor
             serialized.FindProperty("fallbackProjectionLayer").intValue = ProjectionLayerIndex;
             serialized.FindProperty("brickTopHeight").floatValue = 1f;
             serialized.FindProperty("tableHeight").floatValue = 0f;
-            serialized.FindProperty("surfaceOffset").floatValue = 0.006f;
             serialized.FindProperty("intensity").floatValue = 1f;
             serialized.FindProperty("visible").boolValue = true;
             serialized.ApplyModifiedProperties();

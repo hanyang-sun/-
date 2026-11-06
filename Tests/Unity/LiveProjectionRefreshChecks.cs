@@ -22,6 +22,7 @@ public static class LiveProjectionRefreshChecks
     {
         public bool passed;
         public int assertions, immediateConfirmations;
+        public int continuousFrames;
         public List<string> failures = new List<string>();
         public List<string> boundaries = new List<string>();
     }
@@ -58,6 +59,11 @@ public static class LiveProjectionRefreshChecks
             if (EditorApplication.timeSinceStartup - started > 50) throw new TimeoutException("Live projection checks timed out.");
             if (lastFrame == Time.frameCount) return;
             lastFrame = Time.frameCount;
+            if (monitor != null && monitor.Automatic && monitor.CompensatingProjection)
+            {
+                result.continuousFrames++;
+                Check(!ProjectionCaptureGate.IsSuppressed, "Continuous recognition blanked the projector.");
+            }
             while (steps.Count > 0)
             {
                 IEnumerator step = steps.Peek();
@@ -85,10 +91,10 @@ public static class LiveProjectionRefreshChecks
     private static string Boundary() => "frame=" + Time.frameCount + "; auto=" + monitor?.Automatic +
         "; confirmed=" + monitor?.Session?.Confirmed?.Version + "; level=" + adapter?.Feedback?.Level?.SourceVersion +
         "; projection=" + adapter?.Projection?.LastPlan?.LevelVersion + "; running=" + controller?.Running +
-        "; raw=" + monitor?.LastRawScore?.ExactMatches + "; error=" + monitor?.LastError;
-    private static IEnumerator Wait(Func<bool> predicate, string message)
+        "; raw=" + monitor?.LastRawScore?.ExactMatches + "; error=" + monitor?.LastError + "; mismatches=" + (monitor?.LastRawScore == null ? "" : string.Join("; ", monitor.LastRawScore.Mismatches.Take(4)));
+    private static IEnumerator Wait(Func<bool> predicate, string message, double seconds = 3)
     {
-        double deadline = EditorApplication.timeSinceStartup + 3;
+        double deadline = EditorApplication.timeSinceStartup + seconds;
         while (!predicate() && EditorApplication.timeSinceStartup < deadline) yield return null;
         Check(predicate(), message);
     }
@@ -104,12 +110,12 @@ public static class LiveProjectionRefreshChecks
         controller = Object.FindFirstObjectByType<SimulationBattleController>();
         SimulationDualWindowSession.Open(); SimulationDualWindowSession.LayoutWindow.Focus();
         SimulationEditAccess.ConfigureFocus(() => true);
-        Object.FindFirstObjectByType<SimulationCameraCapture>().CaptureWithoutProjection = true;
+        Object.FindFirstObjectByType<SimulationCameraCapture>().CaptureWithoutProjection = false;
         monitor.Configure(3, true);
         Check(controller.GenerateNewRound(2, 3), "Could not create repeatable multi-entrance round.");
         controller.WavePlan = new WavePlan(2, 2, 9999, 0.1, 1, 1);
         controller.SetAutoStep(true);
-        yield return Wait(() => adapter.Feedback.Level != null, "Automatic RGB did not establish a baseline.");
+        yield return Wait(() => adapter.Feedback.Level != null, "Automatic RGB did not establish a baseline.", 10);
         controller.StartBattle();
         yield return Wait(() => controller.Running, "Automatic fresh confirmation did not start battle.");
         BattleSimulation originalBattle = controller.Battle;
@@ -136,6 +142,11 @@ public static class LiveProjectionRefreshChecks
         Check(board.TryAdd(free[1].X, free[1].Y, "red", out BoardLayout.Brick tower), "Could not add tower during battle.");
         yield return Wait(() => Matches(free[1], "red"), "Tower addition was not automatically confirmed during battle.");
         yield return VerifyDisplay(originalBattle, free[1], GameRole.Tower, 2, "add tower");
+        // Export the next automatic recognition input after the confirmed tower projection is visible.
+        var previousInput = monitor.LastRecognitionImage;
+        yield return Wait(() => monitor.LastRecognitionImage != null &&
+            !ReferenceEquals(previousInput, monitor.LastRecognitionImage), "No continuous RGB available for export.");
+        SaveRecognitionInput();
         controller.SetPaused(true);
         Check(board.TryMove(tower.BrickId, free[2].X, free[2].Y), "Could not move tower during battle.");
         yield return Wait(() => Matches(free[1], null) && Matches(free[2], "red"), "Tower move was not automatically confirmed during battle.");
@@ -168,6 +179,79 @@ public static class LiveProjectionRefreshChecks
         monitor.UpdateApplied -= confirmedObserver;
         confirmedObserver = null;
         yield return VerifyLocalOverlap();
+        yield return VerifyProjectionInput();
+    }
+
+    private static void SaveRecognitionInput()
+    {
+        var rgb = monitor.LastRecognitionImage;
+        if (rgb == null) return;
+        Check(!ProjectionCaptureGate.IsSuppressed && monitor.CompensatingProjection,
+            "Exported recognition input was captured outside continuous projection mode.");
+        var texture = new Texture2D(rgb.Width, rgb.Height, TextureFormat.RGB24, false);
+        try
+        {
+            var pixels = new Color32[rgb.Width * rgb.Height];
+            for (int y = 0; y < rgb.Height; y++)
+                for (int x = 0; x < rgb.Width; x++)
+                {
+                    rgb.TryRead(x, y, out byte r, out byte g, out byte b);
+                    pixels[(rgb.Height - 1 - y) * rgb.Width + x] = new Color32(r, g, b, 255);
+                }
+            texture.SetPixels32(pixels); texture.Apply();
+            File.WriteAllBytes(Path.Combine(UnityEngine.Application.dataPath, "..", "continuous-recognition-input.png"),
+                texture.EncodeToPNG());
+        }
+        finally { Object.DestroyImmediate(texture); }
+    }
+
+    private static IEnumerator VerifyProjectionInput()
+    {
+        monitor.Automatic = false; controller.SetAutoStep(false);
+        var capture = Object.FindFirstObjectByType<SimulationCameraCapture>();
+        var light = adapter.Projection.GetComponent<SimulationProjectedLight>();
+        var blue = new Texture2D(2, 2); blue.SetPixels(Enumerable.Repeat(Color.blue, 4).ToArray()); blue.Apply();
+        var white = new Texture2D(2, 2); white.SetPixels(Enumerable.Repeat(Color.white, 4).ToArray()); white.Apply();
+        float strength = light.LightStrength;
+        try
+        {
+            light.LightStrength = 0.35f; light.CalibrationPattern = blue;
+            SimulationObservationImage photograph = capture.CaptureObservationImage(true);
+            monitor.AnalyzeOnce();
+            bool same = true;
+            for (int y = 0; y < photograph.Height && same; y++) for (int x = 0; x < photograph.Width && same; x++)
+            {
+                monitor.LastRecognitionImage.TryRead(x, y, out byte r, out byte g, out byte b);
+                int i = (y * photograph.Width + x) * 3;
+                same &= Math.Abs(r - photograph.Rgb[i]) <= 2 && Math.Abs(g - photograph.Rgb[i + 1]) <= 2 && Math.Abs(b - photograph.Rgb[i + 2]) <= 2;
+            }
+            Check(same, "Recognition input differs from the actual projected camera RGB.");
+            Check(!ProjectionCaptureGate.IsSuppressed && capture.CaptureWithoutProjection == false, "Input verification used a hidden clean capture.");
+            Check(monitor.LastRawScore.ExactMatches >= 95, "Photometric compensation failed on the actual blue projection: " + monitor.ReportText);
+            long confirmed = monitor.Session.Confirmed.Version;
+            light.LightStrength = 4; light.CalibrationPattern = white;
+            monitor.AnalyzeOnce();
+            Check(monitor.LastRawScore.ExactMatches < 100 && monitor.Session.Confirmed.Version == confirmed,
+                "An actually overexposed RGB photograph guessed a fully known layout.");
+            var modeButton = GameObject.Find("ProjectionSamplingMode").GetComponent<UnityEngine.UI.Button>();
+            modeButton.onClick.Invoke();
+            Check(capture.CaptureWithoutProjection && monitor.Session.Confirmed.Version == confirmed, "Mode switch discarded the confirmed layout.");
+            monitor.AnalyzeOnce(); monitor.AnalyzeOnce();
+            Check(monitor.Session.Confirmed.Version == confirmed, "Mode switch reused a previous mode's pending frames.");
+            monitor.AnalyzeOnce();
+            Check(monitor.LastRawScore.ExactMatches == 100, "Clean contrast mode no longer recognizes RGB.");
+            monitor.ToggleSamplingMode();
+            Check(!capture.CaptureWithoutProjection, "Mode switch did not restore continuous compensation.");
+            yield return null;
+            bool staleRejected = false;
+            var calibration = (Brick2Life.Vision.VisionCalibration)typeof(SimulationVisionMonitor)
+                .GetField("calibration", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(monitor);
+            try { light.GetObservationLighting(board.Definition, calibration, photograph, out _, out _); }
+            catch (InvalidOperationException) { staleRejected = true; }
+            Check(staleRejected, "A previous RGB frame was paired with the current projector output.");
+        }
+        finally { light.CalibrationPattern = null; light.LightStrength = strength; Object.DestroyImmediate(blue); Object.DestroyImmediate(white); }
+        yield return null;
     }
 
     private static IEnumerator VerifyLocalOverlap()
@@ -240,7 +324,7 @@ public static class LiveProjectionRefreshChecks
             {
                 GridPoint a = route.Route[i - 1], b = route.Route[i];
                 centeredRoutes &= a.X != b.X ? a.Y % 2 == 1 && a.Y == b.Y : a.X % 2 == 1 && a.X == b.X;
-                routeSegments.Add(new Vector3((a.X + b.X) * 0.25f, 0.028f, (a.Y + b.Y) * 0.25f));
+                routeSegments.Add(new Vector3((a.X + b.X) * 0.25f, 0f, (a.Y + b.Y) * 0.25f));
             }
         Check(centeredRoutes, stage + ": entrance routes run along physical-cell edges.");
         yield return null;

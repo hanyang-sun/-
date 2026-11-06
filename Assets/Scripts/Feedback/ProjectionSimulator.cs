@@ -25,8 +25,6 @@ namespace Brick2Life.Feedback
         [SerializeField, Min(0f)] private float brickTopHeight = 1f;
         [Tooltip("桌面高度（世界 Y）。空格的格点与提示投在桌面上。")]
         [SerializeField, Min(0f)] private float tableHeight = 0f;
-        [Tooltip("贴面偏移，避免与积木顶面 z-fighting。")]
-        [SerializeField, Min(0f)] private float surfaceOffset = 0.006f;
         [Tooltip("投影强度，乘到标记 alpha 上；用于投影开/关与强弱对照。")]
         [SerializeField, Range(0f, 1f)] private float intensity = 1f;
         [SerializeField] private bool visible = true;
@@ -319,10 +317,12 @@ namespace Brick2Life.Feedback
             if (properties == null) properties = new MaterialPropertyBlock();
             float surface = mark.Surface == ProjectionSurface.BrickTop ? brickTopHeight : tableHeight;
             quad.SetActive(visible);
-            quad.transform.position = new Vector3(mark.CenterX, surface + surfaceOffset, mark.CenterY);
+            quad.transform.position = new Vector3(mark.CenterX, surface, mark.CenterY);
             quad.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
             quad.transform.localScale = new Vector3(mark.SizeX, mark.SizeY, 1f);
             Renderer renderer = quad.GetComponent<Renderer>();
+            // Content has no physical depth offset; compositing order must not change its projected location.
+            renderer.sortingOrder = mark.Kind == ProjectionMarkKind.ChangeHighlight ? 20 : -10;
             renderer.sharedMaterial = MaterialFor(mark, material);
             ProjectionColor color = mark.Color;
             bool core = mark.Kind == ProjectionMarkKind.RoleHighlight && mark.Role == GameRole.Core;

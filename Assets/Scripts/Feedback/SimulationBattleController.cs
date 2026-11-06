@@ -35,6 +35,8 @@ namespace Brick2Life.Feedback
         private BoardSyncSession pendingSession;
         private long pendingConfirmation;
         private float pendingSeconds;
+        private bool pendingResume;
+        private SimulationVisionMonitor visionMonitor;
         private BattleLevel lastValidNavigation;
         private LevelState preparationObservation;
         private SimulationRoundMarkers roundMarkers;
@@ -50,7 +52,10 @@ namespace Brick2Life.Feedback
         public BattleState State => Battle != null ? Battle.State : lastState;
         public IReadOnlyList<ShotEvent> LastShots { get; private set; } = Array.Empty<ShotEvent>();
         public long ShotSequence { get; private set; }
-        public bool PendingStart => pendingVision != null;
+        public bool PendingStart => pendingVision != null && !pendingResume;
+        public bool PendingResume => pendingVision != null && pendingResume;
+        public bool PauseRecognitionMode => visionMonitor != null && !visionMonitor.CompensatingProjection;
+        public bool IsPaused => (State != null && State.Paused) || (visionMonitor != null && visionMonitor.RecognitionPaused);
         public bool Running => Battle != null && !Battle.State.Finished && Battle.State.Phase != BattlePhase.Ready;
         public string LastMessage { get; private set; } = "先点“点棋盘选入口”，再点棋盘上的空格";
         public SimulationBattlePanel Panel => panel;
@@ -89,17 +94,41 @@ namespace Brick2Life.Feedback
         private void OnEnable() => ConnectFeedback();
         private void OnDisable()
         {
+            CancelPendingConfirmation();
+            if (visionMonitor != null)
+            {
+                visionMonitor.SetRecognitionPaused(false);
+                visionMonitor.SamplingModeChanged -= OnSamplingModeChanged;
+                visionMonitor = null;
+            }
             if (subscribedAdapter != null) subscribedAdapter.FeedbackChanged -= OnFeedbackChanged;
             subscribedAdapter = null;
         }
         private void ConnectFeedback()
         {
             if (!isActiveAndEnabled) return;
+            if (visionMonitor == null)
+            {
+                visionMonitor = FindFirstObjectByType<SimulationVisionMonitor>();
+                if (visionMonitor != null) visionMonitor.SamplingModeChanged += OnSamplingModeChanged;
+            }
             if (adapter == null) adapter = FindFirstObjectByType<SimulationLevelAdapter>();
             if (subscribedAdapter == adapter) return;
             if (subscribedAdapter != null) subscribedAdapter.FeedbackChanged -= OnFeedbackChanged;
             subscribedAdapter = adapter;
             if (subscribedAdapter != null) subscribedAdapter.FeedbackChanged += OnFeedbackChanged;
+        }
+        private void OnSamplingModeChanged()
+        {
+            if (PendingStart || PendingResume) CancelPendingConfirmation();
+            if (visionMonitor != null) visionMonitor.SetRecognitionPaused(PauseRecognitionMode && State != null && State.Paused);
+            if (view != null) view.RefreshLayout();
+            if (panel != null) panel.Refresh(this);
+        }
+        private void CancelPendingConfirmation()
+        {
+            if (pendingVision != null) pendingVision.SetRecognitionPaused(false);
+            pendingVision = null; pendingSession = null; pendingResume = false;
         }
         private void OnFeedbackChanged(FeedbackFrame frame)
         {
@@ -124,7 +153,7 @@ namespace Brick2Life.Feedback
 
         public bool GenerateNewRound(int? seed = null, int? spawnCount = null)
         {
-            if (!generateObjectives || Running || PendingStart || !SimulationEditAccess.CanEdit) return false;
+            if (!generateObjectives || Running || PendingStart || PendingResume || !SimulationEditAccess.CanEdit) return false;
             var board = brickEditor != null ? brickEditor.Board : FindFirstObjectByType<SimulationBoardSession>();
             if (board == null || !board.IsInitialized || board.IsEditingLocked || adapter == null || !adapter.IsBound) return false;
             if (!adapter.TryGetColorForRole(GameRole.Wall, out string wall) ||
@@ -227,12 +256,14 @@ namespace Brick2Life.Feedback
 
         public bool StartBattle()
         {
-            if (Running || PendingStart) return false;
+            if (Running || PendingStart || PendingResume) return false;
             var vision = FindFirstObjectByType<SimulationVisionMonitor>();
             if (vision != null && vision.isActiveAndEnabled && vision.Automatic && vision.Session != null)
             {
                 pendingVision = vision;
+                pendingResume = false;
                 pendingSession = vision.Session;
+                if (!vision.CompensatingProjection) vision.SetRecognitionPaused(true);
                 pendingConfirmation = vision.RequestFreshConfirmation();
                 pendingSeconds = 0;
                 LastMessage = "等待任务 B 从新采集的 RGB 确认布局，确认后自动开始…";
@@ -280,9 +311,21 @@ namespace Brick2Life.Feedback
 
         public void SetPaused(bool paused)
         {
-            if (Battle == null) return;
+            if (PendingStart) return;
+            if (visionMonitor == null) ConnectFeedback();
+            if (PendingResume) { if (paused) CancelPendingConfirmation(); else return; }
+            if (!paused && PauseRecognitionMode && visionMonitor.isActiveAndEnabled && visionMonitor.Automatic)
+            {
+                visionMonitor.SetRecognitionPaused(true);
+                pendingVision = visionMonitor; pendingSession = visionMonitor.Session; pendingResume = true;
+                pendingConfirmation = visionMonitor.RequestFreshConfirmation(); pendingSeconds = 0;
+                LastMessage = "正在确认最新布局，完成后恢复投影并继续…";
+                if (panel != null) panel.Refresh(this);
+                return;
+            }
             SyncConfirmedLayout();
-            Battle.SetPaused(paused);
+            if (Battle != null) Battle.SetPaused(paused);
+            if (visionMonitor != null) visionMonitor.SetRecognitionPaused(paused && PauseRecognitionMode);
             LastMessage = paused ? "已暂停" : "继续";
             Publish();
         }
@@ -291,12 +334,13 @@ namespace Brick2Life.Feedback
         {
             if (PendingStart)
             {
-                pendingVision = null;
-                pendingSession = null;
+                CancelPendingConfirmation();
                 LastMessage = "已取消等待识别确认。";
                 if (panel != null) panel.Refresh(this);
                 return true;
             }
+            CancelPendingConfirmation();
+            if (visionMonitor != null) visionMonitor.SetRecognitionPaused(false);
             if (Battle == null) return false;
             Battle.Restart();
             Battle = null;
@@ -331,22 +375,28 @@ namespace Brick2Life.Feedback
 
         private void Update()
         {
-            if (PendingStart)
+            if (pendingVision != null)
             {
                 pendingSeconds += Time.unscaledDeltaTime;
-                if (!pendingVision.isActiveAndEnabled || !pendingVision.Automatic ||
+                if (!pendingVision.isActiveAndEnabled || !pendingVision.Automatic || !pendingVision.CanCapture || pendingVision.LastError != null ||
                     pendingVision.Session != pendingSession || pendingSeconds > 8f)
                 {
-                    pendingVision = null;
-                    pendingSession = null;
+                    CancelPendingConfirmation();
                     LastMessage = "未取得新的布局确认，请检查 RGB 识别或标定后重新开始。";
                     if (panel != null) panel.Refresh(this);
                 }
                 else if (pendingVision.HasConfirmed(pendingConfirmation))
                 {
-                    pendingVision = null;
-                    pendingSession = null;
-                    BeginBattle();
+                    bool resume = pendingResume;
+                    CancelPendingConfirmation();
+                    if (resume)
+                    {
+                        SyncConfirmedLayout();
+                        if (Battle != null) Battle.SetPaused(false);
+                        if (view != null) view.RefreshLayout();
+                        LastMessage = "布局已确认，投影已恢复，继续。"; Publish();
+                    }
+                    else BeginBattle();
                 }
             }
             if (SelectSpawns && !Running && Input.GetMouseButtonDown(0))
