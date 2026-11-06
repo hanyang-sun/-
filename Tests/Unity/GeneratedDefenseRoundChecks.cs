@@ -232,7 +232,7 @@ public static class GeneratedDefenseRoundChecks
         }
         Require(battle.ActiveRoutes.Count == 3 && controller.View.RouteCount == 3, "Blocked-layout fallback lost or compressed entrance routes.");
         for (int i = 0; i < round.Spawns.Count; i++)
-            Check(battle.ActiveRoutes[i].Spawn.Equals(new GridPoint(round.Spawns[i].X * 2, round.Spawns[i].Y * 2)),
+            Check(battle.ActiveRoutes[i].Spawn.Equals(new GridPoint(round.Spawns[i].X * 2 + 1, round.Spawns[i].Y * 2 + 1)),
                 "Retained route was assigned to a different entrance.");
         var overlay = controller.GetComponent<SimulationBattleOverlay>();
         Check(overlay != null && overlay.ActiveArrowCount > 0, "Blocked-layout fallback hid the usable old route arrows.");
@@ -252,12 +252,13 @@ public static class GeneratedDefenseRoundChecks
         Check(controller.Level.Cells.All(c => c.Role != GameRole.Tower) && overlay.ActiveRangeRingCount == 0,
             "Fallback kept a removed tower from the old map.");
         controller.StepManual(0.2f);
-        Check(controller.LastShots.Count == 0, "Removed tower continued firing during fallback.");
+        Check(controller.Battle.Bubbles.All(b => b.TimeRemaining <= BattleSimulation.BubbleFlight),
+            "Removed tower kept charging a new shot during fallback.");
         GridPoint replacement = free.First(p => !neighbors.Contains(p) && !p.Equals(towerPosition));
         Require(board.TryAdd(replacement.X, replacement.Y, "red", out _), "Could not add a tower during fallback.");
         ConfirmRgb(monitor);
         yield return null;
-        controller.StepManual(0.6f);
+        controller.StepManual(0.8f);
         Check(controller.LastShots.Count > 0 && controller.State.UsingPreviousRoutes, "New tower did not join combat while old routes were retained.");
         controller.SetPaused(true);
         double pausedTime = controller.State.Elapsed;

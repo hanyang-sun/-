@@ -242,7 +242,7 @@ public static class SimulationDualWindowChecks
         Require(monitor.LastRawScore.ExactMatches == 100 && adapter.Feedback.Level.IsPlayable,
             "Clean RGB did not establish the playable three-brick fixture.");
         Check(adapter.Projection.MaterialNameOf(GameRole.Core) == "ProjectionCore", "Core emblem material is missing.");
-        Check(adapter.Projection.MaterialNameOf(GameRole.Tower) == "ProjectionTower", "Tower pattern material is missing.");
+        Check(adapter.Projection.MaterialNameOf(GameRole.Tower) == "none", "The obsolete tower target must be absent.");
         Check(adapter.Projection.MaterialNameOf(GameRole.Wall) == "ProjectionWall", "Wall pattern material is missing.");
         controller.ClearSpawns();
         Require(controller.AddSpawn(new GridPoint(3, 3)), "Could not set the integration entrance.");
@@ -277,14 +277,15 @@ public static class SimulationDualWindowChecks
         Require(overlay != null && overlay.MarksRoot != controller.transform, "Battle projection has no isolated source root.");
         Require(overlay.ActiveArrowCount == 7, "Flowing route arrows are missing.");
         Require(overlay.ActiveRangeRingCount == 1, "There must be exactly one visible range ring per physical tower.");
-        Require(overlay.ActiveTowerArrowCount == 1, "There must be exactly one aiming arrow per physical tower.");
+        Require(overlay.ActiveTowerArrowCount == 4, "There must be four octopus arms per physical tower.");
         Transform rangeRing = overlay.MarksRoot.Find("BattleRange");
-        Transform aimArrow = overlay.MarksRoot.Find("BattleTowerAim");
+        Transform octopusFace = overlay.MarksRoot.Find("OctopusFace");
         Check(rangeRing != null && Vector2.Distance(new Vector2(rangeRing.position.x, rangeRing.position.z),
             new Vector2(5.5f, 5.5f)) < 0.001f, "Tower range ring is not centered on its physical brick.");
-        Check(aimArrow != null && Vector2.Distance(new Vector2(aimArrow.position.x, aimArrow.position.z),
-            new Vector2(5.5f, 5.5f)) < 0.001f, "Tower aiming arrow is not centered on its physical brick.");
-        controller.StepManual(0.2f);
+        Check(octopusFace != null && Vector2.Distance(new Vector2(octopusFace.position.x, octopusFace.position.z),
+            new Vector2(5.5f, 5.5f)) < 0.001f && octopusFace.position.y > 1f,
+            "The octopus face must be centered on top of its physical brick.");
+        controller.StepManual(0.8f);
         Require(controller.LastShots.Count > 0, "The integration battle did not produce shooting events.");
         controller.SetPaused(true);
         yield return null;
@@ -394,7 +395,7 @@ public static class SimulationDualWindowChecks
         Require(board.TryMove(restoredCore.BrickId, 8, 8), "Cannot move the recovered core.");
         ConfirmRgb(monitor);
         yield return null;
-        Check(overlay.ActiveRangeRingCount == 1 && overlay.ActiveTowerArrowCount == 1 && controller.Level.CellAt(16, 16).IsCore,
+        Check(overlay.ActiveRangeRingCount == 1 && overlay.ActiveTowerArrowCount == 4 && controller.Level.CellAt(16, 16).IsCore,
             "Replacement tower/core did not update live projection and navigation.");
         using (var preview = new SimulationProjectionPreview(board.Palette))
         {

@@ -3,167 +3,76 @@ using System.Collections.Generic;
 using Brick2Life.Battle;
 using Brick2Life.Core;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace Brick2Life.Feedback
 {
     /// <summary>
-    /// Draws the battle: one polyline per entrance route plus pooled enemy cubes. Everything lives on the
-    /// game layer so the overhead recognition camera never sees it.
+    /// Thin facade kept for serialized scene references and controller call sites. Everything the battle
+    /// needs is drawn by SimulationBattleOverlay on the projection layer (31); this component creates no
+    /// layer-30 stand-ins any more, so recognition never sees combat props.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class SimulationBattleView : MonoBehaviour
     {
+        [Tooltip("保留的旧字段：实体替身已关闭，这里只用于场景序列化兼容。")]
         [SerializeField] private Transform root;
         [SerializeField] private Material enemyMaterial;
         [SerializeField] private Material routeMaterial;
-        [SerializeField, Min(0.05f)] private float enemyScale = 0.45f;
-        [SerializeField, Min(0.1f)] private float routeWidth = 0.08f;
+        [SerializeField] private float enemyScale = 0.45f;
+        [SerializeField] private float routeWidth = 0.08f;
         [SerializeField] private string gameLayerName = "Brick2LifeGame";
 
-        private readonly List<GameObject> enemyObjects = new List<GameObject>();
-        private readonly List<LineRenderer> routeLines = new List<LineRenderer>();
-        private readonly List<GameObject> spawnMarkers = new List<GameObject>();
-        private int gameLayer = 30;
+        private SimulationBattleOverlay overlay;
 
-        public int EnemyCount => enemyObjects.Count;
-        public int RouteCount => routeLines.Count;
-        public int SpawnMarkerCount => spawnMarkers.Count;
+        public int EnemyCount => Overlay != null ? Overlay.ActiveEnemyCount : 0;
+        public int RouteCount
+        {
+            get
+            {
+                if (Overlay != null) return Overlay.RouteCount;
+                var controller = FindFirstObjectByType<SimulationBattleController>();
+                return controller != null && controller.DisplayRoutes != null ? controller.DisplayRoutes.Count : 0;
+            }
+        }
+        public int SpawnMarkerCount => Overlay != null ? Overlay.SpawnMarkerCount : 0;
+        public SimulationBattleOverlay Overlay
+        {
+            get
+            {
+                if (overlay == null) overlay = GetComponent<SimulationBattleOverlay>();
+                if (overlay == null) overlay = FindFirstObjectByType<SimulationBattleOverlay>();
+                return overlay;
+            }
+        }
 
         private void Awake()
         {
-            gameLayer = ResolveLayer();
             if (root == null) root = transform;
         }
 
+        // Routes and enemies are owned by the overlay; Build only asks it to refresh confirmed geometry.
         public void Build(BattleLevel level, IReadOnlyList<BattleRoute> routes = null)
         {
-            ClearRoutes();
-            if (level == null) return;
-            if (root == null) root = transform;
-            foreach (BattleRoute route in routes ?? level.Routes)
-            {
-                var lineObject = new GameObject("BattleRoute");
-                lineObject.layer = gameLayer;
-                lineObject.transform.SetParent(root, false);
-                var line = lineObject.AddComponent<LineRenderer>();
-                line.useWorldSpace = true;
-                line.widthMultiplier = routeWidth;
-                line.positionCount = route.Route.Count;
-                for (int i = 0; i < route.Route.Count; i++)
-                    line.SetPosition(i, World(route.Route[i]));
-                if (routeMaterial != null) line.sharedMaterial = routeMaterial;
-                line.shadowCastingMode = ShadowCastingMode.Off;
-                line.receiveShadows = false;
-                routeLines.Add(line);
-            }
+            if (Overlay != null) Overlay.RefreshLayout();
         }
 
         public void Render(BattleState state, BattleLevel level)
         {
-            if (state == null) return;
-            EnsurePool(state.Enemies.Count);
-            for (int i = 0; i < enemyObjects.Count; i++)
-            {
-                bool active = i < state.Enemies.Count;
-                enemyObjects[i].SetActive(active);
-                if (!active) continue;
-                EnemyState enemy = state.Enemies[i];
-                enemyObjects[i].transform.position = World(enemy.X, enemy.Y, 0.5f);
-                float tint = state.Enemies.Count == 0 ? 1f : Mathf.Clamp01(enemy.Health / (float)Mathf.Max(1, enemy.Health));
-                var renderer = enemyObjects[i].GetComponent<Renderer>();
-                if (renderer != null) renderer.material.color = Color.Lerp(new Color(0.75f, 0.15f, 0.15f), new Color(1f, 0.45f, 0.2f), tint);
-            }
+            // The overlay animates itself in Update; nothing to draw here.
         }
 
-        public void ClearEnemies()
-        {
-            foreach (GameObject item in enemyObjects) if (item != null) Destroy(item);
-            enemyObjects.Clear();
-        }
+        public void ClearEnemies() { }
 
-        /// <summary>Shows a flat ring on every chosen entrance so the pick is visible on the board.</summary>
+        public void ClearRoutes() { }
+
         public void SetSpawns(IReadOnlyList<GridPoint> cells)
         {
-            if (cells == null) cells = Array.Empty<GridPoint>();
-            EnsureSpawnPool(cells.Count);
-            for (int i = 0; i < spawnMarkers.Count; i++)
-            {
-                bool active = i < cells.Count;
-                spawnMarkers[i].SetActive(active);
-                if (!active) continue;
-                GridPoint cell = cells[i];
-                spawnMarkers[i].transform.position = new Vector3(cell.X + 0.5f, 0.45f, cell.Y + 0.5f);
-            }
+            if (Overlay != null) Overlay.SetSpawnMarkers(cells);
         }
 
         public void ClearSpawns()
         {
-            foreach (GameObject marker in spawnMarkers) if (marker != null) Destroy(marker);
-            spawnMarkers.Clear();
-        }
-
-        private void EnsureSpawnPool(int count)
-        {
-            while (spawnMarkers.Count < count)
-            {
-                GameObject marker = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                marker.name = "BattleEntrance";
-                marker.layer = gameLayer;
-                marker.transform.SetParent(root != null ? root : transform, false);
-                // A small pillar stays visible above the projection marks on the table surface.
-                marker.transform.localScale = new Vector3(0.22f, 0.45f, 0.22f);
-                var renderer = marker.GetComponent<Renderer>();
-                if (renderer != null)
-                {
-                    renderer.material = new Material(Shader.Find("Sprites/Default"));
-                    renderer.material.color = new Color(1f, 0.85f, 0.2f, 0.95f);
-                    renderer.shadowCastingMode = ShadowCastingMode.Off;
-                    renderer.receiveShadows = false;
-                }
-                var collider = marker.GetComponent<Collider>();
-                if (collider != null) Destroy(collider);
-                spawnMarkers.Add(marker);
-            }
-        }
-
-        public void ClearRoutes()
-        {
-            foreach (LineRenderer line in routeLines) if (line != null) Destroy(line.gameObject);
-            routeLines.Clear();
-        }
-
-        private void EnsurePool(int count)
-        {
-            while (enemyObjects.Count < count)
-            {
-                GameObject enemy = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                enemy.name = "BattleEnemy";
-                enemy.layer = gameLayer;
-                enemy.transform.SetParent(root, false);
-                enemy.transform.localScale = Vector3.one * enemyScale;
-                var renderer = enemy.GetComponent<Renderer>();
-                if (renderer != null)
-                {
-                    // Instanced material so per-enemy health tint does not leak into other enemies.
-                    renderer.material = enemyMaterial != null ? new Material(enemyMaterial) : renderer.material;
-                    renderer.shadowCastingMode = ShadowCastingMode.Off;
-                    renderer.receiveShadows = false;
-                }
-                var collider = enemy.GetComponent<Collider>();
-                if (collider != null) Destroy(collider);
-                enemyObjects.Add(enemy);
-            }
-        }
-
-        // Battle grid is 20×20 over a 10×10 world, so one battle cell is half a world unit.
-        private static Vector3 World(GridPoint cell) => new Vector3(cell.X * 0.5f, 1.05f, cell.Y * 0.5f);
-        private static Vector3 World(double x, double y, float height) => new Vector3((float)x * 0.5f, height, (float)y * 0.5f);
-
-        private int ResolveLayer()
-        {
-            int layer = string.IsNullOrWhiteSpace(gameLayerName) ? -1 : LayerMask.NameToLayer(gameLayerName);
-            return layer >= 0 ? layer : 30;
+            if (Overlay != null) Overlay.ClearSpawnMarkers();
         }
     }
 }

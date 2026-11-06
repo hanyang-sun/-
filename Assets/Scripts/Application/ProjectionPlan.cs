@@ -61,6 +61,7 @@ namespace Brick2Life.Application
     {
         public bool IncludeGridPoints { get; set; } = true;
         public bool IncludeRoleHighlights { get; set; } = true;
+        public bool IncludeTowerHighlights { get; set; } = true;
         public bool IncludeChangeHighlights { get; set; } = true;
         // Hard cap keeps the projector workload bounded on dense boards and after large deltas.
         public int MaxMarks { get; set; } = 400;
@@ -162,6 +163,7 @@ namespace Brick2Life.Application
                     {
                         LevelCell cell = level.At(x, y);
                         if ((!cell.Occupied && cell.Role != GameRole.Core) || cell.Role == GameRole.None) continue;
+                        if (cell.Role == GameRole.Tower && !settings.IncludeTowerHighlights) continue;
                         Add(new ProjectionMark(Center(x, settings.HighlightSize), Center(y, settings.HighlightSize),
                             settings.HighlightSize, settings.HighlightSize, ProjectionMarkKind.RoleHighlight,
                             cell.Occupied ? ProjectionSurface.BrickTop : ProjectionSurface.Table, cell.Role, null,

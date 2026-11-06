@@ -13,6 +13,9 @@ namespace Brick2Life.Battle
         public string SourceBrickId { get; }
         public bool Blocked => Role == GameRole.Wall || Role == GameRole.Tower;
         public bool IsCore => Role == GameRole.Core;
+        public bool IsCoreCenter => IsCore &&
+            Position.X % BattleLevel.NavigationPerPhysical == BattleLevel.NavigationCenterOffset &&
+            Position.Y % BattleLevel.NavigationPerPhysical == BattleLevel.NavigationCenterOffset;
 
         public BattleCell(GridPoint position, GameRole role, string sourceBrickId)
         {
@@ -47,6 +50,7 @@ namespace Brick2Life.Battle
     {
         private readonly BattleCell[] cells;
         public const int NavigationPerPhysical = 2;
+        public const int NavigationCenterOffset = NavigationPerPhysical / 2;
         public int Width { get; }
         public int Height { get; }
         public IReadOnlyList<BattleCell> Cells { get; }
@@ -73,7 +77,12 @@ namespace Brick2Life.Battle
 
         public GridPoint[] FindRoute(GridPoint start) => RouteSearch.Find(cells, Width, Height, CoreBrickIds, start);
 
-        // spawns are physical (10×10) coordinates chosen by the user; they map to the top-left nav cell.
+        // The intersection of the four navigation subcells is the physical cell center.
+        public static GridPoint PhysicalCenter(GridPoint cell) => new GridPoint(
+            cell.X * NavigationPerPhysical + NavigationCenterOffset,
+            cell.Y * NavigationPerPhysical + NavigationCenterOffset);
+
+        // Spawns are expressed in physical board coordinates.
         public static BattleLevel Build(LevelState level, IReadOnlyList<GridPoint> spawns)
         {
             if (level == null) throw new ArgumentNullException(nameof(level));
@@ -117,7 +126,8 @@ namespace Brick2Life.Battle
                 var seen = new HashSet<GridPoint>();
                 foreach (GridPoint spawn in spawns)
                 {
-                    entrances.Add(new GridPoint(spawn.X * NavigationPerPhysical, spawn.Y * NavigationPerPhysical));
+                    GridPoint start = PhysicalCenter(spawn);
+                    entrances.Add(start);
                     if (!seen.Add(spawn))
                     {
                         issues.Add(new BattleIssue("SPAWN_DUPLICATE", "入口 (" + spawn.X + "," + spawn.Y + ") 重复。"));
@@ -134,7 +144,6 @@ namespace Brick2Life.Battle
                         issues.Add(new BattleIssue("SPAWN_OCCUPIED", "入口 (" + spawn.X + "," + spawn.Y + ") 必须为空格。"));
                         continue;
                     }
-                    var start = new GridPoint(spawn.X * NavigationPerPhysical, spawn.Y * NavigationPerPhysical);
                     GridPoint[] route = RouteSearch.Find(cells, width, height, cores, start);
                     if (route == null)
                     {

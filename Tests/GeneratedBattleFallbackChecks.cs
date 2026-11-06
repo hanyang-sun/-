@@ -49,15 +49,15 @@ internal static class GeneratedBattleFallbackChecks
         var firstBlocked = Map(TwoEntrances, (9, 4, "blue"), (0, 0, "green"));
         Check(!firstBlocked.IsValid && firstBlocked.Routes.Count == 1 && firstBlocked.Entrances.Count == 2,
             "Blocked entrance must remain in the full entrance list.");
-        Check(firstBlocked.Entrances[0].Equals(new GridPoint(0, 0)) && firstBlocked.Entrances[1].Equals(new GridPoint(0, 18)) &&
-            firstBlocked.Routes[0].Spawn.Equals(new GridPoint(0, 18)), "Entrance fixture does not expose route compression.");
+        Check(firstBlocked.Entrances[0].Equals(new GridPoint(1, 1)) && firstBlocked.Entrances[1].Equals(new GridPoint(1, 19)) &&
+            firstBlocked.Routes[0].Spawn.Equals(new GridPoint(1, 19)), "Entrance fixture does not expose route compression.");
         Check(run.TryUpdateLevel(firstBlocked, out string warning), "Blocked route update was not accepted in fallback mode.");
         Check(warning.Length > 0 && run.State.UsingPreviousRoutes && run.State.RouteWarning.Length > 0 &&
             !run.State.WaitingForLayout, "Fallback did not report a non-blocking warning.");
         Check(ReferenceEquals(run.CurrentLevel, firstBlocked) && run.CurrentLevel.CellAt(0, 0).Blocked,
             "Fallback rolled back the newly confirmed wall.");
-        Check(run.ActiveRoutes.Count == 2 && run.ActiveRoutes[0].Spawn.Equals(new GridPoint(0, 0)) &&
-            run.ActiveRoutes[1].Spawn.Equals(new GridPoint(0, 18)), "Fallback compressed or swapped entrance routes.");
+        Check(run.ActiveRoutes.Count == 2 && run.ActiveRoutes[0].Spawn.Equals(new GridPoint(1, 1)) &&
+            run.ActiveRoutes[1].Spawn.Equals(new GridPoint(1, 19)), "Fallback compressed or swapped entrance routes.");
         UnchangedRun(before, run.State, "First entrance blocked");
         run.Step(0.75);
         Check(run.State.Elapsed > before.Elapsed && run.State.SpawnedThisWave == 4 && run.State.Enemies.Count == 4,

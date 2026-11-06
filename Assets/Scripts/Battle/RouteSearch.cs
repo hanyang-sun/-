@@ -20,7 +20,7 @@ namespace Brick2Life.Battle
             var rank = new Dictionary<string, int>(StringComparer.Ordinal);
             for (int i = 0; i < coreIds.Count; i++) if (coreIds[i] != null) rank[coreIds[i]] = i;
             for (int index = 0; index < count; index++)
-                if (cells[index].IsCore) goals.Add(index);
+                if (cells[index].IsCoreCenter) goals.Add(index);
             if (goals.Count == 0) return null;
 
             var heuristic = new int[count];
@@ -47,7 +47,7 @@ namespace Brick2Life.Battle
                 if (score > bestCost) break;
                 if (closed[current] || currentCost != cost[current]) continue;
                 closed[current] = true;
-                if (cells[current].IsCore)
+                if (cells[current].IsCoreCenter)
                 {
                     if (bestGoal < 0 || currentCost < bestCost ||
                         (currentCost == bestCost && Rank(cells[current].SourceBrickId, rank) < Rank(cells[bestGoal].SourceBrickId, rank)))

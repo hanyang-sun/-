@@ -43,7 +43,7 @@ namespace Brick2Life.Feedback
         public bool GeneratedObjectives => generateObjectives;
         public GeneratedRound Round { get; private set; }
 
-        public WavePlan WavePlan { get; set; } = WavePlan.Trial;
+        public WavePlan WavePlan { get; set; } = new WavePlan(3, 8, 24, 0.95, 10, 1.1);
         public TowerSettings TowerSettings { get; set; } = TowerSettings.Trial;
         public IReadOnlyList<GridPoint> Spawns => spawns.AsReadOnly();
         public BattleLevel Level { get; private set; }
@@ -254,7 +254,7 @@ namespace Brick2Life.Feedback
             if (!Build()) return false;
             IReadOnlyList<BattleIssue> issues = BattleValidation.Check(Level, WavePlan, TowerSettings);
             if (issues.Count != 0) { LastMessage = issues[0].Message; return false; }
-            Battle = new BattleSimulation(Level, WavePlan, TowerSettings, keepLastValidRoutes: generateObjectives);
+            Battle = new BattleSimulation(Level, WavePlan, TowerSettings, keepLastValidRoutes: generateObjectives, useBubbles: true);
             if (generateObjectives)
             {
                 BattleLevel latest = BattleLevel.Build(CurrentLevel(), spawns);

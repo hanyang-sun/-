@@ -67,9 +67,10 @@ namespace Brick2Life.Editor
             EnsureLayer(ProjectionLayerIndex, ProjectionLayerName);
             EnsureLayer(SimulationRoundMarkers.LayerIndex, "Brick2LifeObjectives");
 
-            Material coreMaterial = EnsureMaterial("Game_Core.mat", UnityEngine.Shader.Find("Standard"), new Color(0.35f, 0.72f, 1f));
-            Material wallMaterial = EnsureMaterial("Game_Wall.mat", UnityEngine.Shader.Find("Standard"), new Color(0.78f, 0.82f, 0.88f));
-            Material towerMaterial = EnsureMaterial("Game_Tower.mat", UnityEngine.Shader.Find("Standard"), new Color(1f, 0.64f, 0.22f));
+            // Role stand-ins are off by default; projection patterns carry the role identity now.
+            Material coreMaterial = null;
+            Material wallMaterial = null;
+            Material towerMaterial = null;
             Material projectionMaterial = EnsureMaterial("ProjectionMark.mat", UnityEngine.Shader.Find("Sprites/Default"), Color.white);
 
             GameObject root = GameObject.Find(RootName);
@@ -173,6 +174,7 @@ namespace Brick2Life.Editor
             serialized.FindProperty("gameLayerName").stringValue = GameLayerName;
             serialized.FindProperty("fallbackGameLayer").intValue = GameLayerIndex;
             serialized.FindProperty("overheadCamera").objectReferenceValue = topCamera;
+            serialized.FindProperty("renderGameObjects").boolValue = false;
             SerializedProperty styles = serialized.FindProperty("styles");
             styles.arraySize = 3;
             SetStyle(styles.GetArrayElementAtIndex(0), GameRole.Core, core, PrimitiveType.Cube, 0.9f, 0.7f);
@@ -197,6 +199,7 @@ namespace Brick2Life.Editor
             var serialized = new SerializedObject(projector);
             serialized.FindProperty("marksRoot").objectReferenceValue = projectionRoot;
             serialized.FindProperty("overheadCamera").objectReferenceValue = topCamera;
+            serialized.FindProperty("renderGameObjects").boolValue = false;
             serialized.FindProperty("markMaterial").objectReferenceValue = material;
             serialized.FindProperty("projectionLayerName").stringValue = ProjectionLayerName;
             serialized.FindProperty("fallbackProjectionLayer").intValue = ProjectionLayerIndex;
