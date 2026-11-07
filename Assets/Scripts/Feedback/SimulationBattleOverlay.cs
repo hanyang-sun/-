@@ -18,6 +18,7 @@ namespace Brick2Life.Feedback
     {
         [SerializeField] private SimulationBattleController controller;
         [SerializeField] private ProjectionSimulator projector;
+        [SerializeField] private ProjectionStyleKind style = ProjectionStyleKind.BubbleOcean;
         [SerializeField] private Transform root;
         [SerializeField] private string projectionLayerName = "Brick2LifeProjection";
         [SerializeField, Range(0, 31)] private int fallbackLayer = 31;
@@ -79,6 +80,9 @@ namespace Brick2Life.Feedback
         private bool captureVisible = true;
         private float animationTime;
         public Transform MarksRoot => root;
+        public ProjectionStyleKind StyleKind => style;
+        public ProjectionArtStyle Style => ProjectionArtStyle.Get(style);
+        public void SetStyle(ProjectionStyleKind kind) { style = kind; RefreshLayout(); }
         bool IProjectionGate.IsProjectionVisible => captureVisible;
 
         void IProjectionGate.SetProjectionVisible(bool value)
@@ -264,7 +268,7 @@ namespace Brick2Life.Feedback
                     float dx = (float)enemy.X * 0.5f - center.x, dz = (float)enemy.Y * 0.5f - center.z;
                     if (dx * dx + dz * dz <= range * range) { invaded = true; break; }
                 }
-                SetColor(ring, invaded ? new Color(0.56f, 1f, 0.93f, 0.95f) : new Color(0.35f, 0.85f, 1f, 0.60f));
+                SetColor(ring, invaded ? Style.RingInvaded : Style.Ring);
             }
             for (int i = towers; i < rangeRings.Count; i++) rangeRings[i].SetActive(false);
         }
@@ -290,7 +294,7 @@ namespace Brick2Life.Feedback
                         band.transform.position = (from + to) * 0.5f;
                         band.transform.rotation = Quaternion.Euler(90f, -Mathf.Atan2(direction.z, direction.x) * Mathf.Rad2Deg, 0f);
                         band.transform.localScale = new Vector3(length, 0.3f, 1f);
-                        SetColor(band, new Color(0.35f, 0.85f, 1f, 0.28f));
+                        SetColor(band, Style.Path);
                     }
             for (int i = used; i < pathBands.Count; i++) pathBands[i].SetActive(false);
             if (pathMaterial != null) pathMaterial.mainTextureOffset = new Vector2(0f, -animationTime * 0.8f);
@@ -307,6 +311,7 @@ namespace Brick2Life.Feedback
                     if (bubble.TimeRemaining > BattleSimulation.BubbleFlight) continue;
                     if (used == bubbles.Count) bubbles.Add(CreateQuad("BattleBubble", bubbleMaterial, 0.28f));
                     GameObject quad = bubbles[used++];
+                SetColor(quad, Style.Splash);
                     quad.SetActive(true);
                     Vector3 position = WorldAt(bubble.X, bubble.Y);
                     position.y = SurfaceHeight(position.x, position.z) + 0.055f;
@@ -429,19 +434,19 @@ namespace Brick2Life.Feedback
                 }
                 enemyIcons[i].transform.position = new Vector3(x, surface + 0.045f, z + hop * 0.10f);
                 enemyIcons[i].transform.localScale = new Vector3(0.34f + hop * 0.05f, 0.34f + hop * 0.10f, 1f);
-                SetColor(enemyIcons[i], new Color(1f, 0.35f, 0.3f, 0.95f));
+                SetColor(enemyIcons[i], Style.Enemy);
                 float ratio = Mathf.Clamp01(enemy.Health / (float)Mathf.Max(1, maxHealth));
                 enemyBars[i].transform.position = new Vector3(x, surface + 0.05f, z - 0.24f);
                 enemyBars[i].transform.localScale = new Vector3(0.62f, 0.08f, 1f);
-                SetColor(enemyBars[i], new Color(0.05f, 0.05f, 0.07f, 0.85f));
+                SetColor(enemyBars[i], Style.BarBack);
                 float width = 0.58f * ratio;
                 enemyFills[i].transform.position = new Vector3(x - 0.29f + width * 0.5f, surface + 0.052f, z - 0.24f);
                 enemyFills[i].transform.localScale = new Vector3(Mathf.Max(0.001f, width), 0.05f, 1f);
-                SetColor(enemyFills[i], Color.Lerp(new Color(1f, 0.25f, 0.2f, 0.95f), new Color(0.4f, 1f, 0.5f, 0.95f), ratio));
+                SetColor(enemyFills[i], Color.Lerp(Style.BarLow, Style.BarFull, ratio));
                 TextMesh id = enemyIds[i];
                 id.text = enemy.Id.ToString();
                 id.transform.position = new Vector3(x + 0.22f, surface + 0.046f, z + 0.2f);
-                id.color = new Color(1f, 0.9f, 0.75f, 0.95f);
+                id.color = Style.Id;
             }
         }
 
@@ -498,7 +503,7 @@ namespace Brick2Life.Feedback
                 if (!active) continue;
                 GridPoint cell = cells[i];
                 spawnMarkers[i].transform.position = World(BattleLevel.PhysicalCenter(cell), 0.03f);
-                SetColor(spawnMarkers[i], new Color(0.2f, 0.95f, 1f, 0.9f));
+                SetColor(spawnMarkers[i], Style.Spawn);
             }
         }
 
@@ -529,7 +534,7 @@ namespace Brick2Life.Feedback
                     GameObject quad = CreateQuad("BubbleSplash", bubbleMaterial, 0.16f);
                     quad.transform.position = position + direction * 0.15f;
                     effects.Add(new Fx { Quad = quad, Life = 0.32f, StartScale = 0.18f,
-                        EndScale = 0.06f, Color = new Color(0.58f, 1f, 0.96f, 1f),
+                        EndScale = 0.06f, Color = Style.Splash,
                         Velocity = direction * 1.3f });
                 }
             }
@@ -548,7 +553,7 @@ namespace Brick2Life.Feedback
                 if (!level.Cells[i].IsCoreCenter) continue;
                 float height = controller.Round != null ? 0.025f : 1.03f;
                 SpawnEffect(World(level.Cells[i].Position, height),
-                    height, 0.6f, 3.2f, new Color(1f, 0.3f, 0.35f, 0.95f), rippleSeconds * 1.4f);
+                    height, 0.6f, 3.2f, Style.CoreHit, rippleSeconds * 1.4f);
                 break;
             }
         }
@@ -571,7 +576,7 @@ namespace Brick2Life.Feedback
                     if (Mathf.Abs(cx - wx) > 0.8f || Mathf.Abs(cz - wz) > 0.8f) continue;
                     if (wallCooldown[i] > 0f) continue;
                     wallCooldown[i] = 0.7f;
-                    SpawnEffect(new Vector3(cx, 1.01f, cz), 1.02f, 0.4f, 1.4f, new Color(0.75f, 0.9f, 1f, 0.7f), rippleSeconds);
+                    SpawnEffect(new Vector3(cx, 1.01f, cz), 1.02f, 0.4f, 1.4f, Style.WallRipple, rippleSeconds);
                     break;
                 }
             }
