@@ -18,7 +18,7 @@ namespace Brick2Life.Feedback
     {
         [SerializeField] private SimulationBattleController controller;
         [SerializeField] private ProjectionSimulator projector;
-        [SerializeField] private ProjectionStyleKind style = ProjectionStyleKind.BubbleOcean;
+        [SerializeField] private ProjectionStyleKind style = ProjectionStyleKind.CrayonPaper;
         [SerializeField] private Transform root;
         [SerializeField] private string projectionLayerName = "Brick2LifeProjection";
         [SerializeField, Range(0, 31)] private int fallbackLayer = 31;
