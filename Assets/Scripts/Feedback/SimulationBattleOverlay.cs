@@ -19,6 +19,7 @@ namespace Brick2Life.Feedback
         [SerializeField] private SimulationBattleController controller;
         [SerializeField] private ProjectionSimulator projector;
         [SerializeField] private ProjectionStyleKind style = ProjectionStyleKind.BubbleOcean;
+        [SerializeField] private ProjectionTheme theme = ProjectionTheme.Octopus;
         [SerializeField] private Transform root;
         [SerializeField] private string projectionLayerName = "Brick2LifeProjection";
         [SerializeField, Range(0, 31)] private int fallbackLayer = 31;
@@ -60,7 +61,8 @@ namespace Brick2Life.Feedback
         private readonly List<GameObject> spawnMarkers = new List<GameObject>();
         private readonly List<GameObject> pathBands = new List<GameObject>();
         private readonly List<GameObject> pathArrowsPool = new List<GameObject>();
-        private Material arrowMaterial, ringMaterial, enemyMaterial, barMaterial, pathMaterial, rangeMaterial;
+        private readonly List<GameObject> towerIcons = new List<GameObject>();
+        private Material arrowMaterial, ringMaterial, enemyMaterial, barMaterial, pathMaterial, rangeMaterial, towerMaterial;
         private Font labelFont;
         public int ActiveEnemyCount { get { int c = 0; foreach (GameObject e in enemyIcons) if (e != null && e.activeSelf) c++; return c; } }
         public int SpawnMarkerCount => spawnMarkers.Count;
@@ -83,6 +85,15 @@ namespace Brick2Life.Feedback
         public ProjectionStyleKind StyleKind => style;
         public ProjectionArtStyle Style => ProjectionArtStyle.Get(style);
         public void SetStyle(ProjectionStyleKind kind) { style = kind; RefreshLayout(); }
+        public ProjectionTheme Theme => theme;
+        public string ThemeLabel => ProjectionThemeInfo.Label(theme);
+
+        public void SetTheme(ProjectionTheme value)
+        {
+            if (theme == value) return;
+            theme = value;
+            RebuildVisuals();
+        }
         bool IProjectionGate.IsProjectionVisible => captureVisible;
 
         void IProjectionGate.SetProjectionVisible(bool value)
@@ -113,6 +124,41 @@ namespace Brick2Life.Feedback
             projectionLayer = LayerMask.NameToLayer(projectionLayerName);
             if (projectionLayer < 0) projectionLayer = fallbackLayer;
             BuildMaterials();
+        }
+
+        public void RebuildVisuals()
+        {
+            foreach (GameObject go in enemyIcons) if (go != null) Destroy(go);
+            foreach (GameObject go in enemyBars) if (go != null) Destroy(go);
+            foreach (GameObject go in enemyFills) if (go != null) Destroy(go);
+            foreach (TextMesh id in enemyIds) if (id != null) Destroy(id.gameObject);
+            foreach (GameObject go in arrows) if (go != null) Destroy(go);
+            foreach (GameObject go in rangeRings) if (go != null) Destroy(go);
+            foreach (GameObject go in towerArrows) if (go != null) Destroy(go);
+            foreach (GameObject go in towerIcons) if (go != null) Destroy(go);
+            foreach (GameObject go in faces) if (go != null) Destroy(go);
+            foreach (GameObject go in bubbles) if (go != null) Destroy(go);
+            foreach (GameObject go in pathBands) if (go != null) Destroy(go);
+            foreach (GameObject go in spawnMarkers) if (go != null) Destroy(go);
+            foreach (Fx fx in effects) if (fx.Quad != null) Destroy(fx.Quad);
+            enemyIcons.Clear(); enemyBars.Clear(); enemyFills.Clear(); enemyIds.Clear();
+            arrows.Clear(); rangeRings.Clear(); towerArrows.Clear(); towerIcons.Clear();
+            faces.Clear(); bubbles.Clear(); pathBands.Clear(); spawnMarkers.Clear(); effects.Clear();
+            towerIds.Clear(); towerPositions.Clear(); towerAim.Clear();
+            DestroyMaterials();
+            BuildMaterials();
+            RefreshLayout();
+        }
+
+        private void DestroyMaterials()
+        {
+            foreach (Material material in new[] { arrowMaterial, ringMaterial, enemyMaterial, barMaterial,
+                pathMaterial, rangeMaterial, towerMaterial, armMaterial, bubbleMaterial })
+                if (material != null) { if (material.mainTexture != null) Destroy(material.mainTexture); Destroy(material); }
+            if (faceMaterials != null)
+                foreach (Material face in faceMaterials)
+                    if (face != null) { if (face.mainTexture != null) Destroy(face.mainTexture); Destroy(face); }
+            faceMaterials = null;
         }
 
         private void OnDestroy()
@@ -197,6 +243,7 @@ namespace Brick2Life.Feedback
             foreach (GameObject ring in rangeRings) if (ring != null) ring.SetActive(false);
             foreach (GameObject band in pathBands) if (band != null) band.SetActive(false);
             foreach (GameObject arrow in towerArrows) if (arrow != null) arrow.SetActive(false);
+            foreach (GameObject icon in towerIcons) if (icon != null) icon.SetActive(false);
             foreach (GameObject bubble in bubbles) bubble.SetActive(false);
             foreach (GameObject face in faces) face.SetActive(false);
             foreach (Fx fx in effects) if (fx.Quad != null) fx.Quad.SetActive(false);
@@ -406,6 +453,48 @@ namespace Brick2Life.Feedback
             }
         }
 
+        private void SyncThemeTowersCoalesced(BattleState state)
+        {
+            if (ProjectionThemeInfo.UsesOctopusTower(theme)) return;
+            if (towerIcons.Count == 0)
+            {
+                if (controller != null && controller.Level != null) SyncTowerArrows(state);
+                return;
+            }
+            SyncThemeTowers(state);
+        }
+
+        private void SyncThemeTowers(BattleState state)
+        {
+            for (int i = 0; i < towerIcons.Count; i++)
+            {
+                bool active = i < towerIds.Count;
+                towerIcons[i].SetActive(active);
+                if (!active) continue;
+                Vector2 center = towerPositions[i];
+                Vector2 aim = towerAim[i];
+                double best = double.MaxValue;
+                foreach (EnemyState enemy in state.Enemies)
+                {
+                    double dx = enemy.X * 0.5 - center.x, dz = enemy.Y * 0.5 - center.y;
+                    double distance = dx * dx + dz * dz;
+                    if (distance >= best) continue;
+                    best = distance; aim = new Vector2((float)dx, (float)dz);
+                }
+                if (aim.sqrMagnitude < 1e-4f) aim = towerAim[i];
+                if (aim.sqrMagnitude < 1e-4f) aim = Vector2.up;
+                towerAim[i] = aim.normalized;
+                GameObject icon = towerIcons[i];
+                float pulse = 1f + 0.04f * Mathf.Sin(animationTime * 2.2f + i);
+                icon.transform.position = new Vector3(center.x, SurfaceHeight(center.x, center.y) + 0.03f, center.y);
+                float angle = theme == ProjectionTheme.Robot ? Mathf.Atan2(aim.y, aim.x) * Mathf.Rad2Deg
+                    : Mathf.LerpAngle(0f, 360f, Mathf.Repeat(animationTime * 0.15f + i * 0.25f, 1f));
+                icon.transform.rotation = Quaternion.Euler(90f, -angle, 0f);
+                icon.transform.localScale = new Vector3(0.98f * pulse, 0.98f * pulse, 1f);
+                SetColor(icon, Style.Accent);
+            }
+        }
+
         // ---- enemies (projected decals with health bar and id) -----------------------------
         private void SyncEnemies(BattleState state)
         {
@@ -531,7 +620,7 @@ namespace Brick2Life.Feedback
                 {
                     float angle = (i + 0.5f) * Mathf.PI * 0.5f;
                     Vector3 direction = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
-                    GameObject quad = CreateQuad("BubbleSplash", bubbleMaterial, 0.16f);
+                    GameObject quad = CreateQuad("BubbleSplash", bubbleMaterial != null ? bubbleMaterial : ringMaterial, 0.16f);
                     quad.transform.position = position + direction * 0.15f;
                     effects.Add(new Fx { Quad = quad, Life = 0.32f, StartScale = 0.18f,
                         EndScale = 0.06f, Color = Style.Splash,
@@ -651,22 +740,239 @@ namespace Brick2Life.Feedback
             return quad;
         }
 
+        // ---- themed shapes (monsters / route / tower) ----------------------------------------
+        private static Texture2D MakeThemeEnemyTexture(ProjectionTheme theme, int size)
+        {
+            switch (theme)
+            {
+                case ProjectionTheme.Gummy:
+                    return PaintTexture(size, p =>
+                    {
+                        float body = Mathf.Sqrt(p.x * p.x + (p.y + 0.05f) * (p.y + 0.05f)) - 0.58f;
+                        float earL = Mathf.Sqrt((p.x + 0.33f) * (p.x + 0.33f) + (p.y - 0.45f) * (p.y - 0.45f)) - 0.2f;
+                        float earR = Mathf.Sqrt((p.x - 0.33f) * (p.x - 0.33f) + (p.y - 0.45f) * (p.y - 0.45f)) - 0.2f;
+                        float d = Mathf.Min(body, Mathf.Min(earL, earR));
+                        float alpha = EdgeFade(d, 0.05f);
+                        return new Color(1f, 1f, 1f, alpha);
+                    });
+                case ProjectionTheme.Robot:
+                    return PaintTexture(size, p =>
+                    {
+                        float ax = Mathf.Abs(p.x), ay = Mathf.Abs(p.y + 0.05f);
+                        float body = Mathf.Max(ax - 0.52f, ay - 0.45f);
+                        float corner = Mathf.Sqrt(Mathf.Max(ax - 0.4f, 0f) * Mathf.Max(ax - 0.4f, 0f) +
+                            Mathf.Max(ay - 0.33f, 0f) * Mathf.Max(ay - 0.33f, 0f)) - 0.14f;
+                        float shell = Mathf.Max(body, corner);
+                        float antenna = Mathf.Max(Mathf.Abs(p.x) - 0.035f, Mathf.Abs(p.y - 0.62f) - 0.25f);
+                        float d = Mathf.Min(shell, antenna);
+                        float alpha = EdgeFade(d, 0.04f);
+                        return new Color(1f, 1f, 1f, alpha);
+                    });
+                case ProjectionTheme.Ghost:
+                    return PaintTexture(size, p =>
+                    {
+                        float dome = Mathf.Sqrt(p.x * p.x + (p.y - 0.18f) * (p.y - 0.18f)) - 0.55f;
+                        float body = Mathf.Max(dome, -p.y - 0.02f);
+                        float wave = p.y + 0.42f - 0.09f * Mathf.Sin(p.x * 9f);
+                        float tail = Mathf.Max(Mathf.Abs(wave) - 0.06f, -p.y - 0.55f);
+                        float d = Mathf.Min(body, tail);
+                        float alpha = EdgeFade(d, 0.04f);
+                        return new Color(1f, 1f, 1f, alpha);
+                    });
+                default:
+                    return MakeEnemyTexture(size);
+            }
+        }
+
+        private static Texture2D MakeThemeTowerTexture(ProjectionTheme theme, int size)
+        {
+            switch (theme)
+            {
+                case ProjectionTheme.Gummy:
+                    return PaintTexture(size, p =>
+                    {
+                        float r = Mathf.Sqrt(p.x * p.x + p.y * p.y);
+                        float disc = r - 0.5f;
+                        float stick = Mathf.Max(Mathf.Abs(p.x) - 0.06f, Mathf.Abs(p.y + 0.72f) - 0.28f);
+                        float spiral = Mathf.Abs(r - (0.18f + 0.28f * Mathf.Abs(Mathf.Sin(Mathf.Atan2(p.y, p.x) * 2.2f)))) - 0.035f;
+                        float sel = Mathf.Min(disc, stick);
+                        float alpha = EdgeFade(sel, 0.04f);
+                        float shine = r < 0.18f && p.x < 0 && p.y > 0 ? 1f : 0f;
+                        float detail = EdgeFade(spiral, 0.02f);
+                        return new Color(1f, 1f - 0.35f * detail, 1f - 0.15f * shine, Mathf.Max(alpha, detail * 0.85f));
+                    });
+                case ProjectionTheme.Robot:
+                    return PaintTexture(size, p =>
+                    {
+                        float ax = Mathf.Abs(p.x), ay = Mathf.Abs(p.y);
+                        float baseSquare = Mathf.Max(ax - 0.5f, ay - 0.45f);
+                        float barrel = Mathf.Max(Mathf.Abs(p.y) - 0.12f, p.x - 0.78f) + 0.0f;
+                        float barrelOk = Mathf.Max(barrel, -p.x - 0.2f);
+                        float d = Mathf.Min(baseSquare, barrelOk);
+                        float alpha = EdgeFade(d, 0.04f);
+                        float core = Mathf.Sqrt(p.x * p.x + p.y * p.y) - 0.18f;
+                        float ring = Mathf.Abs(core + 0.06f) - 0.02f;
+                        return new Color(1f, 1f, 1f, Mathf.Max(alpha, EdgeFade(ring, 0.02f)));
+                    });
+                case ProjectionTheme.Ghost:
+                    return PaintTexture(size, p =>
+                    {
+                        float diamond = Mathf.Abs(p.x) + Mathf.Abs(p.y) - 0.85f;
+                        float inner = Mathf.Abs(Mathf.Abs(p.x) * 1.6f + Mathf.Abs(p.y) * 1.6f - 0.55f) - 0.03f;
+                        float alpha = EdgeFade(diamond, 0.05f);
+                        return new Color(1f, 1f, 1f, alpha);
+                    });
+                default:
+                    return PaintTexture(size, p => new Color(1f, 1f, 1f, 0f));
+            }
+        }
+
+        private static Texture2D MakeThemeArrowTexture(ProjectionTheme theme, int size)
+        {
+            if (theme == ProjectionTheme.Octopus) return MakeArrowTexture(size);
+            return PaintTexture(size, p =>
+            {
+                float u = (p.x + 1f) * 0.5f, v = p.y;
+                float alpha;
+                if (theme == ProjectionTheme.Robot)
+                {
+                    // block chevron
+                    float arm = Mathf.Min(Mathf.Abs(v) - 0.5f, u - 0.5f);
+                    float bar = Mathf.Max(Mathf.Abs(u - 0.55f) - 0.16f, Mathf.Abs(v) - 0.42f);
+                    float tip = (u - 0.85f) + Mathf.Abs(v) * 0.9f;
+                    alpha = Mathf.Min(bar, Mathf.Max(arm, tip));
+                    alpha = EdgeFade(alpha, 0.05f);
+                }
+                else
+                {
+                    // soft rounded triangle
+                    float edge = Mathf.Abs(v) - (0.95f - u) * 0.45f;
+                    float back = 0.18f - u;
+                    float d = Mathf.Max(edge, back);
+                    alpha = EdgeFade(d, 0.12f);
+                }
+                return new Color(1f, 1f, 1f, alpha);
+            });
+        }
+
+        private static Texture2D MakeThemePathTexture(ProjectionTheme theme, int size)
+        {
+            if (theme == ProjectionTheme.Octopus) return MakePathTexture(size);
+            return PaintTexture(size, p =>
+            {
+                float u = (p.x + 1f) * 0.5f, v = p.y;
+                float edge = 0.5f * Smooth01((0.5f - Mathf.Abs(v)) * 2f);
+                float pattern;
+                if (theme == ProjectionTheme.Gummy)
+                {
+                    float cell = Mathf.Repeat(u * 4f, 1f) - 0.5f;
+                    pattern = EdgeFade(Mathf.Sqrt(cell * cell + v * v * 2.2f) - 0.18f, 0.35f);
+                }
+                else if (theme == ProjectionTheme.Robot)
+                {
+                    float dash = Mathf.Repeat(u * 5f, 1f);
+                    pattern = dash < 0.55f ? 1f : 0f;
+                    pattern *= edge;
+                }
+                else
+                {
+                    pattern = 0.45f + 0.55f * Mathf.Sin(u * Mathf.PI * 2f);
+                    pattern *= edge;
+                }
+                return new Color(1f, 1f, 1f, Mathf.Clamp01(pattern));
+            });
+        }
+
+        private static Func<Vector2, Color> ThemeRingPainter(ProjectionTheme theme)
+        {
+            switch (theme)
+            {
+                case ProjectionTheme.Gummy:
+                    return p =>
+                    {
+                        float r = Mathf.Sqrt(p.x * p.x + p.y * p.y);
+                        float d = Mathf.Abs(r - 0.9f) - 0.05f;
+                        return new Color(1f, 1f, 1f, EdgeFade(d, 0.05f));
+                    };
+                case ProjectionTheme.Robot:
+                    return p =>
+                    {
+                        float angle = Mathf.Atan2(p.y, p.x);
+                        float segment = Mathf.Repeat(angle / (Mathf.PI * 2f) * 24f, 1f);
+                        float r = Mathf.Sqrt(p.x * p.x + p.y * p.y);
+                        float band = Mathf.Abs(r - 0.9f) - 0.03f;
+                        float tick = segment < 0.55f ? 0f : 1f;
+                        float d = Mathf.Max(band, tick);
+                        return new Color(1f, 1f, 1f, EdgeFade(d, 0.03f));
+                    };
+                case ProjectionTheme.Ghost:
+                    return p =>
+                    {
+                        float r = Mathf.Sqrt(p.x * p.x + p.y * p.y);
+                        float dots = Mathf.Abs(Mathf.Repeat(r * 9f, 1f) - 0.5f) - 0.18f;
+                        float band = Mathf.Abs(r - 0.9f) - 0.08f;
+                        float d = Mathf.Max(band, dots);
+                        return new Color(1f, 1f, 1f, EdgeFade(d, 0.06f));
+                    };
+                default:
+                    return p =>
+                    {
+                        float r = Mathf.Sqrt(p.x * p.x + p.y * p.y);
+                        float d = Mathf.Abs(r - 0.9f) - 0.05f;
+                        return new Color(1f, 1f, 1f, EdgeFade(d, 0.05f));
+                    };
+            }
+        }
+
+        private static Texture2D MakeThemeRingTexture(ProjectionTheme theme, int size)
+        {
+            if (theme == ProjectionTheme.Octopus) return MakeRingTexture(size);
+            return PaintTexture(size, ThemeRingPainter(theme));
+        }
+
+        private static Texture2D MakeThemeRangeTexture(ProjectionTheme theme, int size)
+        {
+            if (theme == ProjectionTheme.Octopus) return MakeRangeTexture(size);
+            Func<Vector2, Color> painter = ThemeRingPainter(theme);
+            return PaintTexture(size, p =>
+            {
+                Color color = painter(p);
+                color.a *= 0.9f;
+                return color;
+            });
+        }
+        // Preview helpers so editor tools can render the style sheets without entering play mode.
+        public static Texture2D PreviewEnemy(ProjectionTheme theme, int size) => MakeThemeEnemyTexture(theme, size);
+        public static Texture2D PreviewTower(ProjectionTheme theme, int size) => MakeThemeTowerTexture(theme, size);
+        public static Texture2D PreviewArrow(ProjectionTheme theme, int size) => MakeThemeArrowTexture(theme, size);
+        public static Texture2D PreviewPath(ProjectionTheme theme, int size) => MakeThemePathTexture(theme, size);
+        public static Texture2D PreviewRing(ProjectionTheme theme, int size) => MakeThemeRingTexture(theme, size);
         private void BuildMaterials()
         {
             Shader shader = Shader.Find("Sprites/Default");
             if (shader == null) return;
-            arrowMaterial = new Material(shader) { name = "BattleArrow", mainTexture = MakeArrowTexture(64) };
-            ringMaterial = new Material(shader) { name = "BattleRing", mainTexture = MakeRingTexture(64) };
-            enemyMaterial = new Material(shader) { name = "BattleEnemyIcon", mainTexture = MakeEnemyTexture(64) };
+            arrowMaterial = new Material(shader) { name = "BattleArrow", mainTexture = MakeThemeArrowTexture(theme, 64) };
+            ringMaterial = new Material(shader) { name = "BattleRing", mainTexture = MakeThemeRingTexture(theme, 64) };
+            enemyMaterial = new Material(shader) { name = "BattleEnemyIcon", mainTexture = MakeThemeEnemyTexture(theme, 64) };
             barMaterial = new Material(shader) { name = "BattleBar", mainTexture = Texture2D.whiteTexture };
-            pathMaterial = new Material(shader) { name = "BattlePathBand", mainTexture = MakePathTexture(64) };
+            pathMaterial = new Material(shader) { name = "BattlePathBand", mainTexture = MakeThemePathTexture(theme, 64) };
             if (pathMaterial.mainTexture != null) pathMaterial.mainTexture.wrapMode = TextureWrapMode.Repeat;
-            rangeMaterial = new Material(shader) { name = "BattleRangeGlow", mainTexture = MakeRangeTexture(128) };
-            armMaterial = new Material(shader) { name = "OctopusArm", mainTexture = MakeArmTexture() };
-            bubbleMaterial = new Material(shader) { name = "OctopusBubble", mainTexture = MakeBubbleTexture() };
-            faceMaterials = new Material[17];
-            for (int i = 0; i < faceMaterials.Length; i++)
-                faceMaterials[i] = new Material(shader) { name = "OctopusFace" + i, mainTexture = MakeFaceTexture(i) };
+            rangeMaterial = new Material(shader) { name = "BattleRangeGlow", mainTexture = MakeThemeRangeTexture(theme, 128) };
+            towerMaterial = new Material(shader) { name = "BattleTowerIcon", mainTexture = MakeThemeTowerTexture(theme, 96) };
+            if (ProjectionThemeInfo.UsesOctopusTower(theme))
+            {
+                armMaterial = new Material(shader) { name = "OctopusArm", mainTexture = MakeArmTexture() };
+                bubbleMaterial = new Material(shader) { name = "OctopusBubble", mainTexture = MakeBubbleTexture() };
+                faceMaterials = new Material[17];
+                for (int i = 0; i < faceMaterials.Length; i++)
+                    faceMaterials[i] = new Material(shader) { name = "OctopusFace" + i, mainTexture = MakeFaceTexture(i) };
+            }
+            else
+            {
+                armMaterial = null;
+                bubbleMaterial = null;
+                faceMaterials = null;
+            }
             labelFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         }
 
@@ -696,7 +1002,7 @@ namespace Brick2Life.Feedback
                 for (int x = 0; x < size; x++)
                 {
                     float v = y / (float)(size - 1);
-                    float edge = Mathf.SmoothStep(0f, 0.5f, Mathf.Min(v, 1f - v));
+                    float edge = 0.5f * Smooth01(Mathf.Min(v, 1f - v) * 2f);
                     float u = x / (float)(size - 1);
                     float pulse = 0.75f + 0.25f * Mathf.Sin(u * Mathf.PI * 2f);
                     byte a = (byte)(Mathf.Clamp01(edge * pulse) * 255f);
@@ -718,6 +1024,9 @@ namespace Brick2Life.Feedback
             texture.Apply(false, true);
             return texture;
         }
+
+        private static float Smooth01(float t) => Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t));
+        private static float EdgeFade(float distance, float width) => 1f - Smooth01(distance / width);
 
         private static Texture2D MakeRangeTexture(int size)
         {
