@@ -8,27 +8,23 @@ using UnityEngine.Rendering;
 namespace Brick2Life.Feedback
 {
     /// <summary>
-    /// Virtual overhead projector. Each projection mark becomes a surface-aligned quad that is part of the scene,
-    /// so the overhead camera captures the projected color instead of a UI overlay.
+    /// Generates role-pattern content for the virtual projector output. Source quads are only visible
+    /// while SimulationProjectedLight bakes its image; observers see light reflected by scene surfaces.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class ProjectionSimulator : MonoBehaviour, IProjectionGate
     {
         [Tooltip("投影面片的父节点。缺失时使用本组件所在对象。")]
         [SerializeField] private Transform marksRoot;
-        [Tooltip("可选的顶置相机；用于检查投影层是否真的会被拍进实验图像。")]
-        [SerializeField] private Camera overheadCamera;
         [Tooltip("投影材质。应使用无光照、alpha 混合的材质（例如 Sprites/Default）。留空时在运行时回退创建。")]
         [SerializeField] private Material markMaterial;
-        [Tooltip("投影面片所在层。该层必须被顶置相机包含，否则投影不会进入 RGB 图像。")]
+        [Tooltip("投影内容源所在层，仅由虚拟投影仪内容相机绘制。场景相机接收表面反射光。")]
         [SerializeField] private string projectionLayerName = "Brick2LifeProjection";
         [SerializeField] private int fallbackProjectionLayer = 31;
         [Tooltip("单位积木顶面高度（世界 Y）。积木中心在 0.5，顶面在 1。")]
         [SerializeField, Min(0f)] private float brickTopHeight = 1f;
         [Tooltip("桌面高度（世界 Y）。空格的格点与提示投在桌面上。")]
         [SerializeField, Min(0f)] private float tableHeight = 0f;
-        [Tooltip("贴面偏移，避免与积木顶面 z-fighting。")]
-        [SerializeField, Min(0f)] private float surfaceOffset = 0.006f;
         [Tooltip("投影强度，乘到标记 alpha 上；用于投影开/关与强弱对照。")]
         [SerializeField, Range(0f, 1f)] private float intensity = 1f;
         [SerializeField] private bool visible = true;
@@ -97,9 +93,8 @@ namespace Brick2Life.Feedback
             ProjectionLayer = ResolveLayer(projectionLayerName, fallbackProjectionLayer);
             if (marksRoot == null) marksRoot = transform;
             properties = new MaterialPropertyBlock();
+            if (GetComponent<SimulationProjectedLight>() == null) gameObject.AddComponent<SimulationProjectedLight>();
         }
-
-        private void Start() => WarnIfCameraMissesProjection();
 
         private void Update()
         {
@@ -188,47 +183,6 @@ namespace Brick2Life.Feedback
         {
             intensity = Mathf.Clamp01(value);
             if (LastPlan != null) Render(LastPlan);
-        }
-
-        // World center of a projected mark; used by alignment checks and the guide's measured report.
-        public bool TryGetMarkCenter(int index, out Vector3 center)
-        {
-            center = Vector3.zero;
-            if (index < 0 || index >= VisibleMarkCount || pool.Count <= index || pool[index] == null) return false;
-            center = pool[index].transform.position;
-            return true;
-        }
-
-        // Counts marks whose quad falls outside the board footprint; useful when tuning sizes or clamping.
-        public int CountMarksOutsideBoard(ProjectionPlan plan)
-        {
-            if (plan == null) return -1;
-            int count = 0;
-            for (int i = 0; i < Mathf.Min(VisibleMarkCount, plan.Marks.Count); i++)
-            {
-                if (!TryGetMarkCenter(i, out Vector3 center)) continue;
-                ProjectionMark mark = plan.Marks[i];
-                float halfX = mark.SizeX * 0.5f, halfY = mark.SizeY * 0.5f;
-                if (mark.CenterX - halfX < -1e-3f || mark.CenterY - halfY < -1e-3f ||
-                    mark.CenterX + halfX > plan.Definition.Width + 1e-3f ||
-                    mark.CenterY + halfY > plan.Definition.Height + 1e-3f) count++;
-            }
-            return count;
-        }
-
-        // The center of a projected mark must be the cell center; zero by construction for this axis-aligned projector.
-        public float MeasureAlignmentError(ProjectionPlan plan)
-        {
-            if (plan == null) throw new ArgumentNullException(nameof(plan));
-            float worst = 0f;
-            int count = Mathf.Min(VisibleMarkCount, plan.Marks.Count);
-            for (int i = 0; i < count; i++)
-            {
-                if (!TryGetMarkCenter(i, out Vector3 center)) continue;
-                ProjectionMark mark = plan.Marks[i];
-                worst = Mathf.Max(worst, new Vector2(center.x - mark.CenterX, center.z - mark.CenterY).magnitude);
-            }
-            return worst;
         }
 
         private void EnsureArrays(int count)
@@ -363,10 +317,12 @@ namespace Brick2Life.Feedback
             if (properties == null) properties = new MaterialPropertyBlock();
             float surface = mark.Surface == ProjectionSurface.BrickTop ? brickTopHeight : tableHeight;
             quad.SetActive(visible);
-            quad.transform.position = new Vector3(mark.CenterX, surface + surfaceOffset, mark.CenterY);
+            quad.transform.position = new Vector3(mark.CenterX, surface, mark.CenterY);
             quad.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
             quad.transform.localScale = new Vector3(mark.SizeX, mark.SizeY, 1f);
             Renderer renderer = quad.GetComponent<Renderer>();
+            // Content has no physical depth offset; compositing order must not change its projected location.
+            renderer.sortingOrder = mark.Kind == ProjectionMarkKind.ChangeHighlight ? 20 : -10;
             renderer.sharedMaterial = MaterialFor(mark, material);
             ProjectionColor color = mark.Color;
             bool core = mark.Kind == ProjectionMarkKind.RoleHighlight && mark.Role == GameRole.Core;
@@ -398,6 +354,7 @@ namespace Brick2Life.Feedback
             renderer.sharedMaterial = EnsureMaterial();
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = false;
+            renderer.forceRenderingOff = true; // Image source only; the projector enables it solely while baking its output.
             Collider collider = quad.GetComponent<Collider>();
             if (collider != null) Destroy(collider);
             return quad;
@@ -429,14 +386,6 @@ namespace Brick2Life.Feedback
             }
             Debug.LogError("找不到可用的投影 shader，投影已停用。", this);
             return null;
-        }
-
-        private void WarnIfCameraMissesProjection()
-        {
-            if (overheadCamera == null) return;
-            if ((overheadCamera.cullingMask & (1 << ProjectionLayer)) == 0)
-                Debug.LogWarning("顶置相机不包含投影层 " + projectionLayerName + "（" + ProjectionLayer +
-                    "），投影不会进入实验图像。", this);
         }
 
         private static int ResolveLayer(string name, int fallback)

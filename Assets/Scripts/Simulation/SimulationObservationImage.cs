@@ -13,11 +13,14 @@ namespace Brick2Life.Simulation
         public double[] Projection { get; }
         // True when the virtual projection was left visible for this capture (interference sample).
         public bool ProjectionVisible { get; }
+        public int RenderFrame { get; }
+        public float ExposureScale { get; }
 
         internal SimulationObservationImage(int width, int height, byte[] rgb, DateTimeOffset capturedAtUtc,
-            double[] worldToCamera, double[] projection, bool projectionVisible = false)
+            double[] worldToCamera, double[] projection, bool projectionVisible = false, int renderFrame = -1, float exposureScale = 1)
         {
             Width = width; Height = height; Rgb = rgb; CapturedAtUtc = capturedAtUtc;
+            RenderFrame = renderFrame; ExposureScale = exposureScale;
             WorldToCamera = worldToCamera; Projection = projection; ProjectionVisible = projectionVisible;
         }
     }

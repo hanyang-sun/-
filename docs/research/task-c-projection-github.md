@@ -1,5 +1,7 @@
 # 任务 C 虚拟投影与游戏反馈：GitHub 检索及有限借鉴
 
+> 阶段研究记录：以下选择、参数和结果保留原日期条件，部分实现已替代。当前运行行为以 [现行文档](../README.md) 为准；版本关系见 [研究索引](README.md)。
+
 日期：2026-10-25。目标环境：Unity 6000.3.24f1（工程 `ProjectSettings/ProjectVersion.txt`）、Built-in 渲染管线、10×10 单层积木、顶置实验相机（`TopCamera`，`m_TargetTexture` 512×512 RenderTexture）。
 
 ## 本次范围与验收依据

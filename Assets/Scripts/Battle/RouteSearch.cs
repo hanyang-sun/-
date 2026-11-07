@@ -5,13 +5,22 @@ using Brick2Life.Core;
 namespace Brick2Life.Battle
 {
     /// <summary>
-    /// Four-way A* over the 20×20 battle grid. Multi-core levels prefer the cheapest route and, on ties,
+    /// Four-way A* along physical-cell centerlines on the 20×20 battle grid, with soft obstacle costs.
+    /// Multi-core levels prefer the cheapest route and, on ties,
     /// the core that comes first in row-major order. Adapted from the archived BrickDefense pathfinder.
     /// </summary>
     public static class RouteSearch
     {
+        internal const int StepCost = 10;
+        private const int AdjacentObstacleCost = 12;
+
         public static GridPoint[] Find(BattleCell[] cells, int width, int height, IReadOnlyList<string> coreIds, GridPoint start)
+            => Find(cells, width, height, coreIds, start, out _);
+
+        internal static GridPoint[] Find(BattleCell[] cells, int width, int height, IReadOnlyList<string> coreIds,
+            GridPoint start, out int routeCost)
         {
+            routeCost = int.MaxValue;
             if (cells == null) throw new ArgumentNullException(nameof(cells));
             if (coreIds == null) throw new ArgumentNullException(nameof(coreIds));
             if (start.X < 0 || start.Y < 0 || start.X >= width || start.Y >= height) return null;
@@ -29,7 +38,7 @@ namespace Brick2Life.Battle
             var closed = new bool[count];
             for (int index = 0; index < count; index++)
             {
-                heuristic[index] = DistanceToNearest(cells[index].Position, cells, goals);
+                heuristic[index] = DistanceToNearest(cells[index].Position, cells, goals) * StepCost;
                 cost[index] = int.MaxValue;
                 previous[index] = -1;
             }
@@ -58,12 +67,13 @@ namespace Brick2Life.Battle
                     continue;
                 }
                 int x = current % width, y = current / width;
-                if (y > 0) Visit(cells, current - width, current, cost, heuristic, previous, closed, open);
-                if (x > 0) Visit(cells, current - 1, current, cost, heuristic, previous, closed, open);
-                if (x < width - 1) Visit(cells, current + 1, current, cost, heuristic, previous, closed, open);
-                if (y < height - 1) Visit(cells, current + width, current, cost, heuristic, previous, closed, open);
+                if (y > 0) Visit(cells, width, height, current - width, current, cost, heuristic, previous, closed, open);
+                if (x > 0) Visit(cells, width, height, current - 1, current, cost, heuristic, previous, closed, open);
+                if (x < width - 1) Visit(cells, width, height, current + 1, current, cost, heuristic, previous, closed, open);
+                if (y < height - 1) Visit(cells, width, height, current + width, current, cost, heuristic, previous, closed, open);
             }
             if (bestGoal < 0) return null;
+            routeCost = bestCost;
             var route = new List<GridPoint>();
             for (int cursor = bestGoal; cursor >= 0; cursor = previous[cursor]) route.Add(cells[cursor].Position);
             route.Reverse();
@@ -73,15 +83,32 @@ namespace Brick2Life.Battle
         private static int Rank(string id, Dictionary<string, int> rank) =>
             id != null && rank.TryGetValue(id, out int value) ? value : int.MaxValue;
 
-        private static void Visit(BattleCell[] cells, int next, int current, int[] cost, int[] heuristic,
+        private static void Visit(BattleCell[] cells, int width, int height, int next, int current, int[] cost, int[] heuristic,
             int[] previous, bool[] closed, Heap open)
         {
             if (closed[next] || cells[next].Blocked) return;
-            int nextCost = cost[current] + 1;
+            GridPoint from = cells[current].Position, to = cells[next].Position;
+            // Odd/odd nodes are physical centers. Mixed parity nodes cross grid edges perpendicularly;
+            // excluding even/even corners prevents paths from running along brick edges or cutting turns.
+            if (to.X % 2 == 0 && to.Y % 2 == 0) return;
+            bool legacyCornerStart = from.X % 2 == 0 && from.Y % 2 == 0;
+            if (!legacyCornerStart && (from.Y == to.Y ? from.Y % 2 != 1 : from.X % 2 != 1)) return;
+            int nextCost = cost[current] + StepCost + ClearancePenalty(cells, width, height, to);
             if (nextCost >= cost[next]) return;
             cost[next] = nextCost;
             previous[next] = current;
             open.Push(nextCost + heuristic[next], nextCost, next);
+        }
+
+        private static int ClearancePenalty(BattleCell[] cells, int width, int height, GridPoint point)
+        {
+            if (point.X % 2 != 1 || point.Y % 2 != 1) return 0;
+            int penalty = 0, stride = BattleLevel.NavigationPerPhysical;
+            if (point.X >= stride && cells[point.Y * width + point.X - stride].Blocked) penalty += AdjacentObstacleCost;
+            if (point.X + stride < width && cells[point.Y * width + point.X + stride].Blocked) penalty += AdjacentObstacleCost;
+            if (point.Y >= stride && cells[(point.Y - stride) * width + point.X].Blocked) penalty += AdjacentObstacleCost;
+            if (point.Y + stride < height && cells[(point.Y + stride) * width + point.X].Blocked) penalty += AdjacentObstacleCost;
+            return penalty;
         }
 
         private static int DistanceToNearest(GridPoint point, BattleCell[] cells, List<int> goals)

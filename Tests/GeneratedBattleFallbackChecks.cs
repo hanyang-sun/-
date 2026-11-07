@@ -110,7 +110,7 @@ internal static class GeneratedBattleFallbackChecks
         var wallUnderEnemy = Map(single, (9, 9, "blue"),
             ((int)Math.Floor(overlapped.X / 2), (int)Math.Floor(overlapped.Y / 2), "green"));
         Check(wallUnderEnemy.IsValid, "Overlap fixture should preserve a valid entrance route.");
-        Check(overlap.TryUpdateLevel(wallUnderEnemy, out _) && overlap.State.UsingPreviousRoutes &&
+        Check(overlap.TryUpdateLevel(wallUnderEnemy, out _) && !overlap.State.UsingPreviousRoutes && overlap.State.PendingEnemyReroutes > 0 &&
             !overlap.State.WaitingForLayout, "An obstacle under a live enemy incorrectly stopped combat.");
         UnchangedRun(before, overlap.State, "Wall under enemy");
         overlap.Step(0.2);

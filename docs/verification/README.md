@@ -1,11 +1,12 @@
 # 验证资料索引与保存约定
 
-整理日期：2026-11-04。范围为原工程 Brick2Life，不包含独立 C 工作区的新功能。
+整理：2026-11-07。当前状态以 Brick2Life-C 本地工作树和 [当前验证摘要](current-simulation.md) 为准；下方 2026-11-04 及更早资料均为历史证据。
 
-## 当前主线的验证入口
+## 当前入口与历史基线
 
-- [当前仿真检查与限制](simulation-baseline-2026-11-04.md)：1076 项纯 C# 断言，以及已有 Unity 回归记录的适用范围。
-- [双窗口接线与历史联调](../a-c-integration.md)。
+- [当前验证摘要](current-simulation.md)：两种识别模式、固定投影仪及最新本地结果。
+- [2026-11-04 历史基线](simulation-baseline-2026-11-04.md)：原工程 1076 项纯逻辑及旧 Unity 回归范围。
+- [双窗口接线与历史联调](../history/a-c-integration.md)。
 - [采样消隐同步的历史实测](../research/synchronized-projection-blanking-github.md)。
 
 历史结果只说明当时版本、设备和样本下的行为。真实相机识别、实体投影对齐、硬件曝光同步、儿童使用体验不能由 Unity 截图或构造对齐误差代替验收。
@@ -48,7 +49,7 @@
 | 无格纸实拍旧流程 | [说明](../../.scratch/markerless-photo/README.md)、[拒绝回放说明](../../.scratch/scan-rejection/debug/README.md) | 属于旧 BrickDefense；原始扫描数据仅本地或固定历史提交中保留 |
 | 旧 Windows 构建与选图 | [构建验收](../../.scratch/windows-release/verification/README.md)、[选图验收](../../.scratch/windows-photo-picker/verification/README.md) | 旧 EXE 和旧入口，不应使用当前项目的命令直接重放 |
 | 旧战斗与界面 | [战斗](../../.scratch/combat-a/verification/README.md)、[中文界面](../../.scratch/chinese-ui/verification/README.md)、[布局校对](../../.scratch/layout-review/verification/README.md) | 仅作历史效果和回归范围参考 |
-| 旧资产审计 | [逐文件清单](../../.scratch/assets-module-audit/inventory.json)、[审计报告](../brick2life-assets-audit-2026-10-15.md) | 历史结构快照；原工具依赖旧结构，不保证直接重跑 |
+| 旧资产审计 | [逐文件清单](../../.scratch/assets-module-audit/inventory.json)、[审计报告](../history/brick2life-assets-audit-2026-10-15.md) | 历史结构快照；原工具依赖旧结构，不保证直接重跑 |
 
 其他历史记录继续保留在各功能目录，未重新定义其中的旧需求为当前要求。
 

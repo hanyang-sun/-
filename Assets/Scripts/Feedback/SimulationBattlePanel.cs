@@ -79,8 +79,9 @@ namespace Brick2Life.Feedback
             if (pauseButton != null)
             {
                 var label = pauseButton.GetComponentInChildren<Text>();
-                if (label != null) label.text = source.State != null && source.State.Paused ? "继续" : "暂停";
-                pauseButton.interactable = source.Running && source.State != null && !source.State.Finished;
+                if (label != null) label.text = source.PendingResume ? "确认中…" : source.IsPaused ? "继续" : source.PauseRecognitionMode ? "暂停识别" : "暂停";
+                pauseButton.interactable = !source.PendingStart && !source.PendingResume &&
+                    (source.PauseRecognitionMode || (source.Running && source.State != null && !source.State.Finished));
             }
             if (nextButton != null)
                 nextButton.interactable = source.Running && source.State != null && source.State.CanStartWave;
@@ -99,7 +100,7 @@ namespace Brick2Life.Feedback
             if (generateButton != null)
             {
                 generateButton.gameObject.SetActive(source.GeneratedObjectives);
-                generateButton.interactable = !source.Running && !source.PendingStart;
+                generateButton.interactable = !source.Running && !source.PendingStart && !source.PendingResume;
             }
         }
 
@@ -193,8 +194,8 @@ namespace Brick2Life.Feedback
             nextButton = AddButton(startRow, "下一波", () => { if (controller != null) controller.StartNextWave(); });
             pauseButton = AddButton(startRow, "暂停", () =>
             {
-                if (controller == null || controller.State == null) return;
-                controller.SetPaused(!controller.State.Paused);
+                if (controller == null) return;
+                controller.SetPaused(!controller.IsPaused);
             });
             AddButton(startRow, "重试", () => { if (controller != null) controller.Restart(); });
 

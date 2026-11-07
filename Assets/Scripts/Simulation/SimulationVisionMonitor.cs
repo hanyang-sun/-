@@ -16,7 +16,12 @@ namespace Brick2Life.Simulation
     public sealed class SimulationVisionMonitor : MonoBehaviour
     {
         private const int CellSize = 36;
-        [SerializeField] private float interval = 0.15f;
+        [Tooltip("布局稳定或图像不可用时的低频检查间隔（秒）。")]
+        [SerializeField] private float interval = 0.8f;
+        [Tooltip("RGB 出现待确认布局、首次识别或开战要求新图像时的采样间隔（秒）。")]
+        [SerializeField] private float confirmationInterval = 0.12f;
+        [Tooltip("候选布局持续不稳定时，快速采样最多持续的秒数。")]
+        [SerializeField] private float maximumFastSamplingSeconds = 1f;
         [SerializeField] private int requiredFrames = 3;
         private SimulationBoardSession board;
         private SimulationCameraCapture capture;
@@ -45,9 +50,65 @@ namespace Brick2Life.Simulation
         private string loggedError;
         private long captureSequence;
         private long confirmedCaptureSequence = -1;
+        private long requestedCaptureSequence = -1;
+        private RecognitionSamplingCadence samplingCadence;
+        private IProjectionObservationSource projectedLight;
+        private Text samplingModeLabel;
+        private PhotometricProfile measuredProfile;
+        private bool trackingWithoutProjection;
+        private IDisposable pauseSuppression;
+        public bool CompensatingProjection => capture != null && !capture.CaptureWithoutProjection;
+        public bool RecognitionPaused => pauseSuppression != null;
+        public bool CanCapture => capture != null && capture.isActiveAndEnabled;
+        public event Action SamplingModeChanged;
+        public RgbImage LastRecognitionImage { get; private set; }
+
+        public void UseProjectedLight(IProjectionObservationSource source) => projectedLight = source;
+        public void UseMeasuredProfile(PhotometricProfile profile) => measuredProfile = profile ?? throw new ArgumentNullException(nameof(profile));
+        public void ToggleSamplingMode()
+        {
+            if (capture == null) return;
+            SetRecognitionPaused(false);
+            capture.CaptureWithoutProjection = !capture.CaptureWithoutProjection;
+            // A mode change starts a new stability streak and cannot confirm with evidence from the previous mode.
+            RefreshSamplingConfiguration();
+            RefreshSamplingMode();
+            SamplingModeChanged?.Invoke();
+        }
+        private void RefreshSamplingMode()
+        {
+            if (samplingModeLabel != null) samplingModeLabel.text = CompensatingProjection ? "连续识别 · F8" : "暂停识别 · F8";
+        }
+        public void SetRecognitionPaused(bool paused)
+        {
+            if (!paused || CompensatingProjection || !Automatic || !isActiveAndEnabled || !CanCapture)
+            {
+                IDisposable scope = pauseSuppression; pauseSuppression = null; scope?.Dispose();
+                return;
+            }
+            if (pauseSuppression != null) return;
+            pauseSuppression = ProjectionCaptureGate.Suppress();
+            LastError = null;
+            tracker?.DiscardCandidate();
+            samplingCadence?.RequestFast(Time.realtimeSinceStartupAsDouble);
+            primed = false; elapsed = 0;
+        }
+        private void RefreshSamplingConfiguration()
+        {
+            calibration = CreateCalibration(board);
+            trackingWithoutProjection = capture.CaptureWithoutProjection;
+            tracker.DiscardCandidate();
+            if (titleText != null) titleText.text = ModeTitle();
+            samplingCadence?.RequestFast(Time.realtimeSinceStartupAsDouble);
+        }
 
         // Require fresh RGB evidence without consulting source layout or evaluation scores.
-        public long RequestFreshConfirmation() => captureSequence + requiredFrames;
+        public long RequestFreshConfirmation()
+        {
+            requestedCaptureSequence = captureSequence + requiredFrames;
+            samplingCadence?.RequestFast(Time.realtimeSinceStartupAsDouble);
+            return requestedCaptureSequence;
+        }
         public bool HasConfirmed(long requestedSequence) => confirmedCaptureSequence >= requestedSequence;
 
         private bool automatic = true;
@@ -56,15 +117,17 @@ namespace Brick2Life.Simulation
             get => automatic;
             set
             {
+                bool wasAutomatic = automatic;
                 automatic = value;
-                if (!automatic && capture != null) capture.CancelObservationCapture();
+                if (!automatic) SetRecognitionPaused(false);
+                if (automatic && !wasAutomatic) samplingCadence?.RequestFast(Time.realtimeSinceStartupAsDouble);
             }
         }
 
         public void ResetTracking()
         {
             if (board == null) throw new InvalidOperationException("识别尚未绑定棋盘。");
-            Rebuild(); primed = false; elapsed = 0;
+            Rebuild();
         }
 
         // Task C integration surface: one shared BoardSyncSession, confirmed updates, and the status line.
@@ -134,8 +197,9 @@ namespace Brick2Life.Simulation
 
         private void Rebuild()
         {
-            capture.CancelObservationCapture();
+            SetRecognitionPaused(false);
             calibration = CreateCalibration(board);
+            trackingWithoutProjection = capture.CaptureWithoutProjection;
             tracker = new LayoutChangeTracker(requiredFrames);
             sync = new BoardSyncSession(board.Definition, calibration.CalibrationId);
             LastOutcome = null;
@@ -143,6 +207,12 @@ namespace Brick2Life.Simulation
             LastStableScore = null;
             LastError = null;
             confirmedCaptureSequence = -1;
+            requestedCaptureSequence = -1;
+            float stableInterval = Mathf.Max(0.05f, interval);
+            samplingCadence = new RecognitionSamplingCadence(stableInterval,
+                Mathf.Clamp(confirmationInterval, 0.05f, stableInterval), Mathf.Max(0.05f, maximumFastSamplingSeconds));
+            samplingCadence.RequestFast(Time.realtimeSinceStartupAsDouble);
+            primed = false; elapsed = 0;
             // Task C binds to this session so recognition and feedback share one confirmed state.
             Action<BoardSyncSession> rebuilt = SessionRebuilt;
             if (rebuilt != null) rebuilt(sync);
@@ -158,30 +228,32 @@ namespace Brick2Life.Simulation
         private void Update()
         {
             ScrollEventLogFromPointer();
-            // F8 switches between interference-free sampling and sampling that includes task C's projection.
+            // F8 switches between continuous compensation and the independent blanking comparison.
             if (Input.GetKeyDown(KeyCode.F8) && capture != null)
             {
-                capture.CaptureWithoutProjection = !capture.CaptureWithoutProjection;
-                Debug.Log("识别取样" + (capture.CaptureWithoutProjection ? "关闭" : "保留") + "虚拟投影（F8 切换）。", this);
+                ToggleSamplingMode();
             }
-            if (!Automatic || board == null) return;
+            RefreshSamplingMode();
+            if (capture != null && trackingWithoutProjection != capture.CaptureWithoutProjection)
+            {
+                SetRecognitionPaused(false); RefreshSamplingConfiguration(); SamplingModeChanged?.Invoke();
+            }
+            if (!Automatic || board == null || capture == null || !capture.isActiveAndEnabled)
+            { SetRecognitionPaused(false); return; }
+            // Pause mode has no capture loop while projection is displayed.
+            if (!CompensatingProjection && !RecognitionPaused) return;
             elapsed += Time.unscaledDeltaTime;
             try
             {
-                if (!capture.ObservationCapturePending)
-                {
-                    if (primed && elapsed < interval) return;
-                    primed = true;
-                    elapsed = 0;
-                    capture.BeginObservationCapture();
-                }
-                if (!capture.TryCompleteObservationCapture(out SimulationObservationImage image)) return;
-                AnalyzeImage(image);
+                if (primed && elapsed < samplingCadence.IntervalAt(Time.realtimeSinceStartupAsDouble)) return;
+                primed = true; elapsed = 0;
+                AnalyzeOnce();
                 loggedError = null;
             }
             catch (Exception error)
             {
-                capture.CancelObservationCapture();
+                SetRecognitionPaused(false);
+                samplingCadence.Observe(Time.realtimeSinceStartupAsDouble, false, false);
                 LastError = error.Message;
                 report = "识别失败：" + error.Message;
                 if (titleText != null) titleText.text = report;
@@ -193,7 +265,7 @@ namespace Brick2Life.Simulation
 
         private void OnDisable()
         {
-            if (capture != null) capture.CancelObservationCapture();
+            SetRecognitionPaused(false);
         }
 
         public void AnalyzeOnce()
@@ -207,12 +279,39 @@ namespace Brick2Life.Simulation
         private void AnalyzeImage(SimulationObservationImage image)
         {
             captureSequence++;
+            // External capture callers may switch the mode directly; discard the old tracking evidence.
+            if (trackingWithoutProjection != capture.CaptureWithoutProjection) RefreshSamplingConfiguration();
             // The snapshot is only the accuracy reference. Recognize does not receive it.
             BoardSnapshot truth = board.Snapshot();
             GridSample[][] samples = capture.BuildTopSamples(board.Definition, calibration, image.Width, image.Height);
             var rgb = new RgbImage(image.Width, image.Height, image.Rgb);
-            FrameObservation observation = FixedGridRecognizer.Recognize(board.Definition, rgb, samples, calibration,
-                "pending", "pending", 0, image.CapturedAtUtc);
+            LastRecognitionImage = rgb;
+            FrameObservation observation;
+            if (image.ProjectionVisible)
+            {
+                if (projectedLight == null) throw new InvalidOperationException("连续投影识别尚未接入投影输出。");
+                projectedLight.GetObservationLighting(board.Definition, calibration, image, out PhotometricProfile profile, out CellProjection command);
+                observation = ProjectedLightRecognizer.Recognize(board.Definition, rgb, samples, calibration, measuredProfile ?? profile, command,
+                    "pending", "pending", 0, image.CapturedAtUtc);
+                // Empty cells are on the table, not on the hypothetical brick-top plane. Test that plane from the same RGB.
+                var floorCalibration = new VisionCalibration(calibration.CalibrationId, calibration.Background, calibration.Colors,
+                    surfaceY: 0, inset: calibration.Inset, samplesPerAxis: calibration.SamplesPerAxis);
+                GridSample[][] floorSamples = capture.BuildTopSamples(board.Definition, floorCalibration, image.Width, image.Height);
+                projectedLight.GetObservationLighting(board.Definition, floorCalibration, image, out PhotometricProfile floorProfile, out CellProjection floorCommand);
+                var floor = ProjectedLightRecognizer.Recognize(board.Definition, rgb, floorSamples, floorCalibration, measuredProfile ?? floorProfile, floorCommand,
+                    "pending", "pending", 0, image.CapturedAtUtc);
+                if (observation.Accepted && floor.Accepted)
+                {
+                    var cells = new ObservedCell[board.Definition.CellCount];
+                    for (int i = 0; i < cells.Length; i++)
+                        cells[i] = observation.Cells[i].Reason != "投影过曝。" && floor.Cells[i].State.Occupancy == Occupancy.Empty &&
+                            (observation.Cells[i].State.Occupancy == Occupancy.Unknown || floor.Cells[i].Confidence > observation.Cells[i].Confidence)
+                            ? floor.Cells[i] : observation.Cells[i];
+                    observation = new FrameObservation(board.Definition, "pending", "pending", 0, image.CapturedAtUtc, calibration.CalibrationId, cells);
+                }
+            }
+            else observation = FixedGridRecognizer.Recognize(board.Definition, rgb, samples, calibration,
+                    "pending", "pending", 0, image.CapturedAtUtc);
             LastRawScore = RecognitionScore.Compare(observation, truth);
             LayoutTrackStep step = tracker.Observe(observation);
             LastStableScore = step.StableCells == null ? null : RecognitionScore.CompareCells(board.Definition, step.StableCells, truth);
@@ -231,13 +330,16 @@ namespace Brick2Life.Simulation
                 if (applied != null) applied(update);
             }
             LastError = null;
+            samplingCadence.Observe(Time.realtimeSinceStartupAsDouble,
+                step.Confirmable && confirmedCaptureSequence >= requestedCaptureSequence,
+                observation.Accepted && step.Streak > 0);
             Publish(observation, step);
         }
 
         private void Publish(FrameObservation observation, LayoutTrackStep step)
         {
             var text = new StringBuilder();
-            string title = "任务B  积木识别";
+            string title = ModeTitle();
             text.AppendLine(title);
             if (observation == null || !observation.Accepted)
             {
@@ -303,6 +405,8 @@ namespace Brick2Life.Simulation
             report = text.ToString();
             ApplyEventLog(events.ToString());
         }
+
+        private string ModeTitle() => CompensatingProjection ? "任务B  连续识别" : RecognitionPaused ? "任务B  暂停采集布局" : "任务B  暂停识别（按暂停采集）";
 
         private void ApplyEventLog(string value)
         {
@@ -458,6 +562,14 @@ namespace Brick2Life.Simulation
             toggleLabel = toggleButton.GetComponentInChildren<Text>();
             toggleLabel.text = "关闭识别";
             toggleButton.onClick.AddListener(() => SetPanelVisible(!IsPanelVisible));
+
+            Button modeButton = CreateButton(canvasObject.transform, "ProjectionSamplingMode");
+            RectTransform modeRect = modeButton.GetComponent<RectTransform>();
+            modeRect.anchorMin = modeRect.anchorMax = new Vector2(0.5f, 1);
+            modeRect.pivot = new Vector2(0.5f, 1); modeRect.anchoredPosition = new Vector2(190, -12);
+            modeRect.sizeDelta = new Vector2(196, 36);
+            samplingModeLabel = modeButton.GetComponentInChildren<Text>();
+            modeButton.onClick.AddListener(ToggleSamplingMode); RefreshSamplingMode();
 
             panel = new GameObject("VisionRecognitionPanel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(VerticalLayoutGroup));
             panel.transform.SetParent(canvasObject.transform, false);

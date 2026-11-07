@@ -21,7 +21,6 @@ namespace Brick2Life.Simulation
         private static int suppressionDepth;
         public static bool IsSuppressed => suppressionDepth > 0;
         public static event Action VisibilityChanged;
-        public static IProjectionGate Current => gates.Count == 0 ? null : gates[gates.Count - 1];
 
         public static void Register(IProjectionGate gate)
         {

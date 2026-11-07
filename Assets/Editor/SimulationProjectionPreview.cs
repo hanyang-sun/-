@@ -15,13 +15,12 @@ namespace Brick2Life.Editor
     public sealed class SimulationProjectionPreview : IDisposable
     {
         private readonly PreviewRenderUtility preview;
-        private readonly Transform root, boardRoot, brickRoot, projectionRoot, battleRoot, objectiveRoot;
+        private readonly Transform root, boardRoot, brickRoot, objectiveRoot;
         private readonly Dictionary<int, MeshRenderer> objectiveCopies = new Dictionary<int, MeshRenderer>();
         private readonly Dictionary<string, Material> brickMaterials = new Dictionary<string, Material>();
         private readonly List<Material> ownedMaterials = new List<Material>();
-        private readonly Dictionary<int, MeshRenderer> projectionCopies = new Dictionary<int, MeshRenderer>();
-        private readonly Dictionary<int, MeshRenderer> battleCopies = new Dictionary<int, MeshRenderer>();
-        private readonly Dictionary<int, LineRenderer> routeCopies = new Dictionary<int, LineRenderer>();
+        private SimulationProjectedLight projectedLight;
+        private int sourceMarkCount;
         private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
         private readonly List<int> stale = new List<int>();
         private readonly List<GameObject> bricks = new List<GameObject>();
@@ -34,7 +33,8 @@ namespace Brick2Life.Editor
         public Camera Camera => preview.camera;
         public int BrickCount => bricks.Count;
         public bool BricksVisible => brickRoot.gameObject.activeSelf;
-        public int ProjectionCount => projectionCopies.Count;
+        public bool ProjectionVisible { get; private set; }
+        public int ProjectionCount => ProjectionVisible ? sourceMarkCount : 0;
         public long DisplayedVersion => renderedLevel == null ? -1 : renderedLevel.SourceVersion;
         public RenderTexture Texture => texture;
 
@@ -59,10 +59,8 @@ namespace Brick2Life.Editor
             preview.AddSingleGO(root.gameObject);
             boardRoot = Child("Board");
             brickRoot = Child("ConfirmedBricks");
-            projectionRoot = Child("Projection");
-            battleRoot = Child("Battle");
             objectiveRoot = Child("SystemObjectives");
-            Material boardMaterial = Material(new Color(0.055f, 0.07f, 0.085f));
+            Material boardMaterial = Material(new Color(0.45f, 0.47f, 0.49f));
             GameObject floor = Cube(boardRoot, "Board", boardMaterial);
             floor.transform.position = new Vector3(5, -0.035f, 5);
             floor.transform.localScale = new Vector3(10, 0.04f, 10);
@@ -163,45 +161,44 @@ namespace Brick2Life.Editor
             bool confirmedProjection = level != null && projection != null && projection.LastPlan != null &&
                 projection.LastPlan.LevelVersion == level.SourceVersion;
             bool suppressed = ProjectionCaptureGate.IsSuppressed;
-            projectionRoot.gameObject.SetActive(confirmedProjection && projection.IsVisible && !suppressed);
+            ProjectionVisible = confirmedProjection && projection.IsVisible && !suppressed;
             var objectives = battle != null ? battle.GetComponent<SimulationRoundMarkers>() : null;
             // System goals are public configuration; before RGB confirmation show only their guides.
             bool showObjectiveGuides = !suppressed && (!confirmedProjection || (!projectionOnly && !projection.IsVisible));
             objectiveRoot.gameObject.SetActive(showObjectiveGuides);
-            MirrorMeshes(showObjectiveGuides && objectives != null ? objectives.MarkersRoot : null,
-                objectiveRoot, objectiveCopies);
+            MirrorObjectiveGuides(showObjectiveGuides && objectives != null ? objectives.MarkersRoot : null);
             var overlay = battle != null ? battle.GetComponent<SimulationBattleOverlay>() : null;
-            MirrorMeshes(confirmedProjection ? projection.MarksRoot : null, projectionRoot, projectionCopies,
-                confirmedProjection && overlay != null ? overlay.MarksRoot : null);
-            battleRoot.gameObject.SetActive(!projectionOnly && !suppressed);
-            MirrorMeshes(battle != null ? battle.transform : null, battleRoot, battleCopies,
-                excludedLayer: projection != null ? projection.ProjectionLayer : 31,
-                additionalExcludedLayer: SimulationRoundMarkers.LayerIndex);
-            MirrorRoutes(battle != null ? battle.transform : null);
+            // The preview receives the same projector output on its own surfaces. It never mirrors source quads.
+            var light = projection != null ? projection.GetComponent<SimulationProjectedLight>() : null;
+            if (projectedLight != light)
+            {
+                if (projectedLight != null) projectedLight.ReleaseView(Camera);
+                projectedLight = light;
+            }
+            if (projectedLight != null) projectedLight.SetViewEnabled(Camera, ProjectionVisible);
+            sourceMarkCount = confirmedProjection ? projection.ActiveMarkCount +
+                (overlay != null && overlay.MarksRoot != null ? overlay.MarksRoot.GetComponentsInChildren<MeshRenderer>().Length : 0) : 0;
         }
 
-        private void MirrorMeshes(Transform sourceRoot, Transform parent, Dictionary<int, MeshRenderer> copies,
-            Transform additionalRoot = null, int excludedLayer = -1, int additionalExcludedLayer = -1)
+        private void MirrorObjectiveGuides(Transform sourceRoot)
         {
             stale.Clear();
-            stale.AddRange(copies.Keys);
-            foreach (Transform sourceGroup in new[] { sourceRoot, additionalRoot })
-            if (sourceGroup != null)
-                foreach (MeshRenderer source in sourceGroup.GetComponentsInChildren<MeshRenderer>())
+            stale.AddRange(objectiveCopies.Keys);
+            if (sourceRoot != null)
+                foreach (MeshRenderer source in sourceRoot.GetComponentsInChildren<MeshRenderer>())
                 {
                     MeshFilter filter = source.GetComponent<MeshFilter>();
-                    if (filter == null || filter.sharedMesh == null || !source.enabled || source.forceRenderingOff ||
-                        source.gameObject.layer == excludedLayer || source.gameObject.layer == additionalExcludedLayer) continue;
+                    if (filter == null || filter.sharedMesh == null || !source.enabled || source.forceRenderingOff) continue;
                     int id = source.GetInstanceID();
                     stale.Remove(id);
-                    if (!copies.TryGetValue(id, out MeshRenderer target))
+                    if (!objectiveCopies.TryGetValue(id, out MeshRenderer target))
                     {
                         var go = new GameObject(source.name, typeof(MeshFilter), typeof(MeshRenderer));
-                        go.transform.SetParent(parent, false);
+                        go.transform.SetParent(objectiveRoot, false);
                         target = go.GetComponent<MeshRenderer>();
                         target.shadowCastingMode = ShadowCastingMode.Off;
                         target.receiveShadows = false;
-                        copies.Add(id, target);
+                        objectiveCopies.Add(id, target);
                     }
                     target.GetComponent<MeshFilter>().sharedMesh = filter.sharedMesh;
                     target.sharedMaterials = source.sharedMaterials;
@@ -210,33 +207,7 @@ namespace Brick2Life.Editor
                     target.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
                     target.transform.localScale = source.transform.lossyScale;
                 }
-            foreach (int id in stale) { Object.DestroyImmediate(copies[id].gameObject); copies.Remove(id); }
-        }
-
-        private void MirrorRoutes(Transform sourceRoot)
-        {
-            stale.Clear(); stale.AddRange(routeCopies.Keys);
-            if (sourceRoot != null)
-                foreach (LineRenderer source in sourceRoot.GetComponentsInChildren<LineRenderer>())
-                {
-                    if (!source.enabled) continue;
-                    int id = source.GetInstanceID(); stale.Remove(id);
-                    if (!routeCopies.TryGetValue(id, out LineRenderer target))
-                    {
-                        var go = new GameObject(source.name, typeof(LineRenderer));
-                        go.transform.SetParent(battleRoot, false);
-                        target = go.GetComponent<LineRenderer>(); routeCopies.Add(id, target);
-                    }
-                    target.useWorldSpace = true;
-                    target.positionCount = source.positionCount;
-                    for (int i = 0; i < source.positionCount; i++)
-                        target.SetPosition(i, source.useWorldSpace ? source.GetPosition(i) : source.transform.TransformPoint(source.GetPosition(i)));
-                    target.widthMultiplier = source.widthMultiplier;
-                    target.sharedMaterials = source.sharedMaterials;
-                    target.startColor = source.startColor; target.endColor = source.endColor;
-                    target.shadowCastingMode = ShadowCastingMode.Off;
-                }
-            foreach (int id in stale) { Object.DestroyImmediate(routeCopies[id].gameObject); routeCopies.Remove(id); }
+            foreach (int id in stale) { Object.DestroyImmediate(objectiveCopies[id].gameObject); objectiveCopies.Remove(id); }
         }
 
         public void Orbit(Vector2 delta)
@@ -286,6 +257,7 @@ namespace Brick2Life.Editor
         {
             if (disposed) return;
             disposed = true;
+            if (projectedLight != null) projectedLight.ReleaseView(Camera);
             Camera.targetTexture = null;
             if (texture != null) { texture.Release(); Object.DestroyImmediate(texture); }
             preview.Cleanup();

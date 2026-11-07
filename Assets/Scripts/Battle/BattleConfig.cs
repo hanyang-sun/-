@@ -91,19 +91,21 @@ namespace Brick2Life.Battle
         public string LayoutIssue { get; }
         public bool UsingPreviousRoutes { get; }
         public string RouteWarning { get; }
+        public int PendingEnemyReroutes { get; }
         public IReadOnlyList<EnemyState> Enemies { get; }
         public bool Finished => Phase == BattlePhase.Victory || Phase == BattlePhase.Defeat;
         public bool CanStartWave => !WaitingForLayout && (Phase == BattlePhase.Ready || Phase == BattlePhase.AwaitingNextWave);
 
         public BattleState(BattlePhase phase, int coreHealth, int wave, int spawned, int killed, int leaked,
             double elapsed, bool paused, EnemyState[] enemies, bool waitingForLayout = false, string layoutIssue = "",
-            bool usingPreviousRoutes = false, string routeWarning = "")
+            bool usingPreviousRoutes = false, string routeWarning = "", int pendingEnemyReroutes = 0)
         {
             Phase = phase; CoreHealth = coreHealth; Wave = wave; SpawnedThisWave = spawned;
             Killed = killed; Leaked = leaked; Elapsed = elapsed; Paused = paused;
             Enemies = Array.AsReadOnly((EnemyState[])enemies.Clone());
             WaitingForLayout = waitingForLayout; LayoutIssue = layoutIssue;
             UsingPreviousRoutes = usingPreviousRoutes; RouteWarning = routeWarning;
+            PendingEnemyReroutes = pendingEnemyReroutes;
         }
     }
 

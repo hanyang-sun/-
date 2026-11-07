@@ -1923,37 +1923,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 497589108}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &863402293
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 863402294}
-  m_Layer: 0
-  m_Name: Level
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &863402294
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 863402293}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1480744937}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &864833548
 GameObject:
   m_ObjectHideFlags: 0
@@ -3208,8 +3177,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Brick2Life.Simulation::Brick2Life.Simulation.SimulationCameraCapture
   sourceCamera: {fileID: 1356387076}
   statusLabel: {fileID: 875255856}
-  captureWithoutProjection: 1
-  projectionSettleFrames: 2
+  captureWithoutProjection: 0
 --- !u!1 &1452470341
 GameObject:
   m_ObjectHideFlags: 0
@@ -3362,7 +3330,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1480744937}
-  - component: {fileID: 1480744936}
   - component: {fileID: 1480744935}
   - component: {fileID: 1480744934}
   - component: {fileID: 1480744933}
@@ -3418,7 +3385,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 17aa342fc2af4991ac6009e134cec1c2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Brick2Life.Feedback::Brick2Life.Feedback.SimulationLevelAdapter
-  levelView: {fileID: 1480744936}
   projection: {fileID: 1480744935}
   rules:
   - colorId: red
@@ -3443,47 +3409,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Brick2Life.Feedback::Brick2Life.Feedback.ProjectionSimulator
   marksRoot: {fileID: 1579378318}
-  overheadCamera: {fileID: 1356387076}
   markMaterial: {fileID: 2100000, guid: c8d55d84ac076bc4db654658ca79a556, type: 2}
   projectionLayerName: Brick2LifeProjection
   fallbackProjectionLayer: 31
   brickTopHeight: 1
   tableHeight: 0
-  surfaceOffset: 0.006
   intensity: 1
   visible: 1
---- !u!114 &1480744936
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1480744931}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0cccb4990c164db8a7061a664e47d3f0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Brick2Life.Feedback::Brick2Life.Feedback.SimulationLevelView
-  levelRoot: {fileID: 863402294}
-  styles:
-  - role: 1
-    material: {fileID: 2100000, guid: 92d2587e083ab624685a4e8b34b7fa91, type: 2}
-    shape: 3
-    height: 0.9
-    footprint: 0.7
-  - role: 2
-    material: {fileID: 2100000, guid: 5a7169217a2253e49b7b39ebd79ef8f4, type: 2}
-    shape: 3
-    height: 0.45
-    footprint: 1
-  - role: 3
-    material: {fileID: 2100000, guid: 041b3ba4452cc4b4ba06b2f4cb39d69d, type: 2}
-    shape: 2
-    height: 1.6
-    footprint: 0.55
-  gameLayerName: Brick2LifeGame
-  fallbackGameLayer: 30
-  overheadCamera: {fileID: 1356387076}
 --- !u!4 &1480744937
 Transform:
   m_ObjectHideFlags: 0
@@ -3497,7 +3429,6 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 863402294}
   - {fileID: 1579378318}
   - {fileID: 1730692417}
   - {fileID: 864833549}
@@ -4292,12 +4223,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ceff8c7b05023a24b9e4443a8ab2d2c0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Brick2Life.Feedback::Brick2Life.Feedback.SimulationBattleView
-  root: {fileID: 1730692417}
-  enemyMaterial: {fileID: 2100000, guid: 99b581c8d263dcb4d84918f5c979d845, type: 2}
-  routeMaterial: {fileID: 2100000, guid: d5ab083804945494f9fb9f78df95af37, type: 2}
-  enemyScale: 0.45
-  routeWidth: 0.08
-  gameLayerName: Brick2LifeGame
 --- !u!4 &1730692417
 Transform:
   m_ObjectHideFlags: 0
@@ -4333,7 +4258,6 @@ MonoBehaviour:
   arrowsPerRoute: 7
   arrowSize: 0.34
   arrowSpeed: 1.6
-  ringHeight: 0.02
   flashSeconds: 0.18
   rippleSeconds: 0.5
 --- !u!1 &1835982914

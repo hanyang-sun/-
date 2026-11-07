@@ -15,13 +15,14 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-// Automatic real-RGB updates during one uninterrupted battle; never calls AnalyzeOnce or Restart.
+// Automatic real-RGB updates, including a separate local-overlap fixture; never calls AnalyzeOnce or Restart.
 public static class LiveProjectionRefreshChecks
 {
     [Serializable] private sealed class Result
     {
         public bool passed;
         public int assertions, immediateConfirmations;
+        public int continuousFrames;
         public List<string> failures = new List<string>();
         public List<string> boundaries = new List<string>();
     }
@@ -58,6 +59,11 @@ public static class LiveProjectionRefreshChecks
             if (EditorApplication.timeSinceStartup - started > 50) throw new TimeoutException("Live projection checks timed out.");
             if (lastFrame == Time.frameCount) return;
             lastFrame = Time.frameCount;
+            if (monitor != null && monitor.Automatic && monitor.CompensatingProjection)
+            {
+                result.continuousFrames++;
+                Check(!ProjectionCaptureGate.IsSuppressed, "Continuous recognition blanked the projector.");
+            }
             while (steps.Count > 0)
             {
                 IEnumerator step = steps.Peek();
@@ -85,10 +91,10 @@ public static class LiveProjectionRefreshChecks
     private static string Boundary() => "frame=" + Time.frameCount + "; auto=" + monitor?.Automatic +
         "; confirmed=" + monitor?.Session?.Confirmed?.Version + "; level=" + adapter?.Feedback?.Level?.SourceVersion +
         "; projection=" + adapter?.Projection?.LastPlan?.LevelVersion + "; running=" + controller?.Running +
-        "; raw=" + monitor?.LastRawScore?.ExactMatches + "; error=" + monitor?.LastError;
-    private static IEnumerator Wait(Func<bool> predicate, string message)
+        "; raw=" + monitor?.LastRawScore?.ExactMatches + "; error=" + monitor?.LastError + "; mismatches=" + (monitor?.LastRawScore == null ? "" : string.Join("; ", monitor.LastRawScore.Mismatches.Take(4)));
+    private static IEnumerator Wait(Func<bool> predicate, string message, double seconds = 3)
     {
-        double deadline = EditorApplication.timeSinceStartup + 3;
+        double deadline = EditorApplication.timeSinceStartup + seconds;
         while (!predicate() && EditorApplication.timeSinceStartup < deadline) yield return null;
         Check(predicate(), message);
     }
@@ -104,12 +110,12 @@ public static class LiveProjectionRefreshChecks
         controller = Object.FindFirstObjectByType<SimulationBattleController>();
         SimulationDualWindowSession.Open(); SimulationDualWindowSession.LayoutWindow.Focus();
         SimulationEditAccess.ConfigureFocus(() => true);
-        Object.FindFirstObjectByType<SimulationCameraCapture>().CaptureWithoutProjection = true;
+        Object.FindFirstObjectByType<SimulationCameraCapture>().CaptureWithoutProjection = false;
         monitor.Configure(3, true);
         Check(controller.GenerateNewRound(2, 3), "Could not create repeatable multi-entrance round.");
         controller.WavePlan = new WavePlan(2, 2, 9999, 0.1, 1, 1);
         controller.SetAutoStep(true);
-        yield return Wait(() => adapter.Feedback.Level != null, "Automatic RGB did not establish a baseline.");
+        yield return Wait(() => adapter.Feedback.Level != null, "Automatic RGB did not establish a baseline.", 10);
         controller.StartBattle();
         yield return Wait(() => controller.Running, "Automatic fresh confirmation did not start battle.");
         BattleSimulation originalBattle = controller.Battle;
@@ -136,6 +142,11 @@ public static class LiveProjectionRefreshChecks
         Check(board.TryAdd(free[1].X, free[1].Y, "red", out BoardLayout.Brick tower), "Could not add tower during battle.");
         yield return Wait(() => Matches(free[1], "red"), "Tower addition was not automatically confirmed during battle.");
         yield return VerifyDisplay(originalBattle, free[1], GameRole.Tower, 2, "add tower");
+        // Export the next automatic recognition input after the confirmed tower projection is visible.
+        var previousInput = monitor.LastRecognitionImage;
+        yield return Wait(() => monitor.LastRecognitionImage != null &&
+            !ReferenceEquals(previousInput, monitor.LastRecognitionImage), "No continuous RGB available for export.");
+        SaveRecognitionInput();
         controller.SetPaused(true);
         Check(board.TryMove(tower.BrickId, free[2].X, free[2].Y), "Could not move tower during battle.");
         yield return Wait(() => Matches(free[1], null) && Matches(free[2], "red"), "Tower move was not automatically confirmed during battle.");
@@ -165,6 +176,118 @@ public static class LiveProjectionRefreshChecks
         Check(controller.State.Phase == BattlePhase.Victory && controller.State.CoreHealth == wonHealth,
             "Post-victory display refresh changed the completed result.");
         Check(result.immediateConfirmations >= 6, "Running, paused and between-wave changes did not exercise immediate confirmation callbacks.");
+        monitor.UpdateApplied -= confirmedObserver;
+        confirmedObserver = null;
+        yield return VerifyLocalOverlap();
+        yield return VerifyProjectionInput();
+    }
+
+    private static void SaveRecognitionInput()
+    {
+        var rgb = monitor.LastRecognitionImage;
+        if (rgb == null) return;
+        Check(!ProjectionCaptureGate.IsSuppressed && monitor.CompensatingProjection,
+            "Exported recognition input was captured outside continuous projection mode.");
+        var texture = new Texture2D(rgb.Width, rgb.Height, TextureFormat.RGB24, false);
+        try
+        {
+            var pixels = new Color32[rgb.Width * rgb.Height];
+            for (int y = 0; y < rgb.Height; y++)
+                for (int x = 0; x < rgb.Width; x++)
+                {
+                    rgb.TryRead(x, y, out byte r, out byte g, out byte b);
+                    pixels[(rgb.Height - 1 - y) * rgb.Width + x] = new Color32(r, g, b, 255);
+                }
+            texture.SetPixels32(pixels); texture.Apply();
+            File.WriteAllBytes(Path.Combine(UnityEngine.Application.dataPath, "..", "continuous-recognition-input.png"),
+                texture.EncodeToPNG());
+        }
+        finally { Object.DestroyImmediate(texture); }
+    }
+
+    private static IEnumerator VerifyProjectionInput()
+    {
+        monitor.Automatic = false; controller.SetAutoStep(false);
+        var capture = Object.FindFirstObjectByType<SimulationCameraCapture>();
+        var light = adapter.Projection.GetComponent<SimulationProjectedLight>();
+        var blue = new Texture2D(2, 2); blue.SetPixels(Enumerable.Repeat(Color.blue, 4).ToArray()); blue.Apply();
+        var white = new Texture2D(2, 2); white.SetPixels(Enumerable.Repeat(Color.white, 4).ToArray()); white.Apply();
+        float strength = light.LightStrength;
+        try
+        {
+            light.LightStrength = 0.35f; light.CalibrationPattern = blue;
+            SimulationObservationImage photograph = capture.CaptureObservationImage(true);
+            monitor.AnalyzeOnce();
+            bool same = true;
+            for (int y = 0; y < photograph.Height && same; y++) for (int x = 0; x < photograph.Width && same; x++)
+            {
+                monitor.LastRecognitionImage.TryRead(x, y, out byte r, out byte g, out byte b);
+                int i = (y * photograph.Width + x) * 3;
+                same &= Math.Abs(r - photograph.Rgb[i]) <= 2 && Math.Abs(g - photograph.Rgb[i + 1]) <= 2 && Math.Abs(b - photograph.Rgb[i + 2]) <= 2;
+            }
+            Check(same, "Recognition input differs from the actual projected camera RGB.");
+            Check(!ProjectionCaptureGate.IsSuppressed && capture.CaptureWithoutProjection == false, "Input verification used a hidden clean capture.");
+            Check(monitor.LastRawScore.ExactMatches >= 95, "Photometric compensation failed on the actual blue projection: " + monitor.ReportText);
+            long confirmed = monitor.Session.Confirmed.Version;
+            light.LightStrength = 4; light.CalibrationPattern = white;
+            monitor.AnalyzeOnce();
+            Check(monitor.LastRawScore.ExactMatches < 100 && monitor.Session.Confirmed.Version == confirmed,
+                "An actually overexposed RGB photograph guessed a fully known layout.");
+            var modeButton = GameObject.Find("ProjectionSamplingMode").GetComponent<UnityEngine.UI.Button>();
+            modeButton.onClick.Invoke();
+            Check(capture.CaptureWithoutProjection && monitor.Session.Confirmed.Version == confirmed, "Mode switch discarded the confirmed layout.");
+            monitor.AnalyzeOnce(); monitor.AnalyzeOnce();
+            Check(monitor.Session.Confirmed.Version == confirmed, "Mode switch reused a previous mode's pending frames.");
+            monitor.AnalyzeOnce();
+            Check(monitor.LastRawScore.ExactMatches == 100, "Clean contrast mode no longer recognizes RGB.");
+            monitor.ToggleSamplingMode();
+            Check(!capture.CaptureWithoutProjection, "Mode switch did not restore continuous compensation.");
+            yield return null;
+            bool staleRejected = false;
+            var calibration = (Brick2Life.Vision.VisionCalibration)typeof(SimulationVisionMonitor)
+                .GetField("calibration", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(monitor);
+            try { light.GetObservationLighting(board.Definition, calibration, photograph, out _, out _); }
+            catch (InvalidOperationException) { staleRejected = true; }
+            Check(staleRejected, "A previous RGB frame was paired with the current projector output.");
+        }
+        finally { light.CalibrationPattern = null; light.LightStrength = strength; Object.DestroyImmediate(blue); Object.DestroyImmediate(white); }
+        yield return null;
+    }
+
+    private static IEnumerator VerifyLocalOverlap()
+    {
+        controller.SetAutoStep(false);
+        Check(controller.GenerateNewRound(2, 3), "Cannot prepare the local-overlap round.");
+        controller.WavePlan = new WavePlan(1, 50, 9999, 1.4, 1, 0.2);
+        yield return Wait(() => adapter.Feedback.Level != null && monitor.HasBaseline, "Local-overlap baseline did not confirm.");
+        controller.StartBattle();
+        yield return Wait(() => controller.Running, "Local-overlap battle did not start.");
+        controller.StepManual(3);
+        var target = controller.State.Enemies.First(enemy => !controller.Round.IsReserved(
+            (int)Math.Floor(enemy.X / 2), (int)Math.Floor(enemy.Y / 2)));
+        var wallCell = new GridPoint((int)Math.Floor(target.X / 2), (int)Math.Floor(target.Y / 2));
+        BattleSimulation sameBattle = controller.Battle;
+        var previousRoutes = controller.DisplayRoutes;
+        Check(board.TryAdd(wallCell.X, wallCell.Y, "green", out _), "Cannot place a wall under the fixture enemy.");
+        yield return Wait(() => Matches(wallCell, "green"), "Wall under enemy did not confirm from automatic RGB.");
+        Check(controller.Level.IsValid && controller.State.PendingEnemyReroutes > 0 && !controller.State.UsingPreviousRoutes,
+            "A locally overlapped enemy caused global route fallback in Unity.");
+        Check(!ReferenceEquals(previousRoutes, controller.DisplayRoutes) && controller.DisplayRoutes.Count == 3,
+            "New entrance routes were not immediately displayed.");
+        var status = (UnityEngine.UI.Text)typeof(SimulationBattlePanel)
+            .GetField("statusText", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(controller.Panel);
+        Check(status.text.Contains("脱离") && !status.text.Contains("布局堵路"), "UI mislabeled local escape as global blockage.");
+        yield return VerifyDisplay(sameBattle, wallCell, GameRole.Wall, 1, "local-overlap wall");
+        int oldSpawns = controller.State.SpawnedThisWave;
+        controller.StepManual(3);
+        yield return null;
+        Check(controller.State.Phase == BattlePhase.Spawning && controller.State.SpawnedThisWave > oldSpawns &&
+            controller.State.PendingEnemyReroutes == 0 && !controller.State.UsingPreviousRoutes,
+            "Old enemies did not reconnect while new enemies kept spawning.");
+        Check(!status.text.Contains("正脱离") && !status.text.Contains("布局堵路"), "UI kept an obsolete escape warning.");
+        Check(controller.State.Enemies.Where(enemy => enemy.Id > oldSpawns).All(enemy =>
+            !controller.Level.CellAt((int)Math.Floor(enemy.X), (int)Math.Floor(enemy.Y)).Blocked),
+            "New enemies in Unity continued into the wall on the old route.");
     }
     private static IEnumerator VerifyDisplay(BattleSimulation originalBattle, GridPoint cell, GameRole role, int count, string stage, bool running = true)
     {
@@ -177,7 +300,8 @@ public static class LiveProjectionRefreshChecks
         Check(plan != null && plan.LevelVersion == adapter.Feedback.Level.SourceVersion, stage + ": source projection version is stale.");
         bool hasMark = plan != null && plan.Marks.Any(mark => mark.Kind == ProjectionMarkKind.RoleHighlight &&
             mark.Role == role && Math.Abs(mark.CenterX - cell.X - 0.5f) < 0.001f && Math.Abs(mark.CenterY - cell.Y - 0.5f) < 0.001f);
-        Check(role == GameRole.None ? !plan.Marks.Any(mark => mark.Kind == ProjectionMarkKind.RoleHighlight &&
+        // Towers use octopus meshes; their optional role-highlight target is disabled by default.
+        Check(role == GameRole.None || role == GameRole.Tower ? !plan.Marks.Any(mark => mark.Kind == ProjectionMarkKind.RoleHighlight &&
             Math.Abs(mark.CenterX - cell.X - 0.5f) < 0.001f && Math.Abs(mark.CenterY - cell.Y - 0.5f) < 0.001f) : hasMark,
             stage + ": role projection remains at an old position.");
         var field = typeof(SimulationProjectionWindow).GetField("preview", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -193,7 +317,23 @@ public static class LiveProjectionRefreshChecks
         var expectedTowers = Enumerable.Range(0, 100).Where(i => adapter.Feedback.Level.At(i % 10, i / 10).Role == GameRole.Tower)
             .Select(i => new Vector2(i % 10 + 0.5f, i / 10 + 0.5f)).ToArray();
         var overlay = controller.GetComponent<SimulationBattleOverlay>();
-        foreach (string name in new[] { "BattleRange", "BattleTowerAim" })
+        var routeSegments = new List<Vector3>();
+        bool centeredRoutes = true;
+        foreach (BattleRoute route in controller.DisplayRoutes)
+            for (int i = 1; i < route.Route.Count; i++)
+            {
+                GridPoint a = route.Route[i - 1], b = route.Route[i];
+                centeredRoutes &= a.X != b.X ? a.Y % 2 == 1 && a.Y == b.Y : a.X % 2 == 1 && a.X == b.X;
+                routeSegments.Add(new Vector3((a.X + b.X) * 0.25f, 0f, (a.Y + b.Y) * 0.25f));
+            }
+        Check(centeredRoutes, stage + ": entrance routes run along physical-cell edges.");
+        yield return null;
+        var bands = (List<GameObject>)typeof(SimulationBattleOverlay)
+            .GetField("pathBands", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(overlay);
+        Check(bands.Count >= routeSegments.Count && routeSegments.Select((position, i) =>
+            Vector3.Distance(position, bands[i].transform.position) < 0.001f).All(value => value),
+            stage + ": actual projected path bands do not follow the centered enemy routes.");
+        foreach (string name in new[] { "BattleRange", "OctopusFace" })
         {
             MeshRenderer[] renderers = overlay.MarksRoot.GetComponentsInChildren<MeshRenderer>().Where(r => r.name == name).ToArray();
             Check(renderers.Length == expectedTowers.Length && expectedTowers.All(position => renderers.Any(r =>

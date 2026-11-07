@@ -51,6 +51,9 @@ namespace Brick2Life.Feedback
 
         private void ConnectVision(SimulationVisionMonitor monitor)
         {
+            var light = adapter.Projection.GetComponent<SimulationProjectedLight>();
+            if (light == null) light = adapter.Projection.gameObject.AddComponent<SimulationProjectedLight>();
+            monitor.UseProjectedLight(light);
             VisionConnected = true;
             Session = monitor.Session;
             monitor.UpdateApplied += OnVisionUpdate;

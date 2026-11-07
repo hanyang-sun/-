@@ -1,12 +1,12 @@
 # 采集 JSON 中的相机配置
 
-更新日期：2026-10-19。适用于任务 A 的 `SimulationCameraCapture`。
+更新：2026-11-07。适用于当前 `SimulationCameraCapture`；文末 2026-10-19 记录仅为历史元数据验收。当前默认实验相机为 Perspective/FOV 50。
 
 2026-10-20 架构更新：采集通过独立 SimulationBoardSession 读取冻结快照，CaptureFrame 返回本次结果，SaveImage 负责按钮与文件保存。格式保持兼容；最新回归与接入说明见 [架构说明](architecture.md)。
 
 ## 使用方式与文件关系
 
-在当前仿真场景点击“保存 RGB + 标注”，仍会生成同名 PNG 和 JSON。相机元数据在顶层 schema 2 引入，当前随光照扩展升至 **3**；`cameraConfigurationId` 和 `cameraConfiguration` 的内容与编号算法保持相机 schema 1。schema 3 新增的光照字段见 [光照使用与代码说明](task-a-lighting-guide.md)。历史文件不会被重写，读取器需要允许 schema 1 缺少相机字段、schema 1/2 缺少光照字段。
+在当前仿真场景点击“保存 RGB + 标注”，仍会生成同名 PNG 和 JSON。相机元数据在顶层 schema 2 引入，当前随光照扩展升至 **3**；`cameraConfiguration.schemaVersion` 仍为 1；当前新增 `exposureScale`，配置哈希也包含该字段，因此新旧样本的相机 ID 不保证相同。schema 3 新增的光照字段见 [光照使用与代码说明](task-a-lighting-guide.md)。历史文件不会被重写，读取器需要允许 schema 1 缺少相机字段、schema 1/2 缺少光照字段。
 
 代码读取实际采集相机的参数，正交、透视均可使用。它不会替你切换投影模式或调整机位。图像尺寸来自相机绑定的 RenderTexture，与 Game 窗口尺寸无关。
 
@@ -21,6 +21,7 @@
 | --- | --- |
 | `cameraConfigurationId` | `camera-v1-` 加 SHA-256 十六进制字符串。用于区分记录的相机配置。 |
 | `cameraConfiguration.schemaVersion` | 相机配置自身的结构版本，当前为 1；独立于顶层 GT JSON 版本。 |
+| `exposureScale` | 当前识别/采集相机锁定的曝光系数，默认 0.3；老文件缺少此字段，不应按 0 解释。不能把仿真系数当作真实快门或 ISO。 |
 | `unityVersion` | 生成配置的 Unity 版本，同时纳入配置编号。 |
 | `projectionType` | `orthographic` 或 `perspective`。 |
 | `imageWidth/imageHeight` | 导出 PNG 的像素宽高。 |
@@ -72,8 +73,8 @@ B 可使用图像、帧号、公开的棋盘几何和相机配置选择标定方
 
 Unity 6000.3.24f1 独立工程实际运行通过 **684 项断言**，生成 **15 对 PNG/JSON**。覆盖正交、透视、Physical Camera 配置、非正方形分辨率、跨相机实例及区域性、参数恢复，以及采集期间配置变化的拒绝行为。
 
-- [完整结果](../.scratch/camera-metadata-validation/run-20261019-201359-380/verification.json)
-- [透视配置示例](../.scratch/camera-metadata-validation/run-20261019-201359-380/perspective.json)
-- [正交配置示例](../.scratch/camera-metadata-validation/run-20261019-201359-380/orthographic.json)
+- 完整结果（原本地路径：`.scratch/camera-metadata-validation/run-20261019-201359-380/verification.json`）
+- 透视配置示例（原本地路径：`.scratch/camera-metadata-validation/run-20261019-201359-380/perspective.json`）
+- 正交配置示例（原本地路径：`.scratch/camera-metadata-validation/run-20261019-201359-380/orthographic.json`）
 
-证据位于本地 `.scratch`，不自动随正式代码发布；运行上述脚本可重新生成。本次没有操作主工程编辑器的 Play 状态或保存其未保存场景。
+以上为原证据路径，本地文件可能已清理，不提供失效下载链接；证据不自动随正式代码发布。运行上述脚本可重新生成。本次没有操作主工程编辑器的 Play 状态或保存其未保存场景。
